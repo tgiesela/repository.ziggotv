@@ -1,0 +1,8 @@
+kodi-addon-checker
+polib
+pycryptodomex
+pylint
+requests
+setuptools
+xmlschema
+Kodistubs==20.0.1
