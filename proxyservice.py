@@ -30,21 +30,13 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         """Handle http get requests, used for manifest and all streaming calls"""
-        if REMOTE_DEBUG:
-            pydevd.settrace('localhost', stdoutToServer=True, stderrToServer=True)
+        # if REMOTE_DEBUG:
+        #     pydevd.settrace('localhost', stdoutToServer=True, stderrToServer=True)
         path = self.path  # Path with parameters received from request e.g. "/manifest?id=234324"
         print('HTTP GET Request received: {0}'.format(unquote(path)))
         proxy: ProxyServer = self.server
         print("ORIG: {0}, REDIR: {1}".format(proxy.originalhost, proxy.redirectedhost))
-        # if '/manifest' not in path:
-        #     self.send_response(404)
-        #     self.end_headers()
-        #     return
         try:
-            # IMPORTANT NOTE!!!
-            # If we need this to update the vxttoken in the url to get the manifest,
-            # we need to adapt the manifest MPD to add the baseURL, otherwise all data will run
-            # through the proxy, which is not what we want.
             received_data_length = int(self.headers.get('content-length', 0))
             received_data = self.rfile.read(received_data_length)
             streaming_token = proxy.get_streaming_token()
@@ -62,7 +54,8 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
                     streaming_token = orig_token
                 manifest_url = proxy.get_manifest_url(orig_hostname, orig_path, streaming_token)
                 print("ManifestURL: {0}".format(manifest_url))
-                response = proxy.session.get_manifest(manifest_url)
+                with proxy.lock:
+                    response = proxy.session.get_manifest(manifest_url)
                 proxy.update_redirection(response.url)
             else:
                 # baseurl = proxy.get_baseurl(response.url, streaming_token)
@@ -80,9 +73,9 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_GET_partial(self):
-        """Handle http get requests, used for manifest only"""
-        if REMOTE_DEBUG:
-            pydevd.settrace('localhost', stdoutToServer=True, stderrToServer=True)
+        """Handle http get requests, used for manifest only. Currently not used due to kodi crashes """
+        # if REMOTE_DEBUG:
+        #     pydevd.settrace('localhost', stdoutToServer=True, stderrToServer=True)
         path = self.path  # Path with parameters received from request e.g. "/manifest?id=234324"
         print('HTTP GET Request received: {0}'.format(unquote(path)))
         proxy: ProxyServer = self.server
@@ -114,7 +107,8 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
 
             manifest_url = proxy.get_manifest_url(orig_hostname, orig_path, streaming_token)
             print("ManifestURL: {0}".format(manifest_url))
-            response = proxy.session.get_manifest(manifest_url)
+            with proxy.lock:
+                response = proxy.session.get_manifest(manifest_url)
             proxy.update_redirection(response.url)
             baseurl = proxy.get_baseurl(response.url, streaming_token)
             print("BaseURL: {0}".format(baseurl))
@@ -150,11 +144,13 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             content_id = parse_qs(parsed_url.query)['ContentId'][0]
 
             proxy: ProxyServer = self.server
-            proxy.session.load_cookies()
+            with proxy.lock:
+                proxy.session.load_cookies()
             hdrs = {}
             for key in self.headers:
                 hdrs[key] = self.headers[key]
-            response = proxy.session.get_license(content_id, received_data, hdrs)
+            with proxy.lock:
+                response = proxy.session.get_license(content_id, received_data, hdrs)
             for key in response.headers:
                 self.headers.add_header(key, response.headers[key])
                 if key.lower() == 'x-streaming-token':
@@ -375,18 +371,16 @@ class ServiceMonitor(xbmc.Monitor):
 
 REMOTE_DEBUG = False
 if __name__ == '__main__':
-    if REMOTE_DEBUG:
-        try:
-            sys.path.append('E:\Eclipse IDE\eclipse\plugins\org.python.pydev.core_10.2.1.202307021217\pysrc')
-            import pydevd
-
-        except:
-            sys.stderr.write("Error: " + "You must add org.python.pydev.debug.pysrc to your PYTHONPATH")
-            sys.stderr.write("Error: " + "Debug not available")
-    else:
-        import web_pdb
-
-        # web_pdb.set_trace()
+    # if REMOTE_DEBUG:
+    #     try:
+    #         sys.path.append('E:\Eclipse IDE\eclipse\plugins\org.python.pydev.core_10.2.1.202307021217\pysrc')
+    #         import pydevd
+    #     except:
+    #         sys.stderr.write("Error: " + "You must add org.python.pydev.debug.pysrc to your PYTHONPATH")
+    #         sys.stderr.write("Error: " + "Debug not available")
+    # else:
+    #     import web_pdb
+    #     web_pdb.set_trace()
     lock = threading.Lock()
     proxy_service = HttpProxyService(lock)
     proxy_service.set_address(('127.0.0.1', 6969))

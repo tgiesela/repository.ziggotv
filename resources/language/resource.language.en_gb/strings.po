@@ -16,15 +16,27 @@ msgstr ""
 "Language: en_GB\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgctxt "#30001"
+msgctxt "#31000"
+msgid "General"
+msgstr "General"
+
+msgctxt "#31001"
 msgid "Username or Email-address"
 msgstr "Username or Email-address"
 
-msgctxt "#30002"
+msgctxt "#31002"
 msgid "Password"
 msgstr "Password"
 
-msgctxt "#30003"
-msgid "General"
-msgstr "General"
+msgctxt "#32000"
+msgid "Options"
+msgstr "Options"
+
+msgctxt "#32001"
+msgid "Trace-network-traffic"
+msgstr "Trace network traffic"
+
+msgctxt "#32002"
+msgid "use-proxy"
+msgstr "Use proxy"
 

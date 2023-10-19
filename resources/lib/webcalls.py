@@ -20,6 +20,7 @@ class Web(requests.Session):
 
     def __init__(self, addon):
         super().__init__()
+        self.print_network_traffic = addon.getSetting('print-network-traffic')
         self.addon_path = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
         self.load_cookies()
 
@@ -40,7 +41,6 @@ class Web(requests.Session):
         saved_cookies = self.merge(new_cookies, saved_cookies)
         # new_cookies = requests.utils.dict_from_cookiejar(self.session.cookies)  # turn cookiejar into dict
         Path(self.pluginpath(G.COOKIES_INFO)).write_text(json.dumps(saved_cookies))  # save them to file as JSON
-        print("COOKIES saved: ", saved_cookies)
 
     def load_cookies(self):
         if Path(self.pluginpath(G.COOKIES_INFO)).exists():
@@ -49,7 +49,6 @@ class Web(requests.Session):
             cookies = {}
         cookies = requests.utils.cookiejar_from_dict(cookies)  # turn dict to cookiejar
         self.cookies.update(cookies)
-        print("COOKIES loaded: ", self.cookies)
         return cookies
 
     def merge(self, dict1, dict2):
@@ -57,6 +56,8 @@ class Web(requests.Session):
         return dict2
 
     def print_dialog(self, response):
+        if self.print_network_traffic == 'false':
+            return
 
         print("URL:", response.url)
         print("Status-code:", response.status_code)
@@ -267,7 +268,7 @@ class LoginSession(Web):
                 exp = datetime.datetime.now()
                 now = exp
             if exp > now:
-                pass
+                print("Accesstoken still valid")
             else:
                 self.cookies.pop("ACCESSTOKEN")
                 response = super().do_post(G.authentication_URL + "/refresh",

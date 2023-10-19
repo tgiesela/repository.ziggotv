@@ -1,14 +1,12 @@
-import base64
 import json
 import os
 import sys
 import urllib.parse
 from collections import namedtuple
 from pathlib import Path
-from urllib.parse import urljoin, urlencode, urlparse, urlunparse, parse_qsl
+from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 
 from resources.lib.globals import G
-# from resources.lib.parser import ProtoParser
 
 import xbmc
 import xbmcaddon
@@ -43,9 +41,9 @@ def get_locator(channel) -> str:
 
 def build_url(channel, streaming_token):
     avc = get_locator(channel)
-
-    use_proxy = False  # Does not currently work correct. Kodi crashes.
-    if use_proxy:
+    # use_proxy = False  # Does not currently work correct. Kodi crashes.
+    if use_proxy == 'true':
+        xbmc.log('Using proxy server', xbmc.LOGINFO)
         o = urlparse(avc)
         Components = namedtuple(
             typename='Components',
@@ -80,7 +78,6 @@ def plugin_initialization():
     addon_path = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
     Path(addon_path).mkdir(parents=True, exist_ok=True)
     if addon.getSetting('username') == '#notset#' or addon.getSetting('username') == '':
-        print("Attempt to open settings")
         xbmcaddon.Addon().openSettings()
     if addon.getSetting('username') == '':
         username = json.loads(Path(r'C:\temp\credentials.json').read_text())['username']
@@ -89,6 +86,7 @@ def plugin_initialization():
         username = addon.getSetting('username')
         password = addon.getSetting('password')
 
+    session.load_cookies()
     session_info = session.login(username, password)
     if len(session_info) == 0:
         raise RuntimeError("Login failed, check your credentials")
@@ -390,26 +388,22 @@ def router(param_string):
         list_categories()
 
 
-REMOTE_DEBUG = True
+REMOTE_DEBUG = False
 if __name__ == '__main__':
-    if REMOTE_DEBUG:
-        try:
-            sys.path.append('E:\Eclipse IDE\eclipse\plugins\org.python.pydev.core_10.2.1.202307021217\pysrc')
-            import pydevd
-
-            pydevd.settrace('localhost', stdoutToServer=True, stderrToServer=True)
-        except:
-            sys.stderr.write("Error: " + "You must add org.python.pydev.debug.pysrc to your PYTHONPATH")
-            sys.stderr.write("Error: " + "Debug not available")
-    else:
-        import web_pdb
-
-        web_pdb.set_trace()
+    # if REMOTE_DEBUG:
+    #     try:
+    #         sys.path.append('E:\Eclipse IDE\eclipse\plugins\org.python.pydev.core_10.2.1.202307021217\pysrc')
+    #         import pydevd
+    #         pydevd.settrace('localhost', stdoutToServer=True, stderrToServer=True)
+    #     except:
+    #         sys.stderr.write("Error: " + "You must add org.python.pydev.debug.pysrc to your PYTHONPATH")
+    #         sys.stderr.write("Error: " + "Debug not available")
+    # else:
+    #     import web_pdb
+    #     web_pdb.set_trace()
 
     addon: Addon = xbmcaddon.Addon()
-    print("ADDON: ", addon.getAddonInfo('name'))
-    for i in range(len(sys.argv)):
-        print("arg{0}: {1}".format(i, sys.argv[i]))
+    use_proxy = addon.getSetting('use-proxy')
     session: LoginSession = LoginSession(addon)
     plugin_initialization()
 
