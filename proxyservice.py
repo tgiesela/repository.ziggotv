@@ -91,6 +91,10 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             # manifest.mpd with the BaseURL. This is attempted in this function.
             # However, ISA does niet seem to update the BaseURL after the first manifest.mpd, so this does
             # not work.
+            # A bit of research showed that ISA sets up a new connection. Redirection gives a different url and
+            # the streaming-token contains a session-id, which is probably not the same for the new connection.
+            # My assumption is that this is why the streaming only works for the first few seconds before kodi
+            # stops or crashes.
             received_data_length = int(self.headers.get('content-length', 0))
             received_data = self.rfile.read(received_data_length)
             streaming_token = proxy.get_streaming_token()
@@ -110,7 +114,7 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             with proxy.lock:
                 response = proxy.session.get_manifest(manifest_url)
             proxy.update_redirection(response.url)
-            baseurl = proxy.get_baseurl(response.url, streaming_token)
+            baseurl = proxy.get_baseurl_orig(manifest_url, streaming_token)
             print("BaseURL: {0}".format(baseurl))
             mpd = str(response.content, 'utf-8')
             mpd = mpd.replace('><Period', '>' + '<BaseURL>' + baseurl + '</BaseURL><Period')
@@ -214,27 +218,26 @@ class ProxyServer(http.server.HTTPServer):
         host_and_path = o.hostname + o.path[0:o.path.find('/dash,vxttoken=')]
         self.redirectedhost = host_and_path
 
-    def get_baseurl(self, url, streaming_token):
+    def get_baseurl_orig(self, url, streaming_token):
         #  Here we build the url which has to be set in the manifest as <BaseURL>
-        #  We take the first part (before /dash,vxttoken=) as the beginning
-        #  Next we get the original locator and raplace the part before /dash with
+        #  We use the original locator and replace the part before /dash with
         #  the new host_and_path
-        #  Finally we insert the vxttoken again
+        #  Finally we insert the vxttoken
+        path_dir = url.rsplit('/', 1)[0]
+        path_file = url.rsplit('/', 1)[1]
         o = urlparse(url)
-        host_and_path = self.redirectedhost + self.locator_path_dir
+        host_and_path = path_dir
         new_url = host_and_path
         return o.scheme + '://' + self.insert_token(new_url, streaming_token) + '/'
 
-    def zz_get_baseurl(self, url, streaming_token):
+    def get_baseurl(self, url, streaming_token):
         #  Here we build the url which has to be set in the manifest as <BaseURL>
-        #  We take the first part (before /dash,vxttoken=) as the beginning 
-        #  Next we get the original locator and raplace the part before /dash with
+        #  We use the original locator and replace the part before /dash with
         #  the new host_and_path
-        #  Finally we insert the vxttoken again 
+        #  Finally we insert the vxttoken
         o = urlparse(url)
-        host_and_path = self.redirectedhost + o.path[0:o.path.find('/dash,vxttoken=')]
-        orig_path_suffix = self.locator_path_dir
-        new_url = host_and_path + orig_path_suffix
+        host_and_path = self.redirectedhost + self.locator_path_dir
+        new_url = host_and_path
         return o.scheme + '://' + self.insert_token(new_url, streaming_token) + '/'
 
     def set_locator(self, locator):
