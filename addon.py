@@ -1,10 +1,12 @@
 import base64
 import json
+import os
 import sys
 import urllib.parse
+from collections import namedtuple
 from pathlib import Path
-from urllib.parse import parse_qsl
-from resources.lib.sharedcache import SharedCache
+from urllib.parse import urljoin, urlencode, urlparse, urlunparse, parse_qsl
+
 from resources.lib.globals import G
 # from resources.lib.parser import ProtoParser
 
@@ -28,14 +30,48 @@ PROTOCOL = 'mpd'
 DRM = 'com.widevine.alpha'
 
 
-def build_url(channel, streaming_token):
-    avc = channel["locator"]
-    avc = avc.replace("/dash", "/dash,vxttoken=" + streaming_token).replace("http://", "https://")
-    #    response = session.do_get(avc)
-    #    if response.status_code != 200:
-    #        raise RuntimeError("status code <> 200 during load manifest.mpd")
-
+def get_locator(channel) -> str:
+    if 'locators' in channel:
+        if 'Orion-DASH-HEVC' in channel['locators']:
+            avc = channel['locators']['Orion-DASH-HEVC']
+        else:
+            avc = channel['locators']['Orion-DASH']
+    else:
+        avc = channel['locators']['Orion-DASH']
     return avc
+
+
+def build_url(channel, streaming_token):
+    avc = get_locator(channel)
+
+    use_proxy = False  # Does not currently work correct. Kodi crashes.
+    if use_proxy:
+        o = urlparse(avc)
+        Components = namedtuple(
+            typename='Components',
+            field_names=['scheme', 'netloc', 'path', 'url', 'query', 'fragment']
+        )
+
+        query_params = {
+            'path': o.path,
+            'token': streaming_token,
+            'hostname': o.hostname
+        }
+
+        url = urlunparse(
+            Components(
+                scheme='http',
+                netloc='127.0.0.1:6969',
+                query=urlencode(query_params),
+                path='manifest',
+                url='',
+                fragment=''
+            )
+        )
+        print('BUILD URL: ', url)
+        return url
+    else:
+        return avc.replace("/dash", "/dash,vxttoken=" + streaming_token).replace("http://", "https://")
 
 
 def plugin_initialization():
@@ -98,7 +134,7 @@ def list_categories():
     # instead of adding one by ove via addDirectoryItem.
     xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
     # Add a sort method for the virtual folder items (alphabetically, ignore articles)
-    xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
+    xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL_IGNORE_FOLDERS)
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(__handle__)
 
@@ -109,20 +145,44 @@ def list_channels():
     listing = []
     session.refresh_channels()
     channels = session.get_channels()
+    entitlements = session.get_entitlements()["entitlements"]
+    entitlementlist = []
+    i = 0
+    while i < len(entitlements):
+        entitlementlist.append(entitlements[i]["id"])
+        i += 1
 
     # Iterate through channels
     for video in channels:  # create a list item using the song filename for the label
+        subscribed = False
         if 'isHidden' in video:
             if video['isHidden']:
                 continue
+        if 'linearProducts' in video:
+            for linearProduct in video['linearProducts']:
+                if linearProduct in entitlementlist:
+                    subscribed = True
         li = listitem_from_channel(video)
-        callback_url = '{0}?action=play&video={1}'.format(__url__, video['id'])
+        if not subscribed:
+            li.setProperty('IsPlayable', 'false')
+        if video['locator'] is None:
+            li.setProperty('IsPlayable', 'false')
+        if li.getProperty('IsPlayable') == 'true':
+            callback_url = '{0}?action=play&video={1}'.format(__url__, video['id'])
+        else:
+            tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
+            title = tag.getTitle()
+            tag.setTitle(title[0:title.find('.') + 1] + '[COLOR red]' + title[title.find('.') + 1:] + '[/COLOR]')
+            callback_url = '{0}?action=cantplay&video={1}'.format(__url__, video['id'])
         listing.append((callback_url, li, False))
+
     # Add our listing to Kodi.
 
     xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
+    xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL)
     # Add a sort method for the virtual folder items (alphabetically, ignore articles)
-    xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
+    #    xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
+
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(__handle__)
 
@@ -142,13 +202,17 @@ def listitem_from_channel(video, url: str = None) -> xbmcgui.ListItem:
     else:
         li = xbmcgui.ListItem(path=url)
     if len(video['imageStream']) > 0:
+        thumbname = xbmc.getCacheThumbName(video['imageStream']['full'])
+        thumbfile = (
+            xbmcvfs.translatePath('special://thumbnails/' + thumbname[0:1] + '/' + thumbname.split('.')[0] + '.png'))
+        if os.path.exists(thumbfile):
+            os.remove(thumbfile)
         li.setArt({'icon': video['logo']['focused'],
                    'thumb': video['logo']['focused'],
                    'poster': video['imageStream']['full']})
     else:
         li.setArt({'icon': video['logo']['focused'],
                    'thumb': video['logo']['focused']})
-
     # set the list item to playable
     li.setProperty('IsPlayable', 'true')
     tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
@@ -176,13 +240,13 @@ def listitem_from_channel(video, url: str = None) -> xbmcgui.ListItem:
     return li
 
 
-def send_notification(item: xbmcgui.ListItem, token):
+def send_notification(item: xbmcgui.ListItem, token, locator):
     tag: xbmc.InfoTagVideo = item.getVideoInfoTag()
     uniqueid = tag.getUniqueID('ziggochannelid')
     params = {'sender': addon.getAddonInfo('id'),
               'message': tag.getTitle(),
               'data': {'command': 'play_video',
-                       'command_params': {'uniqueId': uniqueid, 'streamingToken': token}
+                       'command_params': {'uniqueId': uniqueid, 'streamingToken': token, 'locator': locator}
                        },
               }
 
@@ -202,8 +266,6 @@ def play_video(path):
     :return: None
     """
     # Create a playable item with a path to play.
-    print('PLAY ITEM: ' + path)
-
     channels = session.get_channels()
     channel = {}
     for video in channels:
@@ -219,13 +281,14 @@ def play_video(path):
         if is_helper.check_inputstream():
             xbmc.log('Inside play condition...')
 
-        streaming_token = session.get_streaming_token(channel)
+        streaming_token = session.obtain_streaming_token(channel)
 
         url = build_url(channel, streaming_token)
         play_item = listitem_from_channel(channel, url=url)
+        send_notification(play_item, streaming_token, get_locator(channel))  # send the streaming-token to the Service
         # play_item = xbmcgui.ListItem(path=url)
 
-        license_headers = G.CONST_BASE_HEADERS
+        license_headers = dict(G.CONST_BASE_HEADERS)
         # 'Content-Type': 'application/octet-stream',
         license_headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
@@ -284,27 +347,7 @@ def play_video(path):
         play_item.setProperty(
             key='inputstream.adaptive.server_certificate',
             value=widevine_certificate)
-        # From netflix plugin
-        # data comes from cenc:pssh tag in MPD file
-        # pssh_kid = ('AAAATHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAACwIARIQkOMqRxL1SAureryKT'
-        #             '+8l2iIUbmxfdHZfc3RhbmRhYXJkX2NlbmM4AA==|') + kid
-        # print('PSSH_KID: ', pssh_kid)
-        # play_item.setProperty('inputstream.adaptive.pre_init_data', pssh_kid)
-        # end netflix plugin
-        # End Test
-
-        # Pass the item to the Kodi player.
-        # player = xbmc.Player()
-        # player.play(play_item.getPath(), play_item, False)
-        # xbmcgui.Window(xbmcgui.getCurrentWindowId()).getFocus()
         xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
-        #  xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
-        #  xbmc.Player().onPlayBackStopped()
-        #  print(xbmc.Player().isPlaying())
-        send_notification(play_item, streaming_token)
-        sharedcache = SharedCache()
-        sharedcache.setprop(G.VIDEO_PLAYING, 'true')
-        sharedcache.setprop(G.VIDEO_ID, path)
 
     except Exception as exc:
         print(type(exc))
@@ -333,14 +376,14 @@ def router(param_string):
             # Display the list of videos in a provided category.
             if params['category'] == "Channels":
                 list_channels()
-                print("ADDON: {0}, Channel-list created".format(addon.getAddonInfo('name')))
             elif params['category'] == 'Series':
                 list_series()
-                print("ADDON: {0}, Categories-list created".format(addon.getAddonInfo('name')))
         elif params['action'] == 'play':
             # Play a video from a provided URL.
-            print("ADDON: {0}, Play video {1}".format(addon.getAddonInfo('name'), params['video']))
             play_video(params['video'])
+        elif params['action'] == 'cantplay':
+            # Play a video from a provided URL.
+            xbmcgui.Dialog().ok('Error', 'Cannot watch this channel')
     else:
         # If the plugin is called from Kodi UI without any parameters,
         # display the list of video categories
@@ -358,6 +401,11 @@ if __name__ == '__main__':
         except:
             sys.stderr.write("Error: " + "You must add org.python.pydev.debug.pysrc to your PYTHONPATH")
             sys.stderr.write("Error: " + "Debug not available")
+    else:
+        import web_pdb
+
+        web_pdb.set_trace()
+
     addon: Addon = xbmcaddon.Addon()
     print("ADDON: ", addon.getAddonInfo('name'))
     for i in range(len(sys.argv)):

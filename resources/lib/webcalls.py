@@ -102,7 +102,7 @@ class Web(requests.Session):
          """
         if extra_headers is None:
             extra_headers = {}
-        headers = G.CONST_BASE_HEADERS
+        headers = dict(G.CONST_BASE_HEADERS)
         if json_data is not None:
             headers.update({"Content-Type": "application/json; charset=utf-8"})
         for key in extra_headers:
@@ -125,7 +125,7 @@ class Web(requests.Session):
          """
         if extra_headers is None:
             extra_headers = {}
-        headers = G.CONST_BASE_HEADERS
+        headers = dict(G.CONST_BASE_HEADERS)
         if json_data is not None:
             headers.update({"Content-Type": "application/json; charset=utf-8"})
         for key in extra_headers:
@@ -147,7 +147,7 @@ class Web(requests.Session):
          """
         if extra_headers is None:
             extra_headers = {}
-        headers = G.CONST_BASE_HEADERS
+        headers = dict(G.CONST_BASE_HEADERS)
         if json_data is not None:
             headers.update({"Content-Type": "application/json; charset=utf-8"})
         for key in extra_headers:
@@ -167,12 +167,15 @@ class LoginSession(Web):
 
     def __init__(self, addon):
         super().__init__(addon)
+        self.streaming_token = None
+        self.entitlements_info = None
         self.extra_headers = {}
         self.stream_info = None
         self.username = None
         self.get_channels()
         self.get_session_info()
         self.get_customer_info()
+        self.get_entitlements()
 
     def __status_code_ok(self, response):
         """
@@ -211,12 +214,19 @@ class LoginSession(Web):
             self.channel_info = {}
         return self.channel_info
 
+    def get_entitlements(self):
+        if Path(self.pluginpath(G.ENTITLEMENTS_INFO)).exists():
+            self.entitlements_info = json.loads(Path(self.pluginpath(G.ENTITLEMENTS_INFO)).read_text())
+        else:
+            self.entitlements_info = {}
+        return self.entitlements_info
+
     def __login_valid(self):
         _valid = False
         if len(self.session_info) == 0:  # Session_info empty, so not successfully logged in
             return False
 
-        # We moeten het JWT token decoderen en daar de geldigheids datum uithalen.
+        # We moeten het JWT token decoderen en daar de geldigheidsdatum uithalen.
         # Als het token niet meer geldig is moet het ACCESSTOKEN-cookie worden verwijderd!
 
         if datetime.datetime.fromtimestamp(self.session_info['refreshTokenExpiry']) > datetime.datetime.now():
@@ -305,7 +315,7 @@ class LoginSession(Web):
         Path(self.pluginpath(G.WIDEVINE_LICENSE)).write_text(encoded_content.decode("ascii"))
         Path(self.pluginpath(G.WIDEVINE_LICENSE) + '.raw').write_bytes(response.content)
 
-    def get_streaming_token(self, channel):
+    def obtain_streaming_token(self, channel):
         url = G.streaming_URL.format(householdid=self.session_info['householdId'])
         response = super().do_post(url,
                                    params={
@@ -318,10 +328,27 @@ class LoginSession(Web):
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during obtain streaming info")
         self.stream_info = json.loads(response.content)
-
+        self.streaming_token = response.headers["x-streaming-token"]
         return response.headers["x-streaming-token"]
 
-    def update_token(self, streaming_id):
+    def get_license(self, content_id, request_data, license_headers):
+        url = G.license_URL
+        license_headers.update({'x-streaming-token': self.streaming_token})
+        for key in license_headers:
+            if key in G.ALLOWED_LICENSE_HEADERS:
+                pass
+            else:
+                print("HEADER DROPPPED: {0}:{1}".format(key, license_headers[key]))
+                license_headers[key] = None
+        response = super().do_post(url,
+                                   params={'ContentId': content_id},
+                                   data=request_data,
+                                   extra_headers=license_headers)
+        if 'x-streaming-token' in response.headers:
+            self.streaming_token = response.headers['x-streaming-token']
+        return response
+
+    def update_token(self, streaming_token):
         url = G.license_URL + '/token'
         profile_id = self.get_customer_info()["profiles"][0]["profileId"]
         tracking_id = self.get_customer_info()["hashedCustomerId"]
@@ -329,7 +356,7 @@ class LoginSession(Web):
             'X-OESP-Username': self.username,
             'x-tracking-id': tracking_id,
             'X-Profile': profile_id,
-            'x-streaming-token': streaming_id
+            'x-streaming-token': streaming_token
         }
         response = super().do_post(url,
                                    data=None,
@@ -337,7 +364,11 @@ class LoginSession(Web):
                                    extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during update token")
-        return response.headers["x-streaming-token"]
+        if 'x-streaming-token' in response.headers:
+            self.streaming_token = response.headers['x-streaming-token']
+            return response.headers["x-streaming-token"]
+        else:
+            return ''
 
     def delete_token(self, streaming_id):
         url = G.license_URL + '/token'
@@ -345,9 +376,9 @@ class LoginSession(Web):
         tracking_id = self.get_customer_info()["hashedCustomerId"]
         self.extra_headers = {
             'X-OESP-Username': self.username,
-            'x-tracking-id': tracking_id,
+            'x-tracking-token': tracking_id,
             'X-Profile': profile_id,
-            'x-streaming-id': streaming_id
+            'x-streaming-token': streaming_id
         }
         response = super().do_delete(url,
                                      data=None,
@@ -355,3 +386,7 @@ class LoginSession(Web):
                                      extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during delete token")
+
+    def get_manifest(self, url):
+        response = super().do_get(url, data=None, params=None)
+        return response
