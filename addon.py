@@ -194,15 +194,18 @@ def get_widevine_license(addon_name):
 
 
 def listitem_from_channel(video, url: str = None) -> xbmcgui.ListItem:
-    print("ADDON: channel: {0}".format(video['name']))
     if url is None:
         li = xbmcgui.ListItem(label="{0}. {1}".format(video['logicalChannelNumber'], video['name']))
     else:
         li = xbmcgui.ListItem(path=url)
+    thumbname = xbmc.getCacheThumbName(video['logo']['focused'])
+    thumbfile = xbmcvfs.translatePath('special://thumbnails/' + thumbname[0:1] + '/' + thumbname)
+    if os.path.exists(thumbfile):
+        os.remove(thumbfile)
     if len(video['imageStream']) > 0:
         thumbname = xbmc.getCacheThumbName(video['imageStream']['full'])
         thumbfile = (
-            xbmcvfs.translatePath('special://thumbnails/' + thumbname[0:1] + '/' + thumbname.split('.')[0] + '.png'))
+            xbmcvfs.translatePath('special://thumbnails/' + thumbname[0:1] + '/' + thumbname.split('.')[0] + '.jpg'))
         if os.path.exists(thumbfile):
             os.remove(thumbfile)
         li.setArt({'icon': video['logo']['focused'],
