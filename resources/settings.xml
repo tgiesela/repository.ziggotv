@@ -23,6 +23,16 @@
 		                <heading></heading>
 	                </control>
                 </setting>
+                <setting id="profile" type="string" label="31003" >
+                    <default></default>
+                    <constraints>
+		                <allowempty>true</allowempty>
+	                </constraints>
+                    <level>0</level>
+                    <control type="edit" format="string">
+		                <heading></heading>
+	                </control>
+                </setting>
             </group>
         </category>
         <category id="Options" label="32000" help="">

@@ -28,6 +28,10 @@ msgctxt "#31002"
 msgid "Password"
 msgstr "Wachtwoord"
 
+msgctxt "#31003"
+msgid "Profile"
+msgstr "Profiel"
+
 msgctxt "#32000"
 msgid "Options"
 msgstr "Opties"

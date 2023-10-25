@@ -1,6 +1,9 @@
 import datetime, io, json, os, re, sys, threading, time, requests
 from pathlib import Path
 from datetime import timezone
+
+import xbmcaddon
+
 from resources.lib.globals import G
 import base64
 import xbmcvfs
@@ -18,9 +21,9 @@ def b2ah(barr):
 class Web(requests.Session):
     addon_path = ''
 
-    def __init__(self, addon):
+    def __init__(self, addon: xbmcaddon.Addon):
         super().__init__()
-        self.print_network_traffic = addon.getSetting('print-network-traffic')
+        self.print_network_traffic = addon.getSettingBool('print-network-traffic')
         self.addon_path = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
         self.load_cookies()
 
@@ -56,7 +59,7 @@ class Web(requests.Session):
         return dict2
 
     def print_dialog(self, response):
-        if self.print_network_traffic == 'false':
+        if not self.print_network_traffic:
             return
 
         print("URL:", response.url)
@@ -168,6 +171,8 @@ class LoginSession(Web):
 
     def __init__(self, addon):
         super().__init__(addon)
+        self.vod_stream_info = None
+        self.active_profile = None
         self.streaming_token = None
         self.entitlements_info = None
         self.extra_headers = {}
@@ -204,6 +209,7 @@ class LoginSession(Web):
     def get_customer_info(self):
         if Path(self.pluginpath(G.CUSTOMER_INFO)).exists():
             self.customer_info = json.loads(Path(self.pluginpath(G.CUSTOMER_INFO)).read_text())
+            self.set_active_profile(self.get_profiles()[0])
         else:
             self.customer_info = {}
         return self.customer_info
@@ -257,7 +263,6 @@ class LoginSession(Web):
             if not self.__status_code_ok(response):
                 raise RuntimeError("status code <> 200 during obtain personalization info")
             Path(self.pluginpath(G.CUSTOMER_INFO)).write_text(json.dumps(response.json()))
-
         else:
             # Zie comment bij login_valid()
             try:
@@ -279,8 +284,11 @@ class LoginSession(Web):
                 Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()))
             self.session_info = self.get_session_info()
 
-        profile_id = self.get_customer_info()["profiles"][0]["profileId"]
-        tracking_id = self.get_customer_info()["hashedCustomerId"]
+        self.customer_info = self.get_customer_info()
+        if self.active_profile is None:
+            self.active_profile = self.customer_info["profiles"][0]
+        profile_id = self.active_profile["profileId"]
+        tracking_id = self.customer_info["hashedCustomerId"]
         self.extra_headers = {
             'X-OESP-Username': self.username,
             'x-tracking-id': tracking_id,
@@ -316,19 +324,34 @@ class LoginSession(Web):
         Path(self.pluginpath(G.WIDEVINE_LICENSE)).write_text(encoded_content.decode("ascii"))
         Path(self.pluginpath(G.WIDEVINE_LICENSE) + '.raw').write_bytes(response.content)
 
-    def obtain_streaming_token(self, channel):
-        url = G.streaming_URL.format(householdid=self.session_info['householdId'])
+    def obtain_tv_streaming_token(self, channel, assetType):
+        url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/live'
         response = super().do_post(url,
                                    params={
                                        'channelId': channel['id']
-                                       , 'assetType': 'Orion-DASH'
-                                       , 'profileId': self.customer_info['profiles'][0]['profileId']
+                                       , 'assetType': assetType
+                                       , 'profileId': self.active_profile['profileId']
                                        , 'liveContentTimestamp': datetime.datetime.now(timezone.utc).isoformat()
                                    },
                                    extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during obtain streaming info")
         self.stream_info = json.loads(response.content)
+        self.streaming_token = response.headers["x-streaming-token"]
+        return response.headers["x-streaming-token"]
+
+    def obtain_vod_streaming_token(self, id):
+        url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/vod'
+        response = super().do_post(url,
+                                   params={
+                                       'contentId': id
+                                       , 'abrType': 'BR-AVC-DASH'
+                                       , 'profileId': self.active_profile['profileId']
+                                   },
+                                   extra_headers=self.extra_headers)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain vod streaming info")
+        self.vod_stream_info = json.loads(response.content)
         self.streaming_token = response.headers["x-streaming-token"]
         return response.headers["x-streaming-token"]
 
@@ -351,7 +374,7 @@ class LoginSession(Web):
 
     def update_token(self, streaming_token):
         url = G.license_URL + '/token'
-        profile_id = self.get_customer_info()["profiles"][0]["profileId"]
+        profile_id = self.active_profile["profileId"]
         tracking_id = self.get_customer_info()["hashedCustomerId"]
         self.extra_headers = {
             'X-OESP-Username': self.username,
@@ -373,7 +396,7 @@ class LoginSession(Web):
 
     def delete_token(self, streaming_id):
         url = G.license_URL + '/token'
-        profile_id = self.get_customer_info()["profiles"][0]["profileId"]
+        profile_id = self.active_profile["profileId"]
         tracking_id = self.get_customer_info()["hashedCustomerId"]
         self.extra_headers = {
             'X-OESP-Username': self.username,
@@ -391,3 +414,241 @@ class LoginSession(Web):
     def get_manifest(self, url):
         response = super().do_get(url, data=None, params=None)
         return response
+
+    def get_profiles(self):
+        return self.customer_info["profiles"]
+
+    def set_active_profile(self, profile):
+        self.active_profile = profile
+
+    def __getOptinDate(self, optin_type, unixtime=False):
+        optins = self.customer_info['customerOptIns']
+        i = 0
+        replay_optin_date = None
+        while i < len(optins):
+            if optins[i]['optInType'] == optin_type:
+                replay_optin_date = optins[i]['lastModified']
+                if unixtime:
+                    return int(time.mktime(datetime.datetime.strptime(replay_optin_date
+                                                                      , '%Y-%m-%dT%H:%M:%S.%fZ').timetuple()))
+                else:
+                    return replay_optin_date
+            i += 1
+        if unixtime:
+            return 0
+        else:
+            return ''
+
+    def obtain_structure(self):
+        url = G.homeservice_URL + 'structure/'
+        params = {
+            'profileId': self.active_profile["profileId"]
+            , 'language': 'nl'
+            , 'optIn': 'true'
+            , 'clientType': 'HZNGO-WEB'
+            # , 'version': '5.05'
+            , 'featureFlags': 'client_Mobile'
+        }
+        response = super().do_get(url=url
+                                  , params=params)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain movies and series")
+        return response.content
+
+    def obtain_home_collection(self, collection: []):
+        profile_id = self.active_profile["profileId"]
+        household_id = self.customer_info['customerId']
+        city_id = self.customer_info["cityId"]
+        replay_optin_date = self.__getOptinDate('replay', unixtime=False)
+        url = (G.homeservice_URL
+               + 'customers/{household_id}/profiles/{profile_id}/screen'.format(household_id=household_id
+                                                                                , profile_id=profile_id))
+        params = {
+            'id': ','.join(collection)
+            , 'language': 'nl'
+            , 'clientType': 'HZNGO-WEB'
+            , 'maxRes': '4K'
+            , 'cityId': city_id
+            , 'replayOptInDate': replay_optin_date
+            , 'goPlayable': 'false'
+            , 'sharedProfile': self.active_profile['shared']
+            , 'optIn': 'true'
+            # , 'version': '5.05'
+            , 'featureFlags': 'client_Mobile'
+            , 'productClass': 'Orion-DASH'
+            , 'useSeriesLogic': 'true'
+        }
+        response = super().do_get(url=url
+                                  , params=params)
+        # print("URL Home collection: ", response.url)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain movies and series")
+
+        return response.content
+
+    def obtain_vod_screen_details(self, collection_id):
+        url = G.vod_service_URL + 'collections-screen/{id}'.format(id=collection_id)
+        city_id = self.customer_info["cityId"]
+        profile_id = self.active_profile["profileId"]
+        params = {
+            'language': 'nl'
+            , 'profileId': profile_id
+            , 'optIn': 'true'
+            , 'sharedProfile': self.active_profile['shared']
+            , 'maxRes': '4K'
+            , 'cityId': city_id
+            , 'excludeAdult': 'false'
+            , 'onlyGoPlayable': 'false'
+            , 'fallbackRootId': 'omw_hzn4_vod'
+            , 'featureFlags': 'client_Mobile'
+            , 'entityVersion': '1'
+        }
+        response = super().do_get(url=url
+                                  , params=params)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain obtain_vod_screen_details")
+        return json.loads(response.content)
+
+    def obtain_asset_details(self, id, brandingProviderId=None):
+        url = G.vod_service_URL + 'details-screen/{id}'.format(id=id)
+        city_id = self.customer_info["cityId"]
+        profile_id = self.active_profile["profileId"]
+        params = {
+            'language': 'nl'
+            , 'profileId': profile_id
+            , 'maxRes': '4K'
+            , 'cityId': city_id
+            , 'brandingProviderId': brandingProviderId
+        }
+        if brandingProviderId is None:
+            pass
+        else:
+            params.update({'brandingProviderId': brandingProviderId})
+        response = super().do_get(url=url
+                                  , params=params)
+        print(response.url)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain obtain_vod_screen_overview")
+        return json.loads(response.content)
+
+    def obtain_vod_screen_overview(self, id):
+        url = G.pickerservice_URL + 'showPage/' + id + '/nl'
+        city_id = self.customer_info["cityId"]
+        params = {
+            'cityId': city_id
+            , 'country': 'nl'
+            , 'mergingOn': 'true'
+        }
+        response = super().do_get(url=url
+                                  , params=params)
+        print(response.url)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain obtain_vod_screen_overview")
+        return json.loads(response.content)
+
+    def obtain_vod_screens(self):
+        url = G.vod_service_URL + 'structure/omw_play'
+        params = {
+            'language': 'nl'
+            , 'menu': 'vod'
+            , 'optIn': 'true'
+            , 'fallbackRootId': 'omw_hzn4_vod'
+            , 'featureFlags': 'client_Mobile'
+            , 'maxRes': '4K'
+            , 'excludeAdult': 'false'
+            , 'entityVersion': '1'
+        }
+        response = super().do_get(url=url
+                                  , params=params)
+        print(response.url)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain movies and series")
+
+        return json.loads(response.content)
+
+    def get_episode_list(self, item):
+        profile_id = self.active_profile["profileId"]
+        city_id = self.customer_info["cityId"]
+        url = G.ZIGGOPROD_URL + 'eng/web/picker-service/v2/episodePicker'
+        params = {'seriesCrid': item['id']
+            , 'language': 'nl'
+            , 'country': 'nl'
+            , 'cityId': city_id
+            , 'replayOptedInTime': self.__getOptinDate('replay', unixtime=True)
+            , 'profileId': profile_id
+            , 'maxRes': '4K'
+            , 'mergingOn': 'true'
+            , 'goPlayableOnly': 'false'}
+        response = super().do_get(url=url
+                                  , params=params)
+        # print(response.url)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during get_episode_list")
+        return json.loads(response.content)
+
+    def get_episode(self, item):
+        profile_id = self.active_profile["profileId"]
+        city_id = self.customer_info["cityId"]
+        print("GET_EPISODE: ", item)
+        if item['type'] == 'REPLAY':
+            mostrelevant_episode = ''
+            asset = ''
+            if item['subType'] == 'SERIES':
+                # first het episode info
+                url = G.ZIGGOPROD_URL + 'eng/web/picker-service/v2/mostRelevantEpisode'
+                params = {'seriesId': item['id']
+                    , 'language': 'nl'
+                    , 'country': 'nl'
+                    , 'cityId': city_id
+                    , 'replayOptedInTime': self.__getOptinDate('replay', unixtime=True)
+                    , 'profileId': profile_id
+                    , 'maxRes': '4K'
+                    , 'mergingOn': 'true'
+                    , 'goPlayableOnly': 'false'}
+
+                response = super().do_get(url=url
+                                          , params=params)
+                # print(response.url)
+                if not self.__status_code_ok(response):
+                    raise RuntimeError("status code <> 200 during obtain episode")
+                mostrelevant_episode = response.content
+            if item['subType'] in ['ASSET']:
+                url = G.linearservice_v2_URL + 'replayEvent/{item}'.format(item=item['id'])
+                params = {'language': 'nl'
+                    , 'returnLinearContent': 'true'
+                    , 'forceLinearResponse': 'false'}
+                response = super().do_get(url=url
+                                          , params=params)
+                # print(url)
+                if not self.__status_code_ok(response):
+                    raise RuntimeError("status code <> 200 during obtain episode")
+                asset = response.content
+
+            return mostrelevant_episode, asset
+        return '', ''
+
+    def get_mostwatched_channels(self):
+        url = G.linearservice_v1_URL + 'mostWatchedChannels'
+        city_id = self.customer_info["cityId"]
+        params = {
+            'cityId': city_id
+            , 'productClass': 'Orion-DASH'}
+        response = super().do_get(url=url
+                                  , params=params)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain mostwatched channels")
+        return response.content
+
+
+    #                  https://prod.spark.ziggogo.tv/eng/web/session-service/session/v2/web-desktop/customers
+    # /8654807_nl/live?contentId=crid%3A~~2F~~2Fog.libertyglobal.com~~2FGN~~2FMV019801400000&abrType=BR-AVC-DASH&profileId=46184cc2-9c3c-49b6-b780-fc785a308f56
+    # URL for license: https://prod.spark.ziggogo.tv/eng/web/session-service/session/v2/web-desktop/customers
+    # /8654807_nl/vod?contentId=crid:~~2F~~2Fog.libertyglobal.com~~2FGN~~2FMV019801400000,imi
+    # :37500_CUNI0000000054872896-AVC-1080p-OTT&profileId=098acc0f-1e4b-43af-8897-b6ebd8ea5dcb&abrType=BR-AVC-DASH
+    #
+    # contentid = aa172e07b63efcf5194f7a92a7e8e909_df55d10d179101e4e3f9e7c861af3265
+    # response bevat 'url'
+    #    "https://wp-pod1-vod-vxtoken-nl-prod.prod.cdn.dmdsdp.com/sdash/aa172e07b63efcf5194f7a92a7e8e909_df55d10d179101e4e3f9e7c861af3265/index.mpd/Manifest?device=BR-AVC-DASH"
+    #
+    # get manifest: https://wp-pod1-vod-vxtoken-nl-prod.prod.cdn.dmdsdp.com/sdash,
+    # vxttoken={streaming-token}/aa172e07b63efcf5194f7a92a7e8e909_df55d10d179101e4e3f9e7c861af3265/index.mpd/Manifest?device=BR-AVC-DASH
