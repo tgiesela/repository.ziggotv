@@ -176,7 +176,9 @@ class TestWebcalls(unittest.TestCase):
             print('Profile: {0}\n'.format(profile['name']))
             self.session.set_active_profile(profile)
             response = self.session.obtain_vod_screens()
-            for screen in response['screens']:
+            combinedlist = response['screens']
+            combinedlist.append(response['hotlinks']['adultRentScreen'])
+            for screen in combinedlist:
                 print('Screen: ' + screen['title'], 'id: ', screen['id'])
                 screen_details = self.session.obtain_vod_screen_details(screen['id'])
                 for collection in screen_details['collections']:
@@ -186,12 +188,13 @@ class TestWebcalls(unittest.TestCase):
                         print('\t{0}, type: {1}'.format(collection['collectionLayout'], collection['contentType']))
                     for item in collection['items']:
                         if item['type'] == 'LINK':
+                            grid = self.session.obtain_grid_screen_details(item['gridLink']['id'])
                             print(
                                 '\t\t{0}:{2}'.format(item['type'], item['gridLink']['type'], item['gridLink']['title']))
                         else:
                             print('\t\t{0}-{1}:{2}'.format(item['type'], item['assetType'], item['title']))
                             if item['type'] == 'SERIES':
-                                overview = self.session.obtain_vod_screen_overview(item['id'])
+                                overview = self.session.obtain_series_overview(item['id'])
                                 print('\t\t{0}'.format(','.join(overview['genres'])))
                                 print('\t\t{0}'.format(overview['synopsis']))
                                 episodes = self.session.get_episode_list(item)
@@ -216,7 +219,12 @@ class TestWebcalls(unittest.TestCase):
                                             , episode['title'], episode['source']['titleId']
                                             , entitled
                                             , episode_type))
-
+                                        details = self.session.obtain_asset_details(episode['id'])
+                                        if 'instances' in details:
+                                            print('\t\t\tInstances found')
+                                        else:
+                                            print('\t\t\t{0}Instances NOT found, entitled: {1}'.format(episode['title'], entitled))
+                                        # details2 = self.session.obtain_asset_details(episode['source']['eventId'])
                             elif item['type'] == 'ASSET':
                                 if 'brandingProviderId' in item:
                                     overview = self.session.obtain_asset_details(item['id'], item['brandingProviderId'])

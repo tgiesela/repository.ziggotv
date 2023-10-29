@@ -1,12 +1,17 @@
-import datetime, io, json, os, re, sys, threading, time, requests
-from pathlib import Path
+import base64
+import datetime
+import json
+import requests
+import time
 from datetime import timezone
+from pathlib import Path
 
+import xbmc
 import xbmcaddon
+import xbmcvfs
 
 from resources.lib.globals import G
-import base64
-import xbmcvfs
+from resources.lib.utils import DatetimeHelper
 
 try:
     import pyjwt
@@ -62,38 +67,39 @@ class Web(requests.Session):
         if not self.print_network_traffic:
             return
 
-        print("URL:", response.url)
-        print("Status-code:", response.status_code)
-        print("Request headers:", response.request.headers)
-        print("Response headers:", response.headers)
+        print("URL: {0}".format(response.url))
+        print("Status-code: {0}".format(response.status_code))
+        print("Request headers: {0}".format(response.request.headers))
+        print("Response headers: {0}".format(response.headers))
         print("Cookies: ", self.cookies.get_dict())
+
         if response.request.body is None or response.request.body == '':
             print("Request data is empty")
         else:
-            if "Content-Type" in response.request.headers:
+            if 'Content-Type' in response.request.headers:
                 if response.request.headers["Content-Type"][0:16] == "application/json":
-                    print("Request JSON-format:", response.request.body)
+                    print("Request JSON-format: {0}".format(response.request.body))
                 else:
-                    print("Request content:", response.request.body)
-                    print("HEX: ", b2ah(response.request.body))
-                    print("B64: ", base64.b64encode(response.request.body))
+                    print("Request content: {0}".format(response.request.body))
+                    print("HEX: {0}".format(b2ah(response.request.body)))
+                    print("B64: {0}".format(base64.b64encode(response.request.body)))
             else:
-                print("HEX: ", b2ah(response.request.body))
-                print("B64: ", base64.b64encode(response.request.body))
+                print("HEX: {0}".format(b2ah(response.request.body)))
+                print("B64: {0}".format(base64.b64encode(response.request.body)))
 
         if response.content is None or response.content == '':
             print("Response data is empty")
         else:
             if "Content-Type" in response.headers:
                 if response.headers["Content-Type"][0:16] == "application/json":
-                    print("Response JSON-format:", json.dumps(response.json()))
+                    print("Response JSON-format: {0}".format(json.dumps(response.json())))
                 else:
-                    print("Response content:", response.content)
-                    print("HEX: ", b2ah(response.content))
-                    print("B64: ", base64.b64encode(response.content))
+                    print("Response content: {0}".format(response.content))
+                    print("HEX: {0}".format(b2ah(response.content)))
+                    print("B64: {0}".format(base64.b64encode(response.content)))
             else:
-                print("HEX: ", b2ah(response.content))
-                print("B64: ", base64.b64encode(response.content))
+                print("HEX: {0}".format(b2ah(response.content)))
+                print("B64: {0}".format(base64.b64encode(response.content)))
 
     def do_post(self, url: str, data=None, json_data=None, extra_headers=None, params=None):
         """
@@ -228,6 +234,17 @@ class LoginSession(Web):
             self.entitlements_info = {}
         return self.entitlements_info
 
+    def obtain_customer_info(self):
+        try:
+            self.cookies.pop("CLAIMSTOKEN")
+        except:
+            pass
+        url = G.personalisation_URL.format(householdid=self.session_info['householdId'])
+        response = super().do_get(url, params={'with': 'profiles,devices'})
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain customer info")
+        Path(self.pluginpath(G.CUSTOMER_INFO)).write_text(json.dumps(response.json()))
+
     def __login_valid(self):
         _valid = False
         if len(self.session_info) == 0:  # Session_info empty, so not successfully logged in
@@ -236,10 +253,13 @@ class LoginSession(Web):
         # We moeten het JWT token decoderen en daar de geldigheidsdatum uithalen.
         # Als het token niet meer geldig is moet het ACCESSTOKEN-cookie worden verwijderd!
 
-        if datetime.datetime.fromtimestamp(self.session_info['refreshTokenExpiry']) > datetime.datetime.now():
-            print("issued at:", datetime.datetime.fromtimestamp(self.session_info['issuedAt']))
-            print("refresh at:", datetime.datetime.fromtimestamp(self.session_info['refreshTokenExpiry']))
-            print("logon still valid")
+        if DatetimeHelper.fromUnix(self.session_info['refreshTokenExpiry']) > datetime.datetime.now():
+            xbmc.log("issued at: {0}".format(DatetimeHelper.fromUnix(self.session_info['issuedAt']))
+                     , xbmc.LOGDEBUG)
+            xbmc.log("refresh at: {0}".format(DatetimeHelper.fromUnix(self.session_info['refreshTokenExpiry']))
+                     , xbmc.LOGDEBUG)
+            xbmc.log("logon still valid"
+                     , xbmc.LOGINFO)
             return True
 
         return False
@@ -258,22 +278,18 @@ class LoginSession(Web):
             Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()))
             self.session_info = self.get_session_info()
 
-            url = G.personalisation_URL.format(householdid=self.session_info['householdId'])
-            response = super().do_get(url, params={'with': 'profiles,devices'})
-            if not self.__status_code_ok(response):
-                raise RuntimeError("status code <> 200 during obtain personalization info")
-            Path(self.pluginpath(G.CUSTOMER_INFO)).write_text(json.dumps(response.json()))
+            self.obtain_customer_info()
         else:
             # Zie comment bij login_valid()
             try:
                 jwt_decoded = pyjwt.decode(self.session_info["accessToken"], options={"verify_signature": False})
-                exp = datetime.datetime.fromtimestamp(jwt_decoded["exp"])
-                now = datetime.datetime.now()
+                exp = DatetimeHelper.fromUnix(jwt_decoded["exp"])
+                now = DatetimeHelper.now()
             except pyjwt.exceptions.ExpiredSignatureError:
-                exp = datetime.datetime.now()
+                exp = DatetimeHelper.now()
                 now = exp
             if exp > now:
-                print("Accesstoken still valid")
+                xbmc.log("Accesstoken still valid", xbmc.LOGINFO)
             else:
                 self.cookies.pop("ACCESSTOKEN")
                 response = super().do_post(G.authentication_URL + "/refresh",
@@ -282,6 +298,8 @@ class LoginSession(Web):
                 if not self.__status_code_ok(response):
                     raise RuntimeError("status code <> 200 during authentication")
                 Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()))
+
+                self.obtain_customer_info()
             self.session_info = self.get_session_info()
 
         self.customer_info = self.get_customer_info()
@@ -322,16 +340,15 @@ class LoginSession(Web):
             raise RuntimeError("status code <> 200 during obtain widevine info")
         encoded_content = base64.b64encode(response.content)
         Path(self.pluginpath(G.WIDEVINE_LICENSE)).write_text(encoded_content.decode("ascii"))
-        Path(self.pluginpath(G.WIDEVINE_LICENSE) + '.raw').write_bytes(response.content)
 
-    def obtain_tv_streaming_token(self, channel, assetType):
+    def obtain_tv_streaming_token(self, channel, asset_type):
         url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/live'
         response = super().do_post(url,
                                    params={
                                        'channelId': channel['id']
-                                       , 'assetType': assetType
+                                       , 'assetType': asset_type
                                        , 'profileId': self.active_profile['profileId']
-                                       , 'liveContentTimestamp': datetime.datetime.now(timezone.utc).isoformat()
+                                       , 'liveContentTimestamp': DatetimeHelper.now(timezone.utc).isoformat()
                                    },
                                    extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
@@ -362,7 +379,7 @@ class LoginSession(Web):
             if key in G.ALLOWED_LICENSE_HEADERS:
                 pass
             else:
-                print("HEADER DROPPPED: {0}:{1}".format(key, license_headers[key]))
+                xbmc.log("HEADER DROPPPED: {0}:{1}".format(key, license_headers[key]), xbmc.LOGDEBUG)
                 license_headers[key] = None
         response = super().do_post(url,
                                    params={'ContentId': content_id},
@@ -429,8 +446,9 @@ class LoginSession(Web):
             if optins[i]['optInType'] == optin_type:
                 replay_optin_date = optins[i]['lastModified']
                 if unixtime:
-                    return int(time.mktime(datetime.datetime.strptime(replay_optin_date
-                                                                      , '%Y-%m-%dT%H:%M:%S.%fZ').timetuple()))
+                    return DatetimeHelper.toUnix(replay_optin_date, '%Y-%m-%dT%H:%M:%S.%fZ')
+                #                    return int(time.mktime(datetime.datetime.strptime(replay_optin_date
+                #                                                                      , '%Y-%m-%dT%H:%M:%S.%fZ').timetuple()))
                 else:
                     return replay_optin_date
             i += 1
@@ -480,11 +498,35 @@ class LoginSession(Web):
         }
         response = super().do_get(url=url
                                   , params=params)
-        # print("URL Home collection: ", response.url)
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during obtain movies and series")
 
         return response.content
+
+    def obtain_grid_screen_details(self, collection_id):
+        url = G.gridservice_URL + collection_id
+        city_id = self.customer_info["cityId"]
+        profile_id = self.active_profile["profileId"]
+        params = {
+            'language': 'nl'
+            , 'profileId': profile_id
+            , 'type': 'Editorial'
+            , 'sortType': 'popularity'
+            , 'sortDirection': 'descending'
+            , 'pagingOffset': '0'
+            , 'maxRes': '4K'
+            , 'cityId': city_id
+            , 'onlyGoPlayable': 'false'
+            , 'goDownloadable': 'false'
+            , 'excludeAdult': 'false'
+            , 'entityVersion': '1'
+        }
+
+        response = super().do_get(url=url
+                                  , params=params)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain obtain_grid_screen_details")
+        return json.loads(response.content)
 
     def obtain_vod_screen_details(self, collection_id):
         url = G.vod_service_URL + 'collections-screen/{id}'.format(id=collection_id)
@@ -526,12 +568,11 @@ class LoginSession(Web):
             params.update({'brandingProviderId': brandingProviderId})
         response = super().do_get(url=url
                                   , params=params)
-        print(response.url)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain obtain_vod_screen_overview")
+            raise RuntimeError("status code <> 200 during obtain obtain asset details")
         return json.loads(response.content)
 
-    def obtain_vod_screen_overview(self, id):
+    def obtain_series_overview(self, id):
         url = G.pickerservice_URL + 'showPage/' + id + '/nl'
         city_id = self.customer_info["cityId"]
         params = {
@@ -541,9 +582,8 @@ class LoginSession(Web):
         }
         response = super().do_get(url=url
                                   , params=params)
-        print(response.url)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain obtain_vod_screen_overview")
+            raise RuntimeError("status code <> 200 during obtain obtain_series_overview")
         return json.loads(response.content)
 
     def obtain_vod_screens(self):
@@ -560,7 +600,6 @@ class LoginSession(Web):
         }
         response = super().do_get(url=url
                                   , params=params)
-        print(response.url)
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during obtain movies and series")
 
@@ -581,7 +620,6 @@ class LoginSession(Web):
             , 'goPlayableOnly': 'false'}
         response = super().do_get(url=url
                                   , params=params)
-        # print(response.url)
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during get_episode_list")
         return json.loads(response.content)
@@ -589,7 +627,6 @@ class LoginSession(Web):
     def get_episode(self, item):
         profile_id = self.active_profile["profileId"]
         city_id = self.customer_info["cityId"]
-        print("GET_EPISODE: ", item)
         if item['type'] == 'REPLAY':
             mostrelevant_episode = ''
             asset = ''
@@ -608,7 +645,6 @@ class LoginSession(Web):
 
                 response = super().do_get(url=url
                                           , params=params)
-                # print(response.url)
                 if not self.__status_code_ok(response):
                     raise RuntimeError("status code <> 200 during obtain episode")
                 mostrelevant_episode = response.content
@@ -619,7 +655,6 @@ class LoginSession(Web):
                     , 'forceLinearResponse': 'false'}
                 response = super().do_get(url=url
                                           , params=params)
-                # print(url)
                 if not self.__status_code_ok(response):
                     raise RuntimeError("status code <> 200 during obtain episode")
                 asset = response.content
@@ -638,7 +673,6 @@ class LoginSession(Web):
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during obtain mostwatched channels")
         return response.content
-
 
     #                  https://prod.spark.ziggogo.tv/eng/web/session-service/session/v2/web-desktop/customers
     # /8654807_nl/live?contentId=crid%3A~~2F~~2Fog.libertyglobal.com~~2FGN~~2FMV019801400000&abrType=BR-AVC-DASH&profileId=46184cc2-9c3c-49b6-b780-fc785a308f56

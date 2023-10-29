@@ -29,9 +29,10 @@
 		                <allowempty>true</allowempty>
 	                </constraints>
                     <level>0</level>
-                    <control type="edit" format="string">
-		                <heading></heading>
-	                </control>
+					<control type="button" format="action">
+						<data>RunScript(plugin.video.ziggotg,selectProfile)</data>
+						<heading>31003</heading>
+					</control>
                 </setting>
             </group>
         </category>
@@ -43,6 +44,11 @@
                     <control type="toggle"/>
                 </setting>
                 <setting id="use-proxy" type="boolean" label="32002">
+                    <default>false</default>
+                    <level>0</level>
+                    <control type="toggle"/>
+                </setting>
+                <setting id="adult-allowed" type="boolean" label="32003">
                     <default>false</default>
                     <level>0</level>
                     <control type="toggle"/>

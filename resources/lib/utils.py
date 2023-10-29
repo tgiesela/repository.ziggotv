@@ -1,4 +1,5 @@
 import binascii
+from datetime import datetime
 
 
 def hexlify(barr):
@@ -44,6 +45,20 @@ class Timer(threading.Thread):
 
     def timer(self):
         self.callback_function()
+
+
+class DatetimeHelper:
+    @staticmethod
+    def fromUnix(unix_time: int, tz: datetime.tzinfo = None) -> datetime:
+        return datetime.fromtimestamp(unix_time, tz)
+
+    @staticmethod
+    def now(tz: datetime.tzinfo = None) -> datetime:
+        return datetime.now(tz)
+
+    @staticmethod
+    def toUnix(dt: str, dt_format: str):
+        return int(time.mktime(datetime.strptime(dt, dt_format).timetuple()))
 
 
 if __name__ == '__main__':

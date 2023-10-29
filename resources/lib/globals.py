@@ -18,6 +18,8 @@ class GlobalVariables:
     linearservice_v2_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/'
     linearservice_v1_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v1/'
     pickerservice_URL = ZIGGOPROD_URL + 'eng/web/picker-service/v1/'
+    gridservice_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/grid-screen/'
+
 
     SESSION_INFO = 'session.json'
     CUSTOMER_INFO = 'customer.json'
@@ -25,6 +27,8 @@ class GlobalVariables:
     ENTITLEMENTS_INFO = 'entitlements.json'
     WIDEVINE_LICENSE = 'widevine.json'
     COOKIES_INFO = 'cookies.json'
+    MOVIE_INFO = 'movies.json'
+    SERIES_INFO = 'series.json'
 
     CONST_BASE_HEADERS = {
         'Accept': '*/*',

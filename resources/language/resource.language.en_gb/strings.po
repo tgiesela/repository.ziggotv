@@ -44,3 +44,7 @@ msgctxt "#32002"
 msgid "use-proxy"
 msgstr "Use proxy"
 
+msgctxt "#32003"
+msgid "adult-allowed"
+msgstr "Allow adult"
+
