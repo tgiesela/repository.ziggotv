@@ -43,9 +43,18 @@ class ZiggoPlugin:
         return self.addon_path + name
 
     def get_locator(self, channel) -> typing.Tuple[str, str]:
+        try:
+            # max_res = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.max')
+            max_res_drm = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.secure.max')
+            if max_res_drm in ['auto', '1080p', '2K', '4K', '1440p']:
+                hd_allowed = True
+            else:
+                hd_allowed = False
+        except:
+            hd_allowed = True
         asset_type = 'Orion-DASH'
         if 'locators' in channel:
-            if 'Orion-DASH-HEVC' in channel['locators']:
+            if 'Orion-DASH-HEVC' in channel['locators'] and hd_allowed:
                 avc = channel['locators']['Orion-DASH-HEVC']
                 asset_type = 'Orion-DASH-HEVC'
             else:
