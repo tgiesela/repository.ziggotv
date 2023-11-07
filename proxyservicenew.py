@@ -1,29 +1,7 @@
 import asyncio
-import base64
-import json
-import os
-import socketserver
 import sys
 import threading
-import http.server
-import time
-import typing
-from http.server import BaseHTTPRequestHandler
-from socketserver import TCPServer
-from urllib.parse import urlparse, parse_qs, unquote
-
-import requests
-
-from resources.lib.globals import G
-from resources.lib.proxy import ProxyServer
 from resources.lib.servicemonitor import ServiceMonitor
-from resources.lib.utils import Timer
-from resources.lib.webcalls import LoginSession
-
-import xbmc
-import xbmcaddon
-import xbmcvfs
-
 
 async def main():
     lock = threading.Lock()
