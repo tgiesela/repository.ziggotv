@@ -120,7 +120,6 @@ async def main():
     monitor_service = ServiceMonitor(loop)
     await monitor_service.start_proxy()
     try:
-        await asyncio.sleep(2000)
         while not monitor_service.abortRequested():
             # Sleep/wait for abort for 10 seconds
             await asyncio.sleep(10)
