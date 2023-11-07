@@ -249,7 +249,7 @@ class ProxyServer(http.server.HTTPServer):
 
 class HttpProxyService:
     def __init__(self, svc_lock):
-        print("Proxy service initializing")
+        print("proxy.py service initializing")
         self.lock = svc_lock
         self.profileFolder = xbmcvfs.translatePath(xbmcaddon.Addon().getAddonInfo('profile'))
         self.address = ''
@@ -258,7 +258,7 @@ class HttpProxyService:
         self.HTTPServerThread = None
         self.ProxyServer = None  # started by me
         self.settingsChangeLock = threading.Lock()
-        print("Proxy service initialized")
+        print("proxy.py service initialized")
 
     def set_address(self, address_and_port):
         """
@@ -293,11 +293,11 @@ class HttpProxyService:
         if self.ProxyServer is not None:
             self.ProxyServer.shutdown()
             self.ProxyServer = None
-            print("PROXY SERVER STOPPPED")
+            print("PROXY SERVER STOPPED")
         if self.HTTPServerThread is not None:
             self.HTTPServerThread.join()
             self.HTTPServerThread = None
-            print("HTTP SERVER THREAD STOPPPED")
+            print("HTTP SERVER THREAD STOPPED")
         self.isShutDown = True
 
     def clearBrowserLock(self):
@@ -384,6 +384,7 @@ if __name__ == '__main__':
     # else:
     #     import web_pdb
     #     web_pdb.set_trace()
+
     lock = threading.Lock()
     proxy_service = HttpProxyService(lock)
     proxy_service.set_address(('127.0.0.1', 6969))

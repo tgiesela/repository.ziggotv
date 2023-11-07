@@ -2,7 +2,10 @@ kodi-addon-checker
 polib
 pycryptodomex
 pylint
-requests
+requests~=2.31.0
 setuptools
 xmlschema
 Kodistubs==20.0.1
+
+aiohttp~=3.8.6
+PyJWT~=2.8.0
