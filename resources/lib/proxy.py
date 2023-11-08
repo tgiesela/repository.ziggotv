@@ -1,4 +1,6 @@
 import socket
+import threading
+
 import xbmc
 import xbmcaddon
 from aiohttp import web, ClientSession
@@ -37,6 +39,8 @@ class TCPServer:
 
 class ProxyServer:
     def __init__(self):
+        self.thread = None
+        self.app = None
         self.locator = None
         self.redirected_host = None
         self.original_host = None
@@ -64,7 +68,7 @@ class ProxyServer:
             streaming_token = orig_token
 
         url = self.get_manifest_url(orig_hostname, orig_path, streaming_token)
-
+        print("ManifestURL {0}".format(url))
         async with ClientSession() as session:
             async with session.get(url, allow_redirects=True) as server_response:
                 resp: web.StreamResponse = web.StreamResponse(headers=server_response.headers)
@@ -85,7 +89,7 @@ class ProxyServer:
         async with ClientSession() as session:
             async with session.get(url, allow_redirects=True) as server_response:
                 resp: web.StreamResponse = web.StreamResponse(headers=server_response.headers)
-                self.update_redirection(server_response.url)
+                self.update_redirection(server_response.url.human_repr())
                 await resp.prepare(request)
                 while not server_response.content.at_eof():
                     data = await server_response.content.read(8192)
@@ -115,16 +119,17 @@ class ProxyServer:
         response = self.session.get_license(content_id, received_data, headers)
 
         proxy_response = web.Response()
-        await proxy_response.prepare(request)
-
-        headers = response.headers
-        for key in headers:
+        for key in response.headers:
+            proxy_response.headers[key.upper()] = response.headers[key]
             if key.lower() == 'x-streaming-token':
                 self.streaming_token = response.headers[key]
+        await proxy_response.prepare(request)
+
         proxy_response.set_status(response.status_code)
+        print("LICENSE RESPONSE RECEIVED: ", response.content)
         await proxy_response.write(response.content)
         xbmc.log('HTTP POST request processed: {0}'.format(request.url), xbmc.LOGDEBUG)
-        return web.Response()
+        return proxy_response
 
     def get_manifest_url(self, hostname: str, orig_path: str, streaming_token: str):
         self.locator_path_dir = orig_path.rsplit('/', 1)[0]
@@ -162,18 +167,33 @@ class ProxyServer:
 
     def set_streaming_token(self, streaming_token):
         self.streaming_token = streaming_token
+        self.session.streaming_token = streaming_token
 
     def set_locator(self, locator):
         self.locator = locator
 
+    def __start_webserver(self):
+        self.app = web.Application()
+        self.app.add_routes([web.get('/manifest', self.manifest_handler),
+                             web.get('/{tail:.*}', self.default_handler),
+                             web.post('/license', self.license_handler)])
+        web.run_app(app=self.app, host='127.0.0.1', port=6969)
+        xbmc.log("WEBSERVER STARTED", xbmc.LOGDEBUG)
+
+    def serve_forever(self):
+        self.thread = threading.Thread(target=self.__start_webserver)
+        self.thread.start()
+
+    def shutdown(self):
+        self.thread.join()
+        xbmc.log("SHUTDOWN COMPLETE", xbmc.LOGDEBUG)
+
 
 def main():
+    #  Not normally called, only during tests
     app = web.Application()
     proxy = ProxyServer()
-    app.add_routes([web.get('/manifest', proxy.manifest_handler),
-                    web.get('/ {tail:. *}', proxy.default_handler),
-                    web.post('/license', proxy.license_handler)])
-    web.run_app(app=app, host='127.0.0.1', port=6969)
+    proxy.serve_forever()
 
 
 if __name__ == '__main__':

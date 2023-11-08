@@ -14,19 +14,18 @@ from resources.lib.utils import Timer
 
 
 class ServiceMonitor(xbmc.Monitor):
-    def __init__(self, loop: AbstractEventLoop):
+    def __init__(self, service: ProxyServer):
         super(ServiceMonitor, self).__init__()
         self.site = None
         self.apprunner = None
         self.webapp: web.Application = web.Application()
         self.ProxyServerThread: threading.Thread = None
-        self.ProxyServer = None
+        self.ProxyServer = service
         self.isShutDown = None
         self.locator = None
         self.addon = xbmcaddon.Addon()
         self.channelid = ''
         self.timer = None
-        self.loop: AbstractEventLoop = loop
         xbmc.log("SERVICE-MONITOR initialized", xbmc.LOGDEBUG)
 
     def update_token(self):
@@ -74,8 +73,9 @@ class ServiceMonitor(xbmc.Monitor):
         # xbmc,Player.OnResume,{"item":{"title":"2. NPO 2","type":"video"},"player":{"playerid":1,"speed":1}}
         # xbmc,Player.OnSpeedChanged,{"item":{"title":"2. NPO 2","type":"video"},"player":{"playerid":1,"speed":2}}
 
-    def cleanup(self):
-        pass
+    async def cleanup(self):
+        await self.webapp.cleanup()
+        await self.webapp.shutdown()
 
     async def start_proxy(self):
         await self.stop_proxy()
@@ -107,18 +107,8 @@ class ServiceMonitor(xbmc.Monitor):
             print("HTTP SERVER THREAD STOPPED")
         self.isShutDown = True
 
-    async def run(self, host: str = 'localhost', port: int = 1081):
-        xbmc.log(f'AIOHTTP getting event-loop, http://{host}:{port}', xbmc.LOGDEBUG)
-        # self.loop.create_task(self.start_proxy())
-        await self.start_proxy()
-        while not self.abortRequested():
-            await asyncio.sleep(10)
-        await self.stop_proxy()
-
-
 async def main():
     monitor_service = ServiceMonitor(loop)
-    await monitor_service.start_proxy()
     try:
         while not monitor_service.abortRequested():
             # Sleep/wait for abort for 10 seconds
@@ -126,7 +116,7 @@ async def main():
             # if monitor_service.waitForAbort(10):
             # Abort was requested while waiting. We should exit
         print("MONITOR PROXY SERVICE WAITFORABORT timeout")
-        monitor_service.cleanup()
+        await monitor_service.cleanup()
 
     except Exception as exc:
         print("UNEXPECTED EXCEPTION IN SERVICE: ", exc)
