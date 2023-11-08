@@ -1,19 +1,14 @@
-import base64
 import json
 import os
 import socketserver
-import sys
 import threading
 import http.server
-import time
 import typing
 from http.server import BaseHTTPRequestHandler
-from socketserver import TCPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
-import requests
+import http.client
 
-from resources.lib.globals import G
 from resources.lib.utils import Timer
 from resources.lib.webcalls import LoginSession
 
@@ -28,44 +23,94 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
         super().__init__(request, client_address, server)
         print("HTTPRequestHandler created")
 
+    def handle_manifest(self):
+        proxy: ProxyServer = self.server
+        # print("ORIG: {0}, REDIR: {1}".format(proxy.originalhost, proxy.redirectedhost))
+        parsed_url = urlparse(self.path)
+        qs = parse_qs(parsed_url.query)
+        if 'path' in qs and 'hostname' in qs and 'token' in qs:
+            orig_path = qs['path'][0]
+            orig_hostname = qs['hostname'][0]
+            orig_token = qs['token'][0]
+            streaming_token = proxy.get_streaming_token()
+            if streaming_token is None:
+                # This can occur at the first call. The notification with the token is not
+                # sent immediately
+                print("Using original token")
+                proxy.set_streaming_token(orig_token)
+                streaming_token = orig_token
+            manifest_url = proxy.get_manifest_url(orig_hostname, orig_path, streaming_token)
+            print("ManifestURL: {0}".format(manifest_url))
+            with proxy.lock:
+                response = proxy.session.get_manifest(manifest_url)
+            proxy.update_redirection(response.url)
+            self.send_response(response.status_code)
+            self.end_headers()
+            self.wfile.write(response.content)
+
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def handle_default(self):
+        proxy: ProxyServer = self.server
+        parsed_url = urlparse(self.path)
+        baseurl = proxy.get_baseurl(proxy.locator, proxy.get_streaming_token())
+        url = baseurl + parsed_url.path
+        parsed_dest_url = urlparse(url)
+        print("Source url: {0}, destination url: {1}".format(self.path, url))
+        if parsed_dest_url.scheme == 'https':
+            connection = http.client.HTTPConnection(parsed_dest_url.hostname, timeout=10)
+        else:
+            connection = http.client.HTTPSConnection(parsed_dest_url.hostname, timeout=10)
+        connection.request("GET", parsed_dest_url.path)
+        response = connection.getresponse()
+        self.send_response(response.status)
+        chunked = False
+        for header in response.headers:
+            if header.lower() == 'transfer-encoding':
+                if response.headers[header].lower() == 'chunked':
+                    #  We don't know the length upfront
+                    chunked = True
+            self.send_header(header, response.headers[header])
+        self.end_headers()
+        length_processed = 0
+        if chunked:  # process the same chunks as received
+            response.chunked = False
+            block_length = response.readline()
+            length = int(block_length, 16)
+            while length > 0:
+                length_processed += length
+                block = response.read(length)
+                block_to_write = bytearray(block_length)
+                block_to_write.extend(block + b'\r\n')
+                self.wfile.write(block_to_write)
+                response.readline()
+                block_length = response.readline()
+                length = int(block_length, 16)
+            block_to_write = bytearray(block_length)
+            block_to_write.extend(b'\r\n')
+            self.wfile.write(block_to_write)
+        else:
+            expected_length = int(response.headers['Content-Length'])
+            block = response.read(8192)
+            while length_processed < expected_length:
+                length_processed += len(block)
+                self.wfile.write(block)
+                block = response.read(8192)
+
     def do_GET(self):
         """Handle http get requests, used for manifest and all streaming calls"""
         # if REMOTE_DEBUG:
         #     pydevd.settrace('localhost', stdoutToServer=True, stderrToServer=True)
         path = self.path  # Path with parameters received from request e.g. "/manifest?id=234324"
         print('HTTP GET Request received: {0}'.format(unquote(path)))
-        proxy: ProxyServer = self.server
-        print("ORIG: {0}, REDIR: {1}".format(proxy.originalhost, proxy.redirectedhost))
         try:
-            received_data_length = int(self.headers.get('content-length', 0))
-            received_data = self.rfile.read(received_data_length)
-            streaming_token = proxy.get_streaming_token()
-            parsed_url = urlparse(self.path)
-            qs = parse_qs(parsed_url.query)
-            if 'path' in qs:
-                orig_path = qs['path'][0]
-                orig_hostname = qs['hostname'][0]
-                orig_token = qs['token'][0]
-                if streaming_token is None:
-                    # This can occur at the first call. The notification with the token is not
-                    # sent immediately
-                    print("Using original token")
-                    proxy.set_streaming_token(orig_token)
-                    streaming_token = orig_token
-                manifest_url = proxy.get_manifest_url(orig_hostname, orig_path, streaming_token)
-                print("ManifestURL: {0}".format(manifest_url))
-                with proxy.lock:
-                    response = proxy.session.get_manifest(manifest_url)
-                proxy.update_redirection(response.url)
+            if '/manifest' in path:
+                self.handle_manifest()
             else:
-                # baseurl = proxy.get_baseurl(response.url, streaming_token)
-                baseurl = proxy.get_baseurl(proxy.locator, streaming_token)
-                print("BaseURL: {0}".format(baseurl))
-                response = requests.get(baseurl + parsed_url.path)
+                self.handle_default()
 
-            self.send_response(response.status_code)
-            self.end_headers()
-            self.wfile.write(response.content)
             print('HTTP GET Request processed: {0}'.format(unquote(path)))
         except Exception as exc:
             xbmc.log('Exception in do_get(): {0}'.format(exc), xbmc.LOGERROR)
