@@ -241,7 +241,7 @@ class ZiggoPlugin:
             'Host': 'prod.spark.ziggogo.tv',
             'x-streaming-token': streaming_token,
             'X-cus': self.session.customer_info['customerId'],
-            'x-go-dev': '214572a3-2033-4327-b8b3-01a9a674f1e0',  # Dummy?
+            'x-go-dev': '214572a3-2033-4327-b8b3-01a9a674f1e0',  # Dummy? TBD: Generate one
             'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
             'deviceName': 'Firefox'
         })

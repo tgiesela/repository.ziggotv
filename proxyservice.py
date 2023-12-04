@@ -441,7 +441,6 @@ if __name__ == '__main__':
             if monitor_service.waitForAbort(10):
                 # Abort was requested while waiting. We should exit
                 print("MONITOR PROXYSERVICE WAITFORABORT timeout")
-                monitor_service.cleanup()
                 break
 
     except:
