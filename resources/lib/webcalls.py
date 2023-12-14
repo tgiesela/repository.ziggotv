@@ -1,6 +1,8 @@
 import base64
 import datetime
 import json
+from typing import List
+
 import requests
 import time
 from datetime import timezone
@@ -10,6 +12,7 @@ import xbmc
 import xbmcaddon
 import xbmcvfs
 
+from resources.lib.Channel import Channel
 from resources.lib.globals import G
 from resources.lib.utils import DatetimeHelper
 
@@ -172,6 +175,7 @@ class Web(requests.Session):
 class LoginSession(Web):
     session_info = {}
     channel_info = {}
+    channels: List[Channel] = []
     customer_info = {}
     logged_on = False
 
@@ -222,10 +226,14 @@ class LoginSession(Web):
 
     def get_channels(self):
         if Path(self.pluginpath(G.CHANNEL_INFO)).exists():
-            self.channel_info = json.loads(Path(self.pluginpath(G.CHANNEL_INFO)).read_text())
+            channel_info = json.loads(Path(self.pluginpath(G.CHANNEL_INFO)).read_text())
+            self.channels.clear()
+            for channel in channel_info:
+                channel = Channel(channel)
+                self.channels.append(channel)
         else:
-            self.channel_info = {}
-        return self.channel_info
+            self.channels = []
+        return self.channels
 
     def get_entitlements(self):
         if Path(self.pluginpath(G.ENTITLEMENTS_INFO)).exists():
@@ -341,11 +349,11 @@ class LoginSession(Web):
         encoded_content = base64.b64encode(response.content)
         Path(self.pluginpath(G.WIDEVINE_LICENSE)).write_text(encoded_content.decode("ascii"))
 
-    def obtain_tv_streaming_token(self, channel, asset_type):
+    def obtain_tv_streaming_token(self, channel: Channel, asset_type):
         url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/live'
         response = super().do_post(url,
                                    params={
-                                       'channelId': channel['id']
+                                       'channelId': channel.id
                                        , 'assetType': asset_type
                                        , 'profileId': self.active_profile['profileId']
                                        , 'liveContentTimestamp': DatetimeHelper.now(timezone.utc).isoformat()
@@ -674,15 +682,26 @@ class LoginSession(Web):
             raise RuntimeError("status code <> 200 during obtain mostwatched channels")
         return response.content
 
-    #                  https://prod.spark.ziggogo.tv/eng/web/session-service/session/v2/web-desktop/customers
-    # /8654807_nl/live?contentId=crid%3A~~2F~~2Fog.libertyglobal.com~~2FGN~~2FMV019801400000&abrType=BR-AVC-DASH&profileId=46184cc2-9c3c-49b6-b780-fc785a308f56
-    # URL for license: https://prod.spark.ziggogo.tv/eng/web/session-service/session/v2/web-desktop/customers
-    # /8654807_nl/vod?contentId=crid:~~2F~~2Fog.libertyglobal.com~~2FGN~~2FMV019801400000,imi
-    # :37500_CUNI0000000054872896-AVC-1080p-OTT&profileId=098acc0f-1e4b-43af-8897-b6ebd8ea5dcb&abrType=BR-AVC-DASH
-    #
-    # contentid = aa172e07b63efcf5194f7a92a7e8e909_df55d10d179101e4e3f9e7c861af3265
-    # response bevat 'url'
-    #    "https://wp-pod1-vod-vxtoken-nl-prod.prod.cdn.dmdsdp.com/sdash/aa172e07b63efcf5194f7a92a7e8e909_df55d10d179101e4e3f9e7c861af3265/index.mpd/Manifest?device=BR-AVC-DASH"
-    #
-    # get manifest: https://wp-pod1-vod-vxtoken-nl-prod.prod.cdn.dmdsdp.com/sdash,
-    # vxttoken={streaming-token}/aa172e07b63efcf5194f7a92a7e8e909_df55d10d179101e4e3f9e7c861af3265/index.mpd/Manifest?device=BR-AVC-DASH
+    def get_events(self, starttime: str):
+        """
+
+        :param starttime: datetime in format yyyymmddhhss
+        :return: list of events per channel
+        """
+        url = G.events_URL + starttime
+        response = super().do_get(url=url)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during get_events")
+        return json.loads(response.content)
+
+    def get_event_details(self, eventId):
+        url = G.replayEvent_URL + eventId
+        params = {
+            'returnLinearContent': 'true'
+            , 'forceLinearResponse': 'true'
+            , 'language': 'nl'}
+        response = super().do_get(url=url
+                                  , params=params)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during get_event_details")
+        return json.loads(response.content)

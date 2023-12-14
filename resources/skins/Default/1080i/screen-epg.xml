@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window>
+	<views>50</views>
+	<type>window</type>
+	<allowoverlay>yes</allowoverlay>
+	<!--<animation effect="fade" time="100">WindowOpen</animation>
+	<animation effect="slide" end="0,576" time="100">WindowClose</animation>-->
+	<controls>
+		<control type="image">
+			<posx>0</posx>
+			<posy>0</posy>
+			<width>1920</width>
+			<height>1080</height>
+			<aspectratio>scale</aspectratio>
+			<texture>charcoal.png</texture>
+            <visible>true</visible>
+		</control>
+
+		<control type="group" id="1000">
+            <description>Initial EPG group</description>
+            <left>0</left>
+            <top>0</top>
+            <width>1920</width>
+            <height>1080</height>
+            <visible>true</visible>
+			<control type="image" id="1001">
+                <description>Main screen header</description>
+                <left>0</left>
+                <top>0</top>
+                <width>1920</width>
+                <height>60</height>
+                <texture>black-back.png</texture>
+				<visible>true</visible>
+            </control>
+			<control type="image" id="1002">
+                <description>Header separator</description>
+                <left>0</left>
+                <top>59</top>
+                <width>1920</width>
+                <height>1</height>
+                <texture>aqua.png</texture>
+				<visible>true</visible>
+            </control>
+			<control type="image" id="1003">
+                <description>Footer separator</description>
+                <left>0</left>
+                <top>920</top>
+                <width>1920</width>
+                <height>1</height>
+                <texture>aqua.png</texture>
+				<visible>true</visible>
+            </control>
+		</control> <!-- End Inital EPG Group -->
+
+		<!-- Header - Date and time display -->
+		<control type="group" id="1010">
+			<left>0</left>
+			<top>0</top>
+			<width>1920</width>
+			<height>60</height>
+			<visible>true</visible>
+			<control type="button" id="1016">
+				<description>Button one day back</description>
+				<left>0</left>
+				<top>0</top>
+				<width>50</width>
+				<height>50</height>
+				<visible>true</visible>
+				<texturefocus colordiffuse="FF00FFFF">button_prev.png</texturefocus>
+				<texturenofocus colordiffuse="FFFFFFFF">button_prev.png</texturenofocus>
+			</control>
+			<control type="button" id="1017">
+				<description>Button one day back</description>
+				<left>230</left>
+				<top>0</top>
+				<width>50</width>
+				<height>50</height>
+				<visible>true</visible>
+				<font>font10</font>
+				<textcolor>FFFFFFFF</textcolor>
+				<texturefocus colordiffuse="FF00FFFF">button_next.png</texturefocus>
+				<texturenofocus colordiffuse="FFFFFFFF">button_next.png</texturenofocus>
+			</control>
+			<control type="label" id="1011">
+				<description>Displays EPG day</description>
+				<left>50</left>
+				<top>0</top>
+				<width>180</width>
+				<height>60</height>
+				<textcolor>white</textcolor>
+				<font>font10</font>
+				<align>center</align>
+				<aligny>center</aligny>
+				<visible>true</visible>
+			</control>
+			<control type="label">
+				<description>Displays todays date</description>
+				<left>1600</left>
+				<top>25</top>
+				<width>300</width>
+				<height>20</height>
+				<align>right</align>
+				<font>font10</font>
+				<textcolor>white</textcolor>
+				<visible>true</visible>
+				<label>$INFO[System.Date]</label>
+			</control>
+			<control type="label">
+				<description>Display current time</description>
+				<left>1700</left>
+				<top>5</top>
+				<width>200</width>
+				<height>20</height>
+				<align>right</align>
+				<font>font10</font>
+				<textcolor>white</textcolor>
+				<label>$INFO[System.Time]</label>
+			</control>
+			<control type="label">
+				<description>Display current temperature</description>
+				<left>1600</left>
+				<top>5</top>
+				<width>80</width>
+				<height>20</height>
+				<align>right</align>
+				<font>font10</font>
+				<textcolor>white</textcolor>
+				<label>$INFO[Weather.Temperature]</label>
+				<visible>Skin.HasSetting(show_weatherinfo) + Weather.IsFetched + ![StringCompare(Weather.FanartCode,na) + String.Contains(Weather.Conditions,/)]</visible>
+			</control>
+			<control type="image">
+				<description>Display current weather icon</description>
+				<left>1680</left>
+				<top>1</top>
+				<width>40</width>
+				<height>35</height>
+				<fadetime>300</fadetime>
+				<aspectratio align="right">keep</aspectratio>
+				<texture colordiffuse="button_focus">weather/small/$INFO[Weather.FanartCode].png</texture>
+				<visible>Skin.HasSetting(show_weatherinfo) + Weather.IsFetched + ![StringCompare(Weather.FanartCode,na) + String.Contains(Weather.Conditions,/)]</visible>
+			</control>
+			<control type="label" id="1012">
+				<description>1st half hour label</description>
+				<left>400</left>
+				<top>28</top>
+				<width>300</width>
+				<height>20</height>
+				<textcolor>white</textcolor>
+				<align>left</align>
+				<font>font10</font>
+			</control>
+
+			<control type="label" id="1013">
+				<description>2nd half hour label</description>
+				<left>700</left>
+				<top>28</top>
+				<width>300</width>
+				<height>20</height>
+				<textcolor>white</textcolor>
+				<align>left</align>
+				<font>font10</font>
+			</control>
+
+			<control type="label" id="1014">
+				<description>3rd half hour label</description>
+				<left>1000</left>
+				<top>28</top>
+				<width>300</width>
+				<height>20</height>
+				<textcolor>white</textcolor>
+				<align>left</align>
+				<font>font10</font>
+			</control>
+
+			<control type="label" id="1015">
+				<description>4th half hour column</description>
+				<left>1300</left>
+				<top>28</top>
+				<width>300</width>
+				<height>20</height>
+				<textcolor>white</textcolor>
+				<font>font10</font>
+				<align>left</align>
+			</control>
+		</control>
+		<!-- End Header -->
+
+		<!-- Body -->
+		<control type="group" id="2000">
+			<description>Body container</description>
+			<left>0</left>
+			<top>60</top>
+			<width>1920</width>
+			<height>860</height>
+			<control type="group" id="2001">
+				<description>Column for channel icons</description>
+				<left>0</left>
+				<top>0</top>
+				<width>60</width>
+				<height>860</height>
+			</control>
+			<control type="group" id="2002">
+				<description>Column for channel names</description>
+				<left>60</left>
+				<top>0</top>
+				<width>340</width>
+				<height>860</height>
+			</control>
+			<control type="group" id="2003">
+				<description>Event container</description>
+				<left>400</left>
+				<top>0</top>
+				<width>1520</width>
+				<height>860</height>
+				<!-- Event grid -->
+				<control type="image" id="2101">
+					<description>Vertical bar over EPG 1st half hour</description>
+					<left>0</left>
+					<top>0</top>
+					<width>1</width>
+					<height>860</height>
+					<visible>True</visible>
+					<texture>black.png</texture>
+				</control>
+				<control type="image" id="2102">
+					<description>Vertical bar over EPG 2nd half hour</description>
+					<left>300</left>
+					<top>0</top>
+					<width>1</width>
+					<height>860</height>
+					<visible>True</visible>
+					<texture>black.png</texture>
+				</control>
+				<control type="image" id="2103">
+					<description>Vertical bar over EPG 3rd half hour</description>
+					<left>600</left>
+					<top>0</top>
+					<width>1</width>
+					<height>860</height>
+					<visible>True</visible>
+					<texture>black.png</texture>
+				</control>
+				<control type="image" id="2104">
+					<description>Vertical bar over EPG 4th half hour</description>
+					<left>900</left>
+					<top>0</top>
+					<width>1</width>
+					<height>860</height>
+					<visible>True</visible>
+					<texture>black.png</texture>
+				</control>
+				<control type="image" id="2105">
+					<description>Vertical bar end</description>
+					<left>1200</left>
+					<top>00</top>
+					<width>1</width>
+					<height>860</height>
+					<visible>True</visible>
+					<texture>black.png</texture>
+				</control>
+            	<control type="image" id="2100">
+                	<description>Vertical bar over EPG</description>
+                	<left>0</left>
+                	<top>0</top>
+                	<width>2</width>
+                	<height>860</height>
+                	<visible>True</visible>
+                	<texture>aqua.png</texture>
+            	</control>
+			</control>
+		</control>
+
+		<!-- controls to display events -->
+		<control type="group" id="4000">
+			<description>Main screen footer</description>
+			<left>0</left>
+			<top>920</top>
+			<width>1920</width>
+			<height>160</height>
+			<texture>black-back.png</texture>
+			<visible>true</visible>
+			<control type="label" id="1201">
+				<description>Program title</description>
+				<posx>3</posx>
+				<posy>5</posy>
+				<width>300</width>
+				<height>38</height>
+				<font>font10</font>
+				<aligny>center</aligny>
+				<align>left</align>
+			</control>
+			<control type="label" id="1204">
+				<description>Season info</description>
+				<posx>310</posx>
+				<posy>5</posy>
+				<height>38</height>
+				<width>100</width>
+				<font>font10</font>
+				<aligny>center</aligny>
+				<align>left</align>
+			</control>
+			<control type="label" id="1202">
+				<description>program start and end time</description>
+				<posx>450</posx>
+				<posy>5</posy>
+				<width>200</width>
+				<height>38</height>
+				<font>font10</font>
+				<aligny>center</aligny>
+				<align>left</align>
+			</control>
+			<control type="label" id="1203">
+				<description>Program description</description>
+				<posx>3</posx>
+				<posy>50</posy>
+				<width>500</width>
+				<height>118</height>
+				<font>font10</font>
+				<aligny>top</aligny>
+				<align>left</align>
+				<wrapmultiline>true</wrapmultiline>
+				<scroll>true</scroll>
+			</control>
+		</control>
+	</controls>
+</window>

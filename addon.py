@@ -7,6 +7,7 @@ from collections import namedtuple
 from pathlib import Path
 from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 
+from resources.lib.Channel import Channel
 from resources.lib.globals import G
 
 import xbmc
@@ -23,7 +24,7 @@ except:
 
 from resources.lib.webcalls import LoginSession
 
-channels = {}
+channels = []
 session_info = {}
 PROTOCOL = 'mpd'
 DRM = 'com.widevine.alpha'
@@ -42,7 +43,7 @@ class ZiggoPlugin:
     def pluginpath(self, name):
         return self.addon_path + name
 
-    def get_locator(self, channel) -> typing.Tuple[str, str]:
+    def get_locator(self, channel: Channel) -> typing.Tuple[str, str]:
         try:
             # max_res = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.max')
             max_res_drm = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.secure.max')
@@ -53,14 +54,13 @@ class ZiggoPlugin:
         except:
             hd_allowed = True
         asset_type = 'Orion-DASH'
-        if 'locators' in channel:
-            if 'Orion-DASH-HEVC' in channel['locators'] and hd_allowed:
-                avc = channel['locators']['Orion-DASH-HEVC']
-                asset_type = 'Orion-DASH-HEVC'
-            else:
-                avc = channel['locators']['Orion-DASH']
+        if 'Orion-DASH-HEVC' in channel.locators and hd_allowed:
+            avc = channel.locators['Orion-DASH-HEVC']
+            asset_type = 'Orion-DASH-HEVC'
+        elif 'Orion-DASH' in channel.locators:
+            avc = channel.locators['Orion-DASH']
         else:
-            avc = channel['locator']
+            avc = channel.locators['Default']
         return avc, asset_type
 
     def build_url(self, streaming_token, locator) -> str:
@@ -297,33 +297,33 @@ class ZiggoPlugin:
 
         return li
 
-    def listitem_from_channel(self, video) -> xbmcgui.ListItem:
-        li = xbmcgui.ListItem(label="{0}. {1}".format(video['logicalChannelNumber'], video['name']))
-        thumbname = xbmc.getCacheThumbName(video['logo']['focused'])
+    def listitem_from_channel(self, video: Channel) -> xbmcgui.ListItem:
+        li = xbmcgui.ListItem(label="{0}. {1}".format(video.logicalChannelNumber, video.name))
+        thumbname = xbmc.getCacheThumbName(video.logo['focused'])
         thumbfile = xbmcvfs.translatePath('special://thumbnails/' + thumbname[0:1] + '/' + thumbname)
         if os.path.exists(thumbfile):
             os.remove(thumbfile)
-        if len(video['imageStream']) > 0:
-            thumbname = xbmc.getCacheThumbName(video['imageStream']['full'])
+        if len(video.imageStream) > 0:
+            thumbname = xbmc.getCacheThumbName(video.imageStream['full'])
             thumbfile = (
                 xbmcvfs.translatePath(
                     'special://thumbnails/' + thumbname[0:1] + '/' + thumbname.split('.')[0] + '.jpg'))
             if os.path.exists(thumbfile):
                 os.remove(thumbfile)
-            li.setArt({'icon': video['logo']['focused'],
-                       'thumb': video['logo']['focused'],
-                       'poster': video['imageStream']['full']})
+            li.setArt({'icon': video.logo['focused'],
+                       'thumb': video.logo['focused'],
+                       'poster': video.imageStream['full']})
         else:
-            li.setArt({'icon': video['logo']['focused'],
-                       'thumb': video['logo']['focused']})
+            li.setArt({'icon': video.logo['focused'],
+                       'thumb': video.logo['focused']})
         # set the list item to playable
         li.setProperty('IsPlayable', 'true')
         tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
-        tag.setTitle("{0}. {1}".format(video['logicalChannelNumber'], video['name']))
-        tag.setGenres(video['genre'])
-        tag.setSetId(video['logicalChannelNumber'])
+        tag.setTitle("{0}. {1}".format(video.logicalChannelNumber, video.name))
+        tag.setGenres(video.genre)
+        tag.setSetId(video.logicalChannelNumber)
         tag.setMediaType('video')
-        tag.setUniqueIDs({'ziggochannelid': video['id']})
+        tag.setUniqueIDs({'ziggochannelid': video.id})
         li.setProperty('IsPlayable', 'true')
         li.setMimeType('application/dash+xml')
         li.setContentLookup(False)
@@ -357,13 +357,13 @@ class ZiggoPlugin:
         """
         # Create a playable item with a path to play.
         channels = self.session.get_channels()
-        channel = {}
+        channel = None
         for video in channels:
-            if video['id'] == path:
+            if video.id == path:
                 channel = video
                 break
 
-        if len(channel) == 0:
+        if channel is None:
             raise RuntimeError("Channel not found: " + path)
 
         try:
@@ -613,7 +613,7 @@ class ZiggoPlugin:
         :return: None
         """
         # Get video categories
-        categories = {'Channels': 'Channels'}
+        categories = {'Channels': 'Channels', 'Guide': 'Guide'}
         response = self.session.obtain_vod_screens()
         screens = response['screens']
         if self.addon.getSettingBool('adult-allowed'):
@@ -634,6 +634,8 @@ class ZiggoPlugin:
             tag.setGenres([categoryname])
             if categoryname == 'Channels':
                 url = '{0}?action=listing&category={1}&categoryId={2}'.format(self.url, categoryname, categoryId)
+            elif categoryname == 'Guide':
+                url = '{0}?action=epg'.format(self.url)
             else:
                 url = '{0}?action=subcategory&category={1}&categoryId={2}'.format(self.url, categoryname, categoryId)
             # is_folder = True means that this item opens a sub-list of lower level items.
@@ -663,13 +665,11 @@ class ZiggoPlugin:
         # Iterate through channels
         for video in channels:  # create a list item using the song filename for the label
             subscribed = False
-            if 'isHidden' in video:
-                if video['isHidden']:
-                    continue
-            if 'linearProducts' in video:
-                for linearProduct in video['linearProducts']:
-                    if linearProduct in entitlementlist:
-                        subscribed = True
+            if video.isHidden:
+                continue
+            for linearProduct in video.linearProducts:
+                if linearProduct in entitlementlist:
+                    subscribed = True
             li = self.listitem_from_channel(video)
 
             tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
@@ -682,13 +682,13 @@ class ZiggoPlugin:
 
             if not subscribed:
                 li.setProperty('IsPlayable', 'false')
-            if video['locator'] is None:
+            if video.locators['Default'] is None:
                 li.setProperty('IsPlayable', 'false')
             if li.getProperty('IsPlayable') == 'true':
-                callback_url = '{0}?action=play&video={1}'.format(self.url, video['id'])
+                callback_url = '{0}?action=play&video={1}'.format(self.url, video.id)
             else:
                 tag.setTitle(title[0:title.find('.') + 1] + '[COLOR red]' + title[title.find('.') + 1:] + '[/COLOR]')
-                callback_url = '{0}?action=cantplay&video={1}'.format(self.url, video['id'])
+                callback_url = '{0}?action=cantplay&video={1}'.format(self.url, video.id)
             listing.append((callback_url, li, False))
 
         # Add our listing to Kodi.
@@ -912,6 +912,16 @@ class ZiggoPlugin:
                     self.list_series(params['categoryId'])
                 elif params['category'] == G.GENRES:
                     self.list_genres(params['categoryId'])
+            elif params['action'] == 'epg':
+                xbmc.executebuiltin('Dialog.Close(busydialog)')
+                # window = EpgWindowXml('screen-epg.xml', xbmcaddon.Addon().getAddonInfo('path'), self.session)
+                # window.doModal()
+                # window.close()
+                # del window
+                xbmc.executebuiltin('RunScript(' +
+                                    addon.getAddonInfo('path') +
+                                    'epgscript.py,' +
+                                    addon.getAddonInfo('id') + ')')
             elif params['action'] == 'subcategory':
                 self.list_subcategories(params['categoryId'])
             elif params['action'] == 'play':

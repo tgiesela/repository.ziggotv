@@ -65,6 +65,10 @@ class DatetimeHelper:
     def toUnix(dt: str, dt_format: str):
         return int(time.mktime(datetime.strptime(dt, dt_format).timetuple()))
 
+    @staticmethod
+    def unixDatetime(dt: datetime):
+        return int(time.mktime(dt.timetuple()))
+
 
 if __name__ == '__main__':
     pass

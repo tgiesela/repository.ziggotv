@@ -1,3 +1,6 @@
+from enum import Enum, IntEnum
+
+
 class GlobalVariables:
     VIDEO_PLAYING = 'VIDEO_PLAYING'
     VIDEO_ID = 'VIDEO_ID'
@@ -5,6 +8,7 @@ class GlobalVariables:
     ZIGGO_URL = 'https://www.ziggogo.tv/'
     ZIGGOPROD_URL = 'https://prod.spark.ziggogo.tv/'
     STATIC_URL = 'https://staticqbr-nl-prod.prod.cdn.dmdsdp.com/'
+    STATICPROD_URL = 'https://static.spark.ziggogo.tv/'
     authentication_URL = ZIGGOPROD_URL + 'auth-service/v1/authorization'
     personalisation_URL = ZIGGOPROD_URL + 'eng/web/personalization-service/v1/customer/{householdid}'
     entitlements_URL = ZIGGOPROD_URL + 'eng/web/purchase-service/v2/customers/{householdid}/entitlements'
@@ -19,7 +23,8 @@ class GlobalVariables:
     linearservice_v1_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v1/'
     pickerservice_URL = ZIGGOPROD_URL + 'eng/web/picker-service/v1/'
     gridservice_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/grid-screen/'
-
+    events_URL = STATICPROD_URL + 'eng/web/epg-service-lite/nl/nl/events/segments/'
+    replayEvent_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/replayEvent/'
 
     SESSION_INFO = 'session.json'
     CUSTOMER_INFO = 'customer.json'
@@ -75,6 +80,18 @@ class GlobalVariables:
     SERIES = 'Series'
     MOVIES = 'Movies'
     GENRES = 'Genre'
+
+    # Keyboard actions
+    ACTION_STOP = 10
+
+    class ALIGNMENT(IntEnum):
+        XBFONT_LEFT = 0x00000000,
+        XBFONT_RIGHT = 0x00000001,
+        XBFONT_CENTER_X = 0x00000002,
+        XBFONT_CENTER_Y = 0x00000004,
+        XBFONT_TRUNCATED = 0x00000008,
+        XBFONT_JUSTIFIED = 0x00000010
+
     def __init__(self):
         pass
 

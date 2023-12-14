@@ -6,6 +6,8 @@ import unittest
 import requests
 import xbmcaddon
 
+from resources.lib import utils
+from resources.lib.events import ChannelGuide, EventList
 from resources.lib.webcalls import LoginSession
 from resources.lib.globals import G
 
@@ -77,9 +79,10 @@ class TestWebcalls(unittest.TestCase):
     def test_channels(self):
         self.cleanup_channels()
         channels = self.session.get_channels()
-        self.assertDictEqual({}, channels)
-        channels = self.session.refresh_channels()
-        self.assertFalse(channels == {})
+        self.assertEqual(0, len(channels))
+        self.session.refresh_channels()
+        channels = self.session.get_channels()
+        self.assertNotEquals(len(channels), 0)
 
     def test_entitlements(self):
         self.cleanup_all()
@@ -98,7 +101,7 @@ class TestWebcalls(unittest.TestCase):
         self.session.refresh_channels()
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        streaming_token = self.session.obtain_tv_streaming_token(channel)
+        streaming_token = self.session.obtain_tv_streaming_token(channel, asset_type='Orion-DASH')
         headers = {}
         headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
@@ -121,10 +124,60 @@ class TestWebcalls(unittest.TestCase):
         self.session.refresh_channels()
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        response = self.session.get_manifest(channel['locator'])
+        response = self.session.get_manifest(channel.locators['Default'])
         mpd = str(response.content, 'utf-8')
         self.assertFalse(mpd == '')
         self.assertTrue(mpd.find('<MPD') > 0)
+
+    def test_events(self):
+        self.session.refresh_channels()
+
+        guide = ChannelGuide(self.session)
+
+        startDate = datetime.datetime.now()
+        endDate = startDate + datetime.timedelta(hours=2)
+        guide.obtainEventsInWindow(startDate.astimezone(datetime.timezone.utc),
+                                   endDate.astimezone(datetime.timezone.utc))
+
+        latestEndDate = endDate
+        startDate = startDate + datetime.timedelta(days=-1)
+        oldestStartDate = startDate
+        endDate = startDate + datetime.timedelta(hours=2)
+        guide.obtainEventsInWindow(startDate.astimezone(datetime.timezone.utc),
+                                   endDate.astimezone(datetime.timezone.utc))
+        startDate = startDate + datetime.timedelta(hours=6)
+        endDate = startDate + datetime.timedelta(hours=2)
+        guide.obtainEventsInWindow(startDate.astimezone(datetime.timezone.utc),
+                                   endDate.astimezone(datetime.timezone.utc))
+
+        #        guide.obtainEvents()
+        #        guide.obtainNextEvents()
+        #        guide.obtainPreviousEvents()
+        #        guide.obtainPreviousEvents()
+
+        channels = []
+        for channel in self.session.get_channels():
+            channel.events = guide.getEvents(channel.id)
+            events: EventList = channel.events
+            if events is not None and events.head is not None:
+                event = events.head.data
+                event.details = self.session.get_event_details(event.id)
+            channels.append(channel)
+
+        for channel in channels:
+            print('Channel id: {0}, name: {1}'.format(channel.id, channel.name))
+            evts = channel.events.getEventsInWindow(oldestStartDate, latestEndDate)
+            for evt in evts:
+                print('    Event: {0}, duration: {1}, start: {2}, end: {3}'.format(
+                    evt.title
+                    , evt.duration
+                    , utils.DatetimeHelper.fromUnix(evt.startTime).strftime('%y-%m-%d %H:%M')
+                    , utils.DatetimeHelper.fromUnix(evt.endTime).strftime('%y-%m-%d %H:%M')))
+            # evt = channel.events.__findEvent(datetime.datetime.now())
+            # if evt is not None:
+            #    print('    Current event: {0}: start: {1}, end: {2}'.format(evt.data.title
+            #                                                                , evt.data.startTime
+            #                                                               , evt.data.endTime))
 
     def test_voor_jou(self):
         profiles = self.session.get_profiles()
@@ -188,9 +241,15 @@ class TestWebcalls(unittest.TestCase):
                         print('\t{0}, type: {1}'.format(collection['collectionLayout'], collection['contentType']))
                     for item in collection['items']:
                         if item['type'] == 'LINK':
-                            grid = self.session.obtain_grid_screen_details(item['gridLink']['id'])
-                            print(
-                                '\t\t{0}:{2}'.format(item['type'], item['gridLink']['type'], item['gridLink']['title']))
+                            try:
+                                grid = self.session.obtain_grid_screen_details(item['gridLink']['id'])
+                                print(
+                                    '\t\t{0}:{2}'.format(item['type'], item['gridLink']['type'],
+                                                         item['gridLink']['title']))
+                            except Exception as exc:
+                                print(
+                                    '\t\tFAILED: {0}:{2}'.format(item['type'], item['gridLink']['type'],
+                                                                 item['gridLink']['title']))
                         else:
                             print('\t\t{0}-{1}:{2}'.format(item['type'], item['assetType'], item['title']))
                             if item['type'] == 'SERIES':
@@ -214,16 +273,18 @@ class TestWebcalls(unittest.TestCase):
                                             episode_type = episode['source']['type']
                                         else:
                                             episode_type = '?'
+                                        title = episode['title'] if 'title' in episode else '?'
                                         print('\t\t\tAfl {0}, afl: {1} source {2} entitled {3} type {4}'.format(
                                             episode['episode']
-                                            , episode['title'], episode['source']['titleId']
+                                            , title, episode['source']['titleId']
                                             , entitled
                                             , episode_type))
                                         details = self.session.obtain_asset_details(episode['id'])
                                         if 'instances' in details:
                                             print('\t\t\tInstances found')
                                         else:
-                                            print('\t\t\t{0}Instances NOT found, entitled: {1}'.format(episode['title'], entitled))
+                                            print('\t\t\t{0}Instances NOT found, entitled: {1}'.format(title,
+                                                                                                       entitled))
                                         # details2 = self.session.obtain_asset_details(episode['source']['eventId'])
                             elif item['type'] == 'ASSET':
                                 if 'brandingProviderId' in item:
