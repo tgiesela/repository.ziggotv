@@ -70,7 +70,7 @@ class Web(requests.Session):
         if not self.print_network_traffic:
             return
 
-        print("URL: {0}".format(response.url))
+        print("URL: {0} {1}".format(response.request.method, response.url))
         print("Status-code: {0}".format(response.status_code))
         print("Request headers: {0}".format(response.request.headers))
         print("Response headers: {0}".format(response.headers))
@@ -87,8 +87,13 @@ class Web(requests.Session):
                     print("HEX: {0}".format(b2ah(response.request.body)))
                     print("B64: {0}".format(base64.b64encode(response.request.body)))
             else:
-                print("HEX: {0}".format(b2ah(response.request.body)))
-                print("B64: {0}".format(base64.b64encode(response.request.body)))
+                if type(response.request.body) is str:
+                    s = bytearray(response.request.body,'ascii')
+                    print("HEX: {0}".format(b2ah(s)))
+                    print("B64: {0}".format(base64.b64encode(s)))
+                else:
+                    print("HEX: {0}".format(b2ah(response.request.body)))
+                    print("B64: {0}".format(base64.b64encode(response.request.body)))
 
         if response.content is None or response.content == '':
             print("Response data is empty")
@@ -121,8 +126,6 @@ class Web(requests.Session):
         for key in extra_headers:
             headers.update({key: extra_headers[key]})
         response = super().post(url, data=data, json=json_data, headers=headers, params=params)
-        #        self.session.cookies.get_dict()
-        # self.dump_cookies()
         self.print_dialog(response)
         self.save_cookies(response)
         return response
@@ -182,6 +185,7 @@ class LoginSession(Web):
     def __init__(self, addon):
         super().__init__(addon)
         self.vod_stream_info = None
+        self.replay_stream_info = None
         self.active_profile = None
         self.streaming_token = None
         self.entitlements_info = None
@@ -365,13 +369,28 @@ class LoginSession(Web):
         self.streaming_token = response.headers["x-streaming-token"]
         return response.headers["x-streaming-token"]
 
+    def obtain_replay_streaming_token(self, path):
+        url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/replay'
+        response = super().do_post(url,
+                                   params={
+                                       'eventId': path,
+                                       'abrType': 'BR-AVC-DASH',
+                                       'profileId': self.active_profile['profileId']
+                                   },
+                                   extra_headers=self.extra_headers)
+        if not self.__status_code_ok(response):
+            raise RuntimeError("status code <> 200 during obtain replay streaming info")
+        self.replay_stream_info = json.loads(response.content)
+        self.streaming_token = response.headers["x-streaming-token"]
+        return response.headers["x-streaming-token"]
+
     def obtain_vod_streaming_token(self, id):
         url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/vod'
         response = super().do_post(url,
                                    params={
-                                       'contentId': id
-                                       , 'abrType': 'BR-AVC-DASH'
-                                       , 'profileId': self.active_profile['profileId']
+                                       'contentId': id,
+                                       'abrType': 'BR-AVC-DASH',
+                                       'profileId': self.active_profile['profileId']
                                    },
                                    extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):

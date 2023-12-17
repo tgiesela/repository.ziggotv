@@ -20,6 +20,7 @@ class EventDetails:
         self.eventId = eventJson['eventId']
         self.channelId = eventJson['channelId']
         self.mergedId = eventJson['mergedId']
+        self.seriesId = None
         if 'seriesId' in eventJson:
             self.seriesId = eventJson['seriesId']
             self.episode = eventJson['episodeNumber']

@@ -1,21 +1,30 @@
 import datetime
+from collections import namedtuple
 from typing import List
+import typing
 
+import xbmc
+import xbmcaddon
 import xbmcgui
 
 from resources.lib import utils
 from resources.lib.Channel import Channel
+from resources.lib.UrlTools import UrlTools
+from resources.lib.ZiggoPlayer import ZiggoPlayer, VideoHelpers
 from resources.lib.events import Event, ChannelGuide
 from resources.lib.globals import G
 from resources.lib.webcalls import LoginSession
 
+import urllib.parse
+
 
 class ProgramEventGrid:
-    def __init__(self
-                 , window: xbmcgui.WindowXML
-                 , channels: List[Channel]
-                 , mediaFolder: str
-                 , session: LoginSession):
+    def __init__(self,
+                 window: xbmcgui.WindowXML,
+                 channels: List[Channel],
+                 mediaFolder: str,
+                 session: LoginSession,
+                 addon: xbmcaddon.Addon):
         self.startWindow = None
         self.endWindow = None
         self.rows: List[ProgramEventRow] = []
@@ -28,6 +37,7 @@ class ProgramEventGrid:
         self.__currentRow = 0
         self.__getFirstWindow()
         self.session = session
+        self.addon = addon
         self.guide = ChannelGuide(session)
         self.guide.obtainEvents()
         for channel in self.channels:
@@ -75,19 +85,10 @@ class ProgramEventGrid:
         self.endWindow = self.startWindow + datetime.timedelta(hours=2)
         self.__processDates()
 
-    def __updateEvents(self, leftorright):
+    def __updateEvents(self):
         self.guide.obtainEventsInWindow(
             self.startWindow.astimezone(datetime.timezone.utc),
             self.endWindow.astimezone(datetime.timezone.utc))
-        # if self.guide.windowAvailable(self.startWindow.astimezone(datetime.timezone.utc),
-        #                               self.endWindow.astimezone(datetime.timezone.utc)):
-        #     pass
-        # else:
-        #     if leftorright == -1:
-        #         self.guide.obtainPreviousEvents()
-        #     else:
-        #         self.guide.obtainNextEvents()
-        #     self.guide.obtainEvents()
         for channel in self.channels:
             channel.events = self.guide.getEvents(channel.id)
 
@@ -96,7 +97,7 @@ class ProgramEventGrid:
             self.shiftEpgWindow(-90)  # 90 minutes
         else:
             self.shiftEpgWindow(90)  # 90 minutes
-        self.__updateEvents(leftorright)
+        self.__updateEvents()
         self.build()
         self.show()
 
@@ -108,7 +109,7 @@ class ProgramEventGrid:
             pixelsPerMinute = pixelsForWindow / 120
             delta = currentTime - self.startWindow
             deltaMinutes = int(delta.total_seconds() / 60)
-            timeBar.setPosition(int(deltaMinutes*pixelsPerMinute), 0)
+            timeBar.setPosition(int(deltaMinutes * pixelsPerMinute), 0)
             timeBar.setVisible(True)
         else:
             timeBar.setVisible(False)
@@ -124,6 +125,73 @@ class ProgramEventGrid:
                 return rownr, programnr
             rownr += 1
         return -1, -1
+
+    def __get_locator(self, channel: Channel) -> typing.Tuple[str, str]:
+        try:
+            # max_res = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.max')
+            max_res_drm = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.secure.max')
+            if max_res_drm in ['auto', '1080p', '2K', '4K', '1440p']:
+                hd_allowed = True
+            else:
+                hd_allowed = False
+        except:
+            hd_allowed = True
+        asset_type = 'Orion-DASH'
+        if 'Orion-DASH-HEVC' in channel.locators and hd_allowed:
+            avc = channel.locators['Orion-DASH-HEVC']
+            asset_type = 'Orion-DASH-HEVC'
+        elif 'Orion-DASH' in channel.locators:
+            avc = channel.locators['Orion-DASH']
+        else:
+            avc = channel.locators['Default']
+        return avc, asset_type
+
+    def __play_channel(self, channel):
+        helper = VideoHelpers(self.addon, self.session)
+        urlHelper = UrlTools(self.addon)
+        player = ZiggoPlayer()
+        locator, asset_type = channel.get_locator()
+        streaming_token = self.session.obtain_tv_streaming_token(channel, asset_type)
+        url = urlHelper.build_url(streaming_token, locator)
+        play_item = helper.listitem_from_url(requesturl=url,
+                                             streaming_token=streaming_token,
+                                             drmContentId=self.session.stream_info['drmContentId'])
+        player.play(item=url, listitem=play_item)
+        while player.isPlaying():
+            xbmc.sleep(10)
+
+    def __replay_event(self, event: Event):
+        helper = VideoHelpers(self.addon, self.session)
+        urlHelper = UrlTools(self.addon)
+        player = ZiggoPlayer()
+        streaming_token = self.session.obtain_replay_streaming_token(event.details.eventId)
+        url = urlHelper.build_url(streaming_token, self.session.replay_stream_info['url'])
+        play_item = helper.listitem_from_url(requesturl=url,
+                                             streaming_token=streaming_token,
+                                             drmContentId=self.session.replay_stream_info['drmContentId'])
+        player.play(item=url, listitem=play_item)
+        player.seekTime(0)
+        while player.isPlaying():
+            xbmc.sleep(10)
+
+    def __play(self, event: Event, channel: Channel):
+        if not event.hasDetails:
+            event.details = self.session.get_event_details(event.id)
+        if event.startTime < utils.DatetimeHelper.unixDatetime(datetime.datetime.now()) < event.endTime:
+            choice = xbmcgui.Dialog().yesnocustom('Play', 'Program is currently running.\n'
+                                                          'Play from beginning or switch to channel',
+                                                  'Cancel', 'Play', 'Switch', False)
+            if choice in [-1, 2]:
+                return
+            else:
+                if choice == 0:    # nobutton -> Play
+                    self.__replay_event(event)
+                elif choice == 1:  # yesbutton -> Switch to channel
+                    self.__play_channel(channel)
+        elif event.endTime <= utils.DatetimeHelper.unixDatetime(datetime.datetime.now()):  # event already finished
+            self.__replay_event(event)
+        else:
+            self.__play_channel(channel)
 
     def clear(self):
         for row in self.rows:
@@ -154,7 +222,8 @@ class ProgramEventGrid:
             self.__currentRow = row
             self.rows[self.__currentRow].setFocus(program)
         self.__displayDetails(row, program)
-        print('onFocus(): controlId {0} on row {1} item {2}'.format(controlId, self.__currentRow, program))
+        xbmc.log('onFocus(): controlId {0} on row {1} item {2}'.format(controlId, self.__currentRow, program),
+                 xbmc.LOGDEBUG)
 
     def onAction(self, action: xbmcgui.Action):
         if action.getId() == xbmcgui.ACTION_MOVE_LEFT:
@@ -179,15 +248,15 @@ class ProgramEventGrid:
         if action.getId() == xbmcgui.ACTION_PAGE_UP:
             self.pageUp()
 
-    def onClick(self,  controlId: int) -> None:
+    def onClick(self, controlId: int) -> None:
         if controlId == 1016:  # Move back 1 Day
             self.shiftEpgWindow(-1440)
-            self.__updateEvents(-1)
+            self.__updateEvents()
             self.build()
             self.show()
         elif controlId == 1017:  # move 1 day forward
             self.shiftEpgWindow(+1440)
-            self.__updateEvents(1)
+            self.__updateEvents()
             self.build()
             self.show()
         else:
@@ -195,7 +264,11 @@ class ProgramEventGrid:
             if row == -1 or program == -1:
                 return
             else:
-                print("Event clicked")
+                event = self.rows[row].programs[program]
+                self.__play(event.programEvent, self.rows[row].channel)
+
+    def onControl(self, control: xbmcgui.Control):
+        pass
 
     def shiftDown(self):
         self.__firstChannelIndex += self.__MAXROWS - 1
@@ -262,10 +335,10 @@ class ProgramEventGrid:
 
 
 class ProgramEventRow:
-    def __init__(self
-                 , rownr: int
-                 , channel: Channel
-                 , grid: ProgramEventGrid):
+    def __init__(self,
+                 rownr: int,
+                 channel: Channel,
+                 grid: ProgramEventGrid):
         self.channelName = None
         self.channelIcon = None
         self.focusItem = 0
@@ -277,8 +350,8 @@ class ProgramEventRow:
         self.grid = grid
         self.programs: List[ProgramEvent] = []
         self.addChannelInfo(channel)
-        evts = channel.events.getEventsInWindow(grid.startWindow
-                                                , grid.endWindow)
+        evts = channel.events.getEventsInWindow(grid.startWindow,
+                                                grid.endWindow)
         for evt in evts:
             self.programs.append(self.addEvent(evt))
 
@@ -288,24 +361,23 @@ class ProgramEventRow:
         width = ctrl.getWidth()
         offset_x = ctrlgroup.getX() + ctrl.getX()
         offset_y = ctrlgroup.getY() + ctrl.getY() + self.rownr * self.rowheight
-        self.channelIcon = xbmcgui.ControlImage(x=offset_x
-                                                , y=offset_y
-                                                , width=width
-                                                , height=self.rowheight
-                                                , filename=channel.logo['focused']
-                                                , aspectRatio=2
+        self.channelIcon = xbmcgui.ControlImage(x=offset_x,
+                                                y=offset_y,
+                                                width=width,
+                                                height=self.rowheight,
+                                                filename=channel.logo['focused'],
+                                                aspectRatio=2
                                                 )
         ctrl = self.grid.window.getControl(2002)
         width = ctrl.getWidth()
         offset_x = ctrlgroup.getX() + ctrl.getX()
         offset_y = ctrlgroup.getY() + ctrl.getY() + self.rownr * self.rowheight
-        self.channelName = xbmcgui.ControlLabel(x=offset_x + 5
-                                                , y=offset_y
-                                                , width=width - 5
-                                                , height=self.rowheight
-                                                , label='{0}. {1}'.format(channel.logicalChannelNumber, channel.name)
-                                                , font='font10'
-                                                ,
+        self.channelName = xbmcgui.ControlLabel(x=offset_x + 5,
+                                                y=offset_y,
+                                                width=width - 5,
+                                                height=self.rowheight,
+                                                label='{0}. {1}'.format(channel.logicalChannelNumber, channel.name),
+                                                font='font10'
                                                 )
         self.grid.window.addControls([self.channelIcon, self.channelName])
 
@@ -365,9 +437,9 @@ class ProgramEventRow:
 
 class ProgramEvent:
 
-    def __init__(self
-                 , row: ProgramEventRow
-                 , event: Event):
+    def __init__(self,
+                 row: ProgramEventRow,
+                 event: Event):
 
         self.window = row.grid.window
         self.rowheight = row.rowheight
@@ -392,18 +464,18 @@ class ProgramEvent:
         offset_x = ctrlgroup.getX() + ctrl.getX() + int(
             ((eventStart - self.grid.unixstarttime) / 60) * self.pixelsPerMinute)
         offset_y = ctrlgroup.getY() + ctrl.getY() + row.rownr * self.rowheight
-        self.button = xbmcgui.ControlButton(x=offset_x
-                                            , y=offset_y
-                                            , width=width - 1
-                                            , height=self.rowheight - 1
-                                            , label=''
-                                            , focusTexture=self.mediafolder + 'tvg-program-focus.png'
-                                            , noFocusTexture=self.mediafolder + 'tvg-program-nofocus.png'
-                                            , font='font10'
-                                            , focusedColor='white'
-                                            , textColor='red'
-                                            , textOffsetY=5
-                                            , alignment=G.ALIGNMENT.XBFONT_CENTER_Y + G.ALIGNMENT.XBFONT_TRUNCATED
+        self.button = xbmcgui.ControlButton(x=offset_x,
+                                            y=offset_y,
+                                            width=width - 1,
+                                            height=self.rowheight - 1,
+                                            label='',
+                                            focusTexture=self.mediafolder + 'tvg-program-focus.png',
+                                            noFocusTexture=self.mediafolder + 'tvg-program-nofocus.png',
+                                            font='font10',
+                                            focusedColor='white',
+                                            textColor='red',
+                                            textOffsetY=5,
+                                            alignment=G.ALIGNMENT.XBFONT_CENTER_Y + G.ALIGNMENT.XBFONT_TRUNCATED
                                             )
         if width > 30:
             self.button.setLabel(event.title)

@@ -1,3 +1,6 @@
+import typing
+import xbmcaddon
+
 
 class Channel:
     def __init__(self, eventJson):
@@ -55,5 +58,25 @@ class Channel:
     @property
     def id(self):
         return self.channelId
+
+    def get_locator(self) -> typing.Tuple[str, str]:
+        try:
+            # max_res = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.max')
+            max_res_drm = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.secure.max')
+            if max_res_drm in ['auto', '1080p', '2K', '4K', '1440p']:
+                hd_allowed = True
+            else:
+                hd_allowed = False
+        except Exception as exc:
+            hd_allowed = True
+        asset_type = 'Orion-DASH'
+        if 'Orion-DASH-HEVC' in self.locators and hd_allowed:
+            avc = self.locators['Orion-DASH-HEVC']
+            asset_type = 'Orion-DASH-HEVC'
+        elif 'Orion-DASH' in self.locators:
+            avc = self.locators['Orion-DASH']
+        else:
+            avc = self.locators['Default']
+        return avc, asset_type
 
 

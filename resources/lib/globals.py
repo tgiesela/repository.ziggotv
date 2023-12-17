@@ -84,6 +84,9 @@ class GlobalVariables:
     # Keyboard actions
     ACTION_STOP = 10
 
+    PROTOCOL = 'mpd'
+    DRM = 'com.widevine.alpha'
+
     class ALIGNMENT(IntEnum):
         XBFONT_LEFT = 0x00000000,
         XBFONT_RIGHT = 0x00000001,
