@@ -7,14 +7,14 @@
         <import addon="script.module.pycryptodome" version="3.4.3"/>
         <import addon="script.module.inputstreamhelper" version="0.5.7"/>
         <import addon="script.module.pyjwt" version="1.7.1"/>
-        <import addon="script.module.aiohttp" version="0.0.1"/>
+<!--        <import addon="script.module.aiohttp" version="0.0.1"/>
         <import addon="script.module.multidict" version="0.0.1"/>
         <import addon="script.module.attr" version="0.0.1"/>
         <import addon="script.module.yarl" version="0.0.1"/>
         <import addon="script.module.async_timeout" version="0.0.1"/>
         <import addon="script.module.aiosignal" version="0.0.1"/>
         <import addon="script.module.frozenlist" version="0.0.1"/>
-        <import addon="script.module.charset_normalizer" version="0.0.1"/>
+        <import addon="script.module.charset_normalizer" version="0.0.1"/> -->
         <import addon="script.module.web-pdb" version="1.6.2"/>
     </requires>
     <extension point="xbmc.python.pluginsource" library="addon.py">

@@ -93,6 +93,7 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
                 if written != len(block):
                     xbmc.log('count-written ({0})<>len(block)({1})'.format(written, len(block)))
                     return
+                block = response.read(8192)
 
     def do_GET(self):
         """Handle http get requests, used for manifest and all streaming calls"""
