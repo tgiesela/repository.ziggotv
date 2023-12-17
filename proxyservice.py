@@ -89,8 +89,10 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             block = response.read(8192)
             while length_processed < expected_length:
                 length_processed += len(block)
-                self.wfile.write(block)
-                block = response.read(8192)
+                written = self.wfile.write(block)
+                if written != len(block):
+                    xbmc.log('count-written ({0})<>len(block)({1})'.format(written, len(block)))
+                    return
 
     def do_GET(self):
         """Handle http get requests, used for manifest and all streaming calls"""
@@ -264,6 +266,9 @@ class ServiceMonitor(xbmc.Monitor):
         session.load_cookies()
         proxy: ProxyServer = self.service.ProxyServer
         xbmc.log("Refresh token interval expired", xbmc.LOGDEBUG)
+        token = proxy.get_streaming_token()
+        if token is None or token == '':
+            return
         streaming_token = session.update_token(proxy.get_streaming_token())
         proxy.set_streaming_token(streaming_token)
 
