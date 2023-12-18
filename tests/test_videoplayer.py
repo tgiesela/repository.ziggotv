@@ -48,7 +48,7 @@ class TestVideoPlayer(unittest.TestCase):
         self.session.refresh_widevine_license()
 
     def test_buildurl(self):
-        addon = xbmcaddon.Addon('plugin.video.ziggotg')
+        addon = xbmcaddon.Addon('plugin.video.ziggotv')
         urlHelper = UrlTools(addon)
         helpers = VideoHelpers(addon, self.session)
 
