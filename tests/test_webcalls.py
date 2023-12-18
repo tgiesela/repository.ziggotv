@@ -82,7 +82,7 @@ class TestWebcalls(unittest.TestCase):
         self.assertEqual(0, len(channels))
         self.session.refresh_channels()
         channels = self.session.get_channels()
-        self.assertNotEquals(len(channels), 0)
+        self.assertNotEqual(len(channels), 0)
 
     def test_entitlements(self):
         self.cleanup_all()

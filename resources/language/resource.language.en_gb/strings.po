@@ -16,35 +16,69 @@ msgstr ""
 "Language: en_GB\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgctxt "#31000"
+# Labels used in Settings dialogue (settings.xml)
+msgctxt "#41000"
 msgid "General"
 msgstr "General"
 
-msgctxt "#31001"
+msgctxt "#41001"
 msgid "Username or Email-address"
 msgstr "Username or Email-address"
 
-msgctxt "#31002"
+msgctxt "#41002"
 msgid "Password"
 msgstr "Password"
 
-msgctxt "#31003"
+msgctxt "#41003"
 msgid "Profile"
 msgstr "Profile"
 
-msgctxt "#32000"
+msgctxt "#41004"
 msgid "Options"
 msgstr "Options"
 
-msgctxt "#32001"
+msgctxt "#41005"
 msgid "Trace-network-traffic"
 msgstr "Trace network traffic"
 
-msgctxt "#32002"
+msgctxt "#41006"
 msgid "use-proxy"
 msgstr "Use proxy"
 
-msgctxt "#32003"
+msgctxt "#41007"
 msgid "adult-allowed"
 msgstr "Allow adult"
 
+# Labels used in python scripts
+
+msgctxt "#40004"
+msgid "SwitchOrPlay"
+msgstr "Program is currently running.\nPlay from beginning (Play) or switch to channel (Switch)?"
+
+msgctxt "#40005"
+msgid "Switch"
+msgstr "Cannot start program, its start time is in the future.\nSwitch to channel (Switch)?"
+
+msgctxt "#40006"
+msgid "ButtonPlay"
+msgstr "Play"
+
+msgctxt "#40007"
+msgid "ButtonSwitch"
+msgstr "Switch"
+
+msgctxt "#40008"
+msgid "ButtonCancel"
+msgstr "Cancel"
+
+mxgctxt "#40009"
+msgid "CannotWatch"
+msgstr "Cannot watch this channel. Not allowed."
+
+msgctxt "#40010"
+msgid "MenuChannel"
+msgstr "Channels"
+
+msgctxt "#40011"
+msgid "MenuGuide"
+msgstr "EPG"

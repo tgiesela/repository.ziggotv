@@ -16,34 +16,70 @@ msgstr ""
 "Language: nl_NL\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgctxt "#31000"
+# Labels used in Settings dialogue (settings.xml)
+msgctxt "#41000"
 msgid "General"
 msgstr "Algemeen"
 
-msgctxt "#31001"
-msgid "Username-or-Email-address"
+msgctxt "#41001"
+msgid "Username or Email-address"
 msgstr "Gebruikersnaam of Email-adres"
 
-msgctxt "#31002"
+msgctxt "#41002"
 msgid "Password"
 msgstr "Wachtwoord"
 
-msgctxt "#31003"
+msgctxt "#41003"
 msgid "Profile"
 msgstr "Profiel"
 
-msgctxt "#32000"
+msgctxt "#41004"
 msgid "Options"
 msgstr "Opties"
 
-msgctxt "#32001"
+msgctxt "#41005"
 msgid "Trace-network-traffic"
 msgstr "Trace network traffic"
 
-msgctxt "#32002"
+msgctxt "#41006"
 msgid "use-proxy"
 msgstr "Gebruik proxy"
 
-msgctxt "#32003"
+msgctxt "#41007"
 msgid "adult-allowed"
 msgstr "Erotiek toestaan"
+
+# Labels used in python scripts
+
+msgctxt "#40004"
+msgid "SwitchOrPlay"
+msgstr "Programma speelt op dit moment.\nAfspelen vanaf begin (Afspelen) of overschakelen naar zender (Zender)?"
+
+msgctxt "#40005"
+msgid "Switch"
+msgstr "Starttijd programma ligt in de toekomst.\nOverschakelen naar zender(Zender)?"
+
+msgctxt "#40006"
+msgid "ButtonPlay"
+msgstr "Afspelen"
+
+msgctxt "#40007"
+msgid "ButtonSwitch"
+msgstr "Zender"
+
+msgctxt "#40008"
+msgid "ButtonCancel"
+msgstr "Annuleren"
+
+mxgctxt "#40009"
+msgid "CannotWatch"
+msgstr "Kan dit niet bekijken. Geen abonnement."
+
+msgctxt "#40010"
+msgid "MenuChannel"
+msgstr "Zenders"
+
+msgctxt "#40011"
+msgid "MenuGuide"
+msgstr "EPG"
+

@@ -1,6 +1,17 @@
 from enum import Enum, IntEnum
 
 
+class StringIds:
+    MSG_SWITCH_OR_PLAY = 40004
+    MSG_SWITCH = 40005
+    MSG_CANNOTWATCH = 40009
+    BTN_PLAY = 40006
+    BTN_SWITCH = 40007
+    BTN_CANCEL = 40008
+    MENU_CHANNELS = 40010
+    MENU_GUIDE = 40011
+
+
 class GlobalVariables:
     VIDEO_PLAYING = 'VIDEO_PLAYING'
     VIDEO_ID = 'VIDEO_ID'
@@ -100,3 +111,4 @@ class GlobalVariables:
 
 
 G = GlobalVariables()
+S = StringIds()

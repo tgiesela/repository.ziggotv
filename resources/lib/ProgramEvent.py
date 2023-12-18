@@ -12,7 +12,7 @@ from resources.lib.Channel import Channel
 from resources.lib.UrlTools import UrlTools
 from resources.lib.ZiggoPlayer import ZiggoPlayer, VideoHelpers
 from resources.lib.events import Event, ChannelGuide
-from resources.lib.globals import G
+from resources.lib.globals import G, S
 from resources.lib.webcalls import LoginSession
 
 import urllib.parse
@@ -178,20 +178,31 @@ class ProgramEventGrid:
         if not event.hasDetails:
             event.details = self.session.get_event_details(event.id)
         if event.startTime < utils.DatetimeHelper.unixDatetime(datetime.datetime.now()) < event.endTime:
-            choice = xbmcgui.Dialog().yesnocustom('Play', 'Program is currently running.\n'
-                                                          'Play from beginning or switch to channel',
-                                                  'Cancel', 'Play', 'Switch', False)
+            choice = xbmcgui.Dialog().yesnocustom('Play',
+                                                  self.addon.getLocalizedString(S.MSG_SWITCH_OR_PLAY),
+                                                  self.addon.getLocalizedString(S.BTN_CANCEL),
+                                                  self.addon.getLocalizedString(S.BTN_PLAY),
+                                                  self.addon.getLocalizedString(S.BTN_SWITCH),
+                                                  False,
+                                                  xbmcgui.DLG_YESNO_CUSTOM_BTN)
             if choice in [-1, 2]:
                 return
             else:
-                if choice == 0:    # nobutton -> Play
+                if choice == 0:  # nobutton -> Play
                     self.__replay_event(event)
                 elif choice == 1:  # yesbutton -> Switch to channel
                     self.__play_channel(channel)
         elif event.endTime <= utils.DatetimeHelper.unixDatetime(datetime.datetime.now()):  # event already finished
             self.__replay_event(event)
         else:
-            self.__play_channel(channel)
+            choice = xbmcgui.Dialog().yesno('Play',
+                                            self.addon.getLocalizedString(S.MSG_SWITCH),
+                                            self.addon.getLocalizedString(S.BTN_CANCEL),
+                                            self.addon.getLocalizedString(S.BTN_SWITCH),
+                                            False,
+                                            xbmcgui.DLG_YESNO_NO_BTN)
+            if choice == True:
+                self.__play_channel(channel)
 
     def clear(self):
         for row in self.rows:

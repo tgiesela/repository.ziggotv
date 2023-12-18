@@ -9,7 +9,7 @@ from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 from resources.lib.Channel import Channel
 from resources.lib.UrlTools import UrlTools
 from resources.lib.ZiggoPlayer import VideoHelpers
-from resources.lib.globals import G
+from resources.lib.globals import G, S
 
 import xbmc
 import xbmcaddon
@@ -61,7 +61,7 @@ class ZiggoPlugin:
             if profile['profileId'] == profile_id:
                 preselect_index = len(profile_list) - 1
 
-        selected_profile = xbmcgui.Dialog().select(heading='#31003', list=profile_list, preselect=preselect_index)
+        selected_profile = xbmcgui.Dialog().select(heading='#41003', list=profile_list, preselect=preselect_index)
         profile_id = profiles[profile_list[selected_profile]]
         self.addon.setSetting('profile', profile_id)
 
@@ -461,13 +461,14 @@ class ZiggoPlugin:
         :return: None
         """
         # Get video categories
-        categories = {'Channels': 'Channels', 'Guide': 'Guide'}
+        categories = {'Channels': '1. ' + self.addon.getLocalizedString(S.MENU_CHANNELS),
+                      'Guide': '2. ' + self.addon.getLocalizedString(S.MENU_GUIDE)}
         response = self.session.obtain_vod_screens()
         screens = response['screens']
         if self.addon.getSettingBool('adult-allowed'):
             screens.append(response['hotlinks']['adultRentScreen'])
         for screen in screens:
-            categories.update({screen['title']: screen['id']})
+            categories.update({screen['id']: screen['title']})
 
         # Create a list for our items.
         listing = []
@@ -477,7 +478,7 @@ class ZiggoPlugin:
             list_item = xbmcgui.ListItem(label=categoryname)
             # Set additional info for the list item.
             tag: xbmc.InfoTagVideo = list_item.getVideoInfoTag()
-            tag.setTitle(categoryname)
+            tag.setTitle(categoryId)
             tag.setMediaType('video')
             tag.setGenres([categoryname])
             if categoryname == 'Channels':
@@ -784,7 +785,7 @@ class ZiggoPlugin:
                 self.play_movie(params['video'])
             elif params['action'] == 'cantplay':
                 # Play a video from a provided URL.
-                xbmcgui.Dialog().ok('Error', 'Cannot watch this channel')
+                xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
         else:
             # If the plugin is called from Kodi UI without any parameters,
             # display the list of video categories
