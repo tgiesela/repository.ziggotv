@@ -153,10 +153,11 @@ class ProgramEventGrid:
         play_item = helper.listitem_from_url(requesturl=url,
                                              streaming_token=streaming_token,
                                              drmContentId=self.session.stream_info['drmContentId'])
+        play_item.setLabel(channel.name)
         player.setReplay(False)
         player.play(item=url, listitem=play_item)
         while player.isPlaying():
-            xbmc.sleep(10)
+            xbmc.sleep(500)
 
     def __replay_event(self, event: Event):
         if not event.canReplay:
@@ -171,11 +172,20 @@ class ProgramEventGrid:
         play_item = helper.listitem_from_url(requesturl=url,
                                              streaming_token=streaming_token,
                                              drmContentId=self.session.replay_stream_info['drmContentId'])
+        play_item.setLabel(event.title)
         player.play(item=url, listitem=play_item)
+        #  Wait max 10 seconds for the video to start playing
+        cnt = 0
+        while not player.isPlaying() and cnt < 10:
+            xbmc.sleep(1000)
+            cnt += 1
+        if cnt >= 10:
+            xbmc.log("VIDEO IS NOT PLAYING AFTER 10 SECONDS !!!", xbmc.LOGDEBUG)
         if player.isPlaying():
+            xbmc.log("VIDEO POSITIONED TO START OF EVENT", xbmc.LOGDEBUG)
             player.seekTime(0)
         while player.isPlaying():
-            xbmc.sleep(10)
+            xbmc.sleep(500)
 
     def __play(self, event: Event, channel: Channel):
         if not event.hasDetails:

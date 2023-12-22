@@ -12,28 +12,29 @@ class ZiggoPlayer(xbmc.Player):
 
     def __init__(self):
         super().__init__()
+        xbmc.log("ZIGGOPLAYER CREATED", xbmc.LOGDEBUG)
         self.replay = False
 
     def onPlayBackStopped(self) -> None:
-        xbmc.log("ZIGGOPLAYER STOPPED", xbmc.LOGINFO)
+        xbmc.log("ZIGGOPLAYER STOPPED", xbmc.LOGDEBUG)
 
     def onPlayBackPaused(self) -> None:
-        xbmc.log("ZIGGOPLAYER PAUSED", xbmc.LOGINFO)
+        xbmc.log("ZIGGOPLAYER PAUSED", xbmc.LOGDEBUG)
 
     def onAVStarted(self) -> None:
-        xbmc.log("ZIGGOPLAYER AVSTARTED", xbmc.LOGINFO)
-
-    def onPlayBackStarted(self) -> None:
-        xbmc.log("ZIGGOPLAYER PLAYBACK STARTED", xbmc.LOGINFO)
+        xbmc.log("ZIGGOPLAYER AVSTARTED", xbmc.LOGDEBUG)
         if self.replay:
+            xbmc.log("ZIGGOPLAYER POSITIONED TO BEGINNING", xbmc.LOGDEBUG)
             self.seekTime(0)
 
+    def onPlayBackStarted(self) -> None:
+        xbmc.log("ZIGGOPLAYER PLAYBACK STARTED", xbmc.LOGDEBUG)
+
     def onPlayBackError(self) -> None:
-        xbmc.log("ZIGGOPLAYER PLAYBACK ERROR", xbmc.LOGINFO)
+        xbmc.log("ZIGGOPLAYER PLAYBACK ERROR", xbmc.LOGDEBUG)
 
     def setReplay(self, isReplay):
         self.replay = isReplay
-
 
 
 class VideoHelpers:

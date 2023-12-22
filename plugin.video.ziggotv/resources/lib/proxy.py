@@ -63,10 +63,14 @@ class ProxyServer:
                 resp: web.StreamResponse = web.StreamResponse(headers=server_response.headers)
                 await resp.prepare(request)
                 resp.set_status(server_response.status)
-                while not server_response.content.at_eof():
-                    data = await server_response.content.read(8192)
-                    await resp.write(data)
-            return resp
+                try:
+                    while not server_response.content.at_eof():
+                        data = await server_response.content.read(8192)
+                        await resp.write(data)
+                    return resp
+                except ConnectionResetError:
+                    xbmc.log('Connection lost', xbmc.LOGDEBUG)
+                    return None
 
     async def license_handler(self, request: web.Request):
         length = int(request.headers['content-length'])
