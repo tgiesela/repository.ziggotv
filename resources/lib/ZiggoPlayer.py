@@ -12,14 +12,30 @@ from resources.lib.globals import G
 
 class ZiggoPlayer(xbmc.Player):
 
+    def __init__(self):
+        super().__init__()
+        self.replay = False
+
     def onPlayBackStopped(self) -> None:
-        xbmc.log("VIDEO PLAYER STOPPED", xbmc.LOGINFO)
+        xbmc.log("ZIGGOPLAYER STOPPED", xbmc.LOGINFO)
 
     def onPlayBackPaused(self) -> None:
-        xbmc.log("VIDEO PLAYER PAUSED", xbmc.LOGINFO)
+        xbmc.log("ZIGGOPLAYER PAUSED", xbmc.LOGINFO)
 
     def onAVStarted(self) -> None:
-        xbmc.log("VIDEO PLAYER AVSTARTED", xbmc.LOGINFO)
+        xbmc.log("ZIGGOPLAYER AVSTARTED", xbmc.LOGINFO)
+
+    def onPlayBackStarted(self) -> None:
+        xbmc.log("ZIGGOPLAYER PLAYBACK STARTED", xbmc.LOGINFO)
+        if self.replay:
+            self.seekTime(0)
+
+    def onPlayBackError(self) -> None:
+        xbmc.log("ZIGGOPLAYER PLAYBACK ERROR", xbmc.LOGINFO)
+
+    def setReplay(self, isReplay):
+        self.replay = isReplay
+
 
 
 class VideoHelpers:

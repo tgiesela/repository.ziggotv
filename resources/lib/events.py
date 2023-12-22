@@ -58,6 +58,18 @@ class Event:
             self.replayTVMinAge = eventJson['replayTVMinAge']
         else:
             self.replayTVMinAge = 0
+        if 'hasReplayTV' in eventJson:
+            self.__hasReplayTV = eventJson['hasReplayTV']
+        else:
+            self.__hasReplayTV = True
+        if 'hasReplayTVOTT' in eventJson:
+            self.__hasReplayTVOTT = eventJson['hasReplayTVOTT']
+        else:
+            self.__hasReplayTVOTT = True
+        if 'hasStartOver' in eventJson:
+            self.__hasStartOver = eventJson['hasStartOver']
+        else:
+            self.__hasStartOver = True
 
     @property
     def duration(self):
@@ -78,6 +90,10 @@ class Event:
     @details.setter
     def details(self, value):
         self.__programdetails = EventDetails(value)
+
+    @property
+    def canReplay(self):
+        return self.__hasStartOver and self.__hasReplayTV
 
 
 class EventList(LinkedList):

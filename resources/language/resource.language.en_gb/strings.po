@@ -82,3 +82,7 @@ msgstr "Channels"
 msgctxt "#40011"
 msgid "MenuGuide"
 msgstr "EPG"
+
+msgctxt "#40012"
+msgid "ReplayNotAvailable"
+msgstr "Replay not available for this event"

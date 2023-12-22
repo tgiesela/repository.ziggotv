@@ -156,21 +156,27 @@ class ProgramEventGrid:
         play_item = helper.listitem_from_url(requesturl=url,
                                              streaming_token=streaming_token,
                                              drmContentId=self.session.stream_info['drmContentId'])
+        player.setReplay(False)
         player.play(item=url, listitem=play_item)
         while player.isPlaying():
             xbmc.sleep(10)
 
     def __replay_event(self, event: Event):
+        if not event.canReplay:
+            xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_REPLAY_NOT_AVAIALABLE))
+            return
         helper = VideoHelpers(self.addon, self.session)
         urlHelper = UrlTools(self.addon)
         player = ZiggoPlayer()
+        player.setReplay(True)
         streaming_token = self.session.obtain_replay_streaming_token(event.details.eventId)
         url = urlHelper.build_url(streaming_token, self.session.replay_stream_info['url'])
         play_item = helper.listitem_from_url(requesturl=url,
                                              streaming_token=streaming_token,
                                              drmContentId=self.session.replay_stream_info['drmContentId'])
         player.play(item=url, listitem=play_item)
-        player.seekTime(0)
+        if player.isPlaying():
+            player.seekTime(0)
         while player.isPlaying():
             xbmc.sleep(10)
 

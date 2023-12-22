@@ -83,3 +83,6 @@ msgctxt "#40011"
 msgid "MenuGuide"
 msgstr "EPG"
 
+msgctxt "#40012"
+msgid "ReplayNotAvailable"
+msgstr "Terugkijken niet mogelijk voor dit programma"

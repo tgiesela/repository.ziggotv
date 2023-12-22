@@ -300,6 +300,7 @@ class ServiceMonitor(xbmc.Monitor):
                 session.load_cookies()
                 session.delete_token(proxy.get_streaming_token())
                 proxy.session.streaming_token = None
+                proxy.set_streaming_token(None)
 
         # xbmc,Playlist.OnAdd,{"item":{"title":"1. NPO 1","type":"video"},"playlistid":1,"position":0})
         # xbmc, Info.OnChanged, null ????
