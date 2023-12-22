@@ -156,6 +156,20 @@ class EventList(LinkedList):
             evtnode = evtnode.next
         return evtlist
 
+    def getCurrentEvent(self) -> Event:
+        currentTime: datetime.datetime = utils.DatetimeHelper.unixDatetime(datetime.datetime.now())
+        current_node: Node = self.head
+        while current_node is not None:
+            current_event: Event = current_node.data
+            if current_event.startTime <= currentTime <= current_event.endTime:
+                return current_event
+            else:
+                if currentTime > current_event.endTime:
+                    current_node = current_node.next
+                else:
+                    return None
+        return None
+
     def __findEvent(self, ts: datetime.datetime, te: datetime.datetime) -> Node:
         windowstarttime = utils.DatetimeHelper.unixDatetime(ts)
         windowendtime = utils.DatetimeHelper.unixDatetime(te)

@@ -153,7 +153,8 @@ class ProgramEventGrid:
         play_item = helper.listitem_from_url(requesturl=url,
                                              streaming_token=streaming_token,
                                              drmContentId=self.session.stream_info['drmContentId'])
-        play_item.setLabel(channel.name)
+        event = channel.events.getCurrentEvent()
+        self.__addEventInfo(play_item, event)
         player.setReplay(False)
         player.play(item=url, listitem=play_item)
         while player.isPlaying():
@@ -172,7 +173,7 @@ class ProgramEventGrid:
         play_item = helper.listitem_from_url(requesturl=url,
                                              streaming_token=streaming_token,
                                              drmContentId=self.session.replay_stream_info['drmContentId'])
-        play_item.setLabel(event.title)
+        self.__addEventInfo(play_item, event)
         player.play(item=url, listitem=play_item)
         #  Wait max 10 seconds for the video to start playing
         cnt = 0
@@ -356,6 +357,19 @@ class ProgramEventGrid:
                 seasoninfo.setVisible(True)
         else:
             seasoninfo.setVisible(False)
+
+    def __addEventInfo(self, play_item, event):
+        if event is None:
+            return
+        if not event.hasDetails:
+            event.details = self.session.get_event_details(event.id)
+        tag: xbmc.InfoTagVideo = play_item.getVideoInfoTag()
+        play_item.setLabel(event.title)
+        tag.setPlot(event.details.description)
+        if event.details.isSeries:
+            tag.setEpisode(event.details.episode)
+            tag.setSeason(event.details.season)
+        tag.setArtists(event.details.actors)
 
 
 class ProgramEventRow:
