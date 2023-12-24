@@ -101,7 +101,7 @@ class TestWebcalls(unittest.TestCase):
         self.session.refresh_channels()
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        streaming_token = self.session.obtain_tv_streaming_token(channel, asset_type='Orion-DASH')
+        streaming_token, streamInfo = self.session.obtain_tv_streaming_token(channel, asset_type='Orion-DASH')
         headers = {}
         headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',

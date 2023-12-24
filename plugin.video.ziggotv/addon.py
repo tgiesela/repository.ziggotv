@@ -59,7 +59,8 @@ class ZiggoPlugin:
             if profile['profileId'] == profile_id:
                 preselect_index = len(profile_list) - 1
 
-        selected_profile = xbmcgui.Dialog().select(heading='#41003', list=profile_list, preselect=preselect_index)
+        title = xbmc.getLocalizedString(41003)
+        selected_profile = xbmcgui.Dialog().select(heading=title, list=profile_list, preselect=preselect_index)
         profile_id = profiles[profile_list[selected_profile]]
         self.addon.setSetting('profile', profile_id)
 
@@ -183,14 +184,14 @@ class ZiggoPlugin:
                 xbmc.log('Inside play condition...')
 
             locator, asset_type = channel.get_locator()
-            streaming_token = self.session.obtain_tv_streaming_token(channel, asset_type)
+            streaming_token, streamInfo = self.session.obtain_tv_streaming_token(channel, asset_type)
 
             urlHelper = UrlTools(self.addon)
             url = urlHelper.build_url(streaming_token, locator)
             play_item = self.videoHelper.listitem_from_url(
                 requesturl=url,
                 streaming_token=streaming_token,
-                drmContentId=self.session.stream_info['drmContentId'])
+                drmContentId=streamInfo.drmContentId)
             xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
 
         except Exception as exc:
@@ -212,12 +213,12 @@ class ZiggoPlugin:
             if is_helper.check_inputstream():
                 xbmc.log('Inside play condition...')
             helpers = VideoHelpers(self.addon, self.session)
-            streaming_token = self.session.obtain_replay_streaming_token(path)
+            streaming_token, streamInfo = self.session.obtain_replay_streaming_token(path)
             urlHelper = UrlTools(self.addon)
-            url = urlHelper.build_url(streaming_token, self.session.replay_stream_info['url'])
+            url = urlHelper.build_url(streaming_token, streamInfo.url)
             play_item = helpers.listitem_from_url(requesturl=url,
                                                   streaming_token=streaming_token,
-                                                  drmContentId=self.session.replay_stream_info['drmContentId'])
+                                                  drmContentId=streamInfo.drmContentId)
             xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
 
         except Exception as exc:
@@ -241,14 +242,14 @@ class ZiggoPlugin:
                 xbmc.log('Inside play condition...')
 
             helpers = VideoHelpers(self.addon, self.session)
-            streaming_token = self.session.obtain_vod_streaming_token(path)
+            streaming_token, streamInfo = self.session.obtain_vod_streaming_token(path)
             urlHelper = UrlTools(self.addon)
-            url = urlHelper.build_url(streaming_token, self.session.vod_stream_info['url'])
+            url = urlHelper.build_url(streaming_token, streamInfo.url)
 
             play_item = self.videoHelper.listitem_from_url(
                 requesturl=url,
                 streaming_token=streaming_token,
-                drmContentId=self.session.vod_stream_info['drmContentId'])
+                drmContentId=streamInfo.drmContentId)
             xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
 
         except Exception as exc:
@@ -471,17 +472,17 @@ class ZiggoPlugin:
         # Create a list for our items.
         listing = []
         # Iterate through categories
-        for categoryname, categoryId in categories.items():
+        for categoryId, categoryname in categories.items():
             # Create a list item with a text label and a thumbnail image.
             list_item = xbmcgui.ListItem(label=categoryname)
             # Set additional info for the list item.
             tag: xbmc.InfoTagVideo = list_item.getVideoInfoTag()
-            tag.setTitle(categoryId)
+            tag.setTitle(categoryname)
             tag.setMediaType('video')
             tag.setGenres([categoryname])
-            if categoryname == 'Channels':
+            if categoryId == 'Channels':
                 url = '{0}?action=listing&category={1}&categoryId={2}'.format(self.url, categoryname, categoryId)
-            elif categoryname == 'Guide':
+            elif categoryId == 'Guide':
                 url = '{0}?action=epg'.format(self.url)
             else:
                 url = '{0}?action=subcategory&category={1}&categoryId={2}'.format(self.url, categoryname, categoryId)
@@ -751,7 +752,7 @@ class ZiggoPlugin:
         if params:
             if params['action'] == 'listing':
                 # Display the list of videos in a provided category.
-                if params['category'] == "Channels":
+                if params['categoryId'] == "Channels":
                     self.list_channels()
                 elif params['category'] == G.MOVIES:
                     self.list_movies(params['categoryId'])

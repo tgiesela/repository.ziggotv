@@ -100,16 +100,37 @@ class ProgramEventGrid:
 
     def __positionTime(self):
         timeBar: xbmcgui.ControlLabel = self.window.getControl(2100)
+        leftGrid: xbmcgui.ControlImage = self.window.getControl(2106)
+        rightGrid: xbmcgui.ControlImage = self.window.getControl(2107)
+        leftGrid.setHeight(len(self.rows) * self.rows[0].rowheight)
+        rightGrid.setHeight(len(self.rows) * self.rows[0].rowheight)
+        leftGrid.setVisible(False)
+        rightGrid.setVisible(False)
+        timeBar.setVisible(False)
         currentTime = datetime.datetime.now()
+        pixelsForWindow = 4 * 300  # 4 times half an hour
         if currentTime >= self.startWindow or currentTime < self.endWindow:
-            pixelsForWindow = 4 * 300  # 4 times half an hour
             pixelsPerMinute = pixelsForWindow / 120
             delta = currentTime - self.startWindow
             deltaMinutes = int(delta.total_seconds() / 60)
+            width = int(deltaMinutes * pixelsPerMinute)
             timeBar.setPosition(int(deltaMinutes * pixelsPerMinute), 0)
             timeBar.setVisible(True)
+            leftGrid.setPosition(1, 0)
+            leftGrid.setWidth(width-2)
+            leftGrid.setVisible(True)
+            rightGrid.setPosition(width + 2, 0)
+            rightGrid.setWidth(pixelsForWindow - width - 2)
+            rightGrid.setVisible(True)
         else:
-            timeBar.setVisible(False)
+            if currentTime < self.startWindow:
+                rightGrid.setPosition(1, 0)
+                rightGrid.setWidth(pixelsForWindow-2)
+                rightGrid.setVisible(True)
+            else:
+                leftGrid.setPosition(1, 0)
+                leftGrid.setWidth(pixelsForWindow-2)
+                leftGrid.setVisible(True)
 
     def __getControl(self, controlId):
         return self.window.getControl(controlId)
@@ -148,14 +169,14 @@ class ProgramEventGrid:
         urlHelper = UrlTools(self.addon)
         player = ZiggoPlayer()
         locator, asset_type = channel.get_locator()
-        streaming_token = self.session.obtain_tv_streaming_token(channel, asset_type)
+        streaming_token, streamInfo = self.session.obtain_tv_streaming_token(channel, asset_type)
         url = urlHelper.build_url(streaming_token, locator)
         play_item = helper.listitem_from_url(requesturl=url,
                                              streaming_token=streaming_token,
-                                             drmContentId=self.session.stream_info['drmContentId'])
+                                             drmContentId=streamInfo.drmContentId)
         event = channel.events.getCurrentEvent()
         self.__addEventInfo(play_item, event)
-        player.setReplay(False)
+        player.setReplay(False, streamInfo.prePaddingTime)
         player.play(item=url, listitem=play_item)
         while player.isPlaying():
             xbmc.sleep(500)
@@ -167,12 +188,12 @@ class ProgramEventGrid:
         helper = VideoHelpers(self.addon, self.session)
         urlHelper = UrlTools(self.addon)
         player = ZiggoPlayer()
-        player.setReplay(True)
-        streaming_token = self.session.obtain_replay_streaming_token(event.details.eventId)
-        url = urlHelper.build_url(streaming_token, self.session.replay_stream_info['url'])
+        streaming_token, streamInfo = self.session.obtain_replay_streaming_token(event.details.eventId)
+        player.setReplay(True, streamInfo.prePaddingTime)
+        url = urlHelper.build_url(streaming_token, streamInfo.url)
         play_item = helper.listitem_from_url(requesturl=url,
                                              streaming_token=streaming_token,
-                                             drmContentId=self.session.replay_stream_info['drmContentId'])
+                                             drmContentId=streamInfo.drmContentId)
         self.__addEventInfo(play_item, event)
         player.play(item=url, listitem=play_item)
         #  Wait max 10 seconds for the video to start playing
@@ -184,7 +205,7 @@ class ProgramEventGrid:
             xbmc.log("VIDEO IS NOT PLAYING AFTER 10 SECONDS !!!", xbmc.LOGDEBUG)
         if player.isPlaying():
             xbmc.log("VIDEO POSITIONED TO START OF EVENT", xbmc.LOGDEBUG)
-            player.seekTime(0)
+#            player.seekTime(streamInfo.prePaddingTime)
         while player.isPlaying():
             xbmc.sleep(500)
 
@@ -502,6 +523,10 @@ class ProgramEvent:
         offset_x = ctrlgroup.getX() + ctrl.getX() + int(
             ((eventStart - self.grid.unixstarttime) / 60) * self.pixelsPerMinute)
         offset_y = ctrlgroup.getY() + ctrl.getY() + row.rownr * self.rowheight
+        if event.canReplay:
+            textColor = 'white'
+        else:
+            textColor = '80FF3300'
         self.button = xbmcgui.ControlButton(x=offset_x,
                                             y=offset_y,
                                             width=width - 1,
@@ -510,7 +535,7 @@ class ProgramEvent:
                                             focusTexture=self.mediafolder + 'tvg-program-focus.png',
                                             noFocusTexture=self.mediafolder + 'tvg-program-nofocus.png',
                                             font='font10',
-                                            focusedColor='white',
+                                            focusedColor=textColor,
                                             textColor='red',
                                             textOffsetY=5,
                                             alignment=G.ALIGNMENT.XBFONT_CENTER_Y + G.ALIGNMENT.XBFONT_TRUNCATED

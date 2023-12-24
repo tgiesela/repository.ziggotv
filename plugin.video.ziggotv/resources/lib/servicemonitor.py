@@ -94,7 +94,9 @@ class ServiceMonitor(xbmc.Monitor):
                                 web.post('/license', self.ProxyServer.license_handler)])
         self.apprunner = web.AppRunner(self.webapp)
         await self.apprunner.setup()
-        self.site = web.TCPSite(self.apprunner, port=6969, host='127.0.0.1')
+        port = xbmcaddon.Addon().getSettingNumber('proxy-port')
+        ip = xbmcaddon.Addon().getSetting('proxy-ip')
+        self.site = web.TCPSite(self.apprunner, port=port, host=ip)
         await self.site.start()
 
     async def stop_proxy(self):

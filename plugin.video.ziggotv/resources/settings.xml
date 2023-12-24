@@ -30,8 +30,8 @@
 	                </constraints>
                     <level>0</level>
 					<control type="button" format="action">
-						<data>RunScript(plugin.video.ziggotg,selectProfile)</data>
-						<heading>31003</heading>
+						<data>RunScript(plugin.video.ziggotv,selectProfile)</data>
+						<heading>Select</heading>
 					</control>
                 </setting>
             </group>
@@ -48,9 +48,34 @@
                     <level>0</level>
                     <control type="toggle"/>
                 </setting>
+                <setting id="proxy-port" subsetting="true" type="number" label="41008" parent="use-proxy">
+                    <default>6969</default>
+                    <level>0</level>
+                    <control type="edit" format="number">
+		                <heading></heading>
+	                </control>
+					<dependencies>
+						<dependency type="enable" setting="use-proxy">true</dependency>
+					</dependencies>
+                </setting>
+                <setting id="proxy-ip" subsetting="true" type="string" label="41009" parent="use-proxy">
+                    <default>127.0.0.1</default>
+                    <level>0</level>
+                    <control type="edit" format="ip">
+		                <heading></heading>
+	                </control>
+					<dependencies>
+						<dependency type="enable" setting="use-proxy">true</dependency>
+					</dependencies>
+                </setting>
+                <setting id="full-hd" type="boolean" label="41010">
+                    <default>true</default>
+                    <level>0</level>
+                    <control type="toggle"/>
+                </setting>
                 <setting id="adult-allowed" type="boolean" label="41007">
                     <default>false</default>
-                    <level>0</level>
+                    <level>1</level>
                     <control type="toggle"/>
                 </setting>
             </group>

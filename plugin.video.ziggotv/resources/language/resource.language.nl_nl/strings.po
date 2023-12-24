@@ -49,6 +49,18 @@ msgctxt "#41007"
 msgid "adult-allowed"
 msgstr "Erotiek toestaan"
 
+msgctxt "#41008"
+msgid "proxy-port"
+msgstr "Poortnummer"
+
+msgctxt "#41009"
+msgid "proxy-ip"
+msgstr "IP-address"
+
+msgctxt "#41010"
+msgid "Full-HD"
+msgstr "Full-HD"
+
 # Labels used in python scripts
 
 msgctxt "#40004"

@@ -12,6 +12,7 @@ class ZiggoPlayer(xbmc.Player):
 
     def __init__(self):
         super().__init__()
+        self.prePadding = None
         xbmc.log("ZIGGOPLAYER CREATED", xbmc.LOGDEBUG)
         self.replay = False
 
@@ -25,7 +26,7 @@ class ZiggoPlayer(xbmc.Player):
         xbmc.log("ZIGGOPLAYER AVSTARTED", xbmc.LOGDEBUG)
         if self.replay:
             xbmc.log("ZIGGOPLAYER POSITIONED TO BEGINNING", xbmc.LOGDEBUG)
-            self.seekTime(0)
+            self.seekTime(self.prePadding/1000)
 
     def onPlayBackStarted(self) -> None:
         xbmc.log("ZIGGOPLAYER PLAYBACK STARTED", xbmc.LOGDEBUG)
@@ -33,8 +34,9 @@ class ZiggoPlayer(xbmc.Player):
     def onPlayBackError(self) -> None:
         xbmc.log("ZIGGOPLAYER PLAYBACK ERROR", xbmc.LOGDEBUG)
 
-    def setReplay(self, isReplay):
+    def setReplay(self, isReplay, time=0):
         self.replay = isReplay
+        self.prePadding = time
 
 
 class VideoHelpers:
@@ -103,7 +105,9 @@ class VideoHelpers:
         from urllib.parse import urlencode
         use_license_proxy = True
         if use_license_proxy:
-            url = 'http://127.0.0.1:6969/license'
+            port = self.addon.getSetting('proxy-port')
+            ip = self.addon.getSetting('proxy-ip')
+            url = 'http://{0}:{1}/license'.format(ip, port)
             params = {'ContentId': drmContentId,
                       'addon': self.addon.getAddonInfo('id')}
             url = (url + '?' + urlencode(params) +

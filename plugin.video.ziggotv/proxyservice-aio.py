@@ -4,6 +4,7 @@ import threading
 
 import requests
 import xbmc
+import xbmcaddon
 
 from resources.lib.proxy import ProxyServer
 from resources.lib.servicemonitor import ServiceMonitor
@@ -24,7 +25,9 @@ async def start_service():
     except Exception as exc:
         print("SERVICE-MONITOR Exception: ", exc)
     try:
-        requests.delete('http://127.0.0.1:6969/shutdown')
+        port = xbmcaddon.Addon().getSetting('proxy-port')
+        ip = xbmcaddon.Addon().getSetting('proxy-ip')
+        requests.delete('http://{0}:{1}/shutdown'.format(ip, port))
     except Exception as exc:
         pass
 

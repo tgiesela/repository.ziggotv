@@ -134,7 +134,9 @@ class ProxyServer:
                              web.get('/{tail:.*}', self.default_handler),
                              web.post('/license', self.license_handler),
                              web.delete('/shutdown', self.shutdown_handler)])
-        web.run_app(app=self.app, host='127.0.0.1', port=6969)
+        port = xbmcaddon.Addon().getSettingNumber('proxy-port')
+        ip = xbmcaddon.Addon().getSetting('proxy-ip')
+        web.run_app(app=self.app, host=ip, port=int(port))
         xbmc.log("WEBSERVER STARTED", xbmc.LOGDEBUG)
 
     def serve_forever(self):

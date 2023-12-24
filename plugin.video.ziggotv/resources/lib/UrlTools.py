@@ -30,10 +30,12 @@ class UrlTools:
             for param in orig_params:
                 query_params.update({param: orig_params[param][0]})
 
+            port = self.addon.getSetting('proxy-port')
+            ip = self.addon.getSetting('proxy-ip')
             url = urlunparse(
                 Components(
                     scheme='http',
-                    netloc='127.0.0.1:6969',
+                    netloc='{0}:{1}'.format(ip, port),
                     query=urlencode(query_params),
                     path='manifest',
                     url='',

@@ -267,6 +267,25 @@
                 	<visible>True</visible>
                 	<texture>aqua.png</texture>
             	</control>
+				<control type="image" id="2106">
+                	<description>Left part of EPG grid</description>
+                	<left>0</left>
+                	<top>0</top>
+                	<width>100</width>
+                	<height>860</height>
+                	<texture>grey.png</texture>
+					<visible>false</visible>
+				</control>
+				<control type="image" id="2107">
+                	<description>Right part of EPG grid</description>
+                	<left>100</left>
+                	<top>0</top>
+                	<width>100</width>
+                	<height>860</height>
+					<visible>false</visible>
+                	<texture colordiffuse="8000FFFF">black.png</texture>
+				</control>
+
 			</control>
 		</control>
 

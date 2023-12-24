@@ -70,6 +70,9 @@ class Channel:
         except Exception as exc:
             hd_allowed = True
         asset_type = 'Orion-DASH'
+        fullHD = xbmcaddon.Addon().getSettingBool('full-hd')
+        if hd_allowed and not fullHD:
+            hd_allowed = False
         if 'Orion-DASH-HEVC' in self.locators and hd_allowed:
             avc = self.locators['Orion-DASH-HEVC']
             asset_type = 'Orion-DASH-HEVC'

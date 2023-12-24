@@ -49,6 +49,18 @@ msgctxt "#41007"
 msgid "adult-allowed"
 msgstr "Allow adult"
 
+msgctxt "#41008"
+msgid "proxy-port"
+msgstr "Port"
+
+msgctxt "#41009"
+msgid "proxy-ip"
+msgstr "IP-address"
+
+msgctxt "#41010"
+msgid "Full-HD"
+msgstr "Full-HD"
+
 # Labels used in python scripts
 
 msgctxt "#40004"
