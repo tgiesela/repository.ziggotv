@@ -86,30 +86,7 @@ class ZiggoPlugin:
         xbmc.log("ACTIVE PROFILE: {0}".format(self.session.active_profile['name']), xbmc.LOGDEBUG)
 
     def __initialization(self):
-        global channels
-        global session_info
-        addon_path = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
-        Path(addon_path).mkdir(parents=True, exist_ok=True)
-        if addon.getSetting('username') == '#notset#' or addon.getSetting('username') == '':
-            xbmcaddon.Addon().openSettings()
-        if addon.getSetting('username') == '':
-            username = json.loads(Path(r'C:\temp\credentials.json').read_text())['username']
-            password = json.loads(Path(r'C:\temp\credentials.json').read_text())['password']
-        else:
-            username = addon.getSetting('username')
-            password = addon.getSetting('password')
-
-        self.session.load_cookies()
-        session_info = self.session.login(username, password)
-        if len(session_info) == 0:
-            raise RuntimeError("Login failed, check your credentials")
-        self.session.refresh_widevine_license()
-        self.session.refresh_entitlements()
-
         self.setActiveProfile()
-
-        xbmc.log("ADDON: {0}, authenticated with: {1}".format(addon.getAddonInfo('name'),
-                                                              username), 0)
 
     def load_movie_overviews(self):
         file = self.pluginPath(G.MOVIE_INFO)
@@ -501,7 +478,7 @@ class ZiggoPlugin:
         global channels
         # Create a list for our items.
         listing = []
-        self.session.refresh_channels()
+        # self.session.refresh_channels()
         channels = self.session.get_channels()
         entitlements = self.session.get_entitlements()["entitlements"]
         entitlementlist = []

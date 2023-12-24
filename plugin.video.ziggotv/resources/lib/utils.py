@@ -36,12 +36,17 @@ class Timer(threading.Thread):
         super().__init__()
 
     def run(self):
+        expired_secs = 0
         while self._timer_runs.is_set():
-            time.sleep(self.interval)
-            self.timer()
+            time.sleep(1)
+            expired_secs += 1
+            if expired_secs >= self.interval:
+                self.timer()
+                expired_secs = 0
 
     def stop(self):
         self._timer_runs.clear()
+        self.join()
 
     def timer(self):
         self.callback_function()

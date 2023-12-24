@@ -1,9 +1,11 @@
 import asyncio
 import json
 import threading
+from pathlib import Path
 
 import xbmc
 import xbmcaddon
+import xbmcvfs
 from aiohttp import web
 
 from resources.lib.proxy import ProxyServer
@@ -24,19 +26,50 @@ class ServiceMonitor(xbmc.Monitor):
         self.addon = xbmcaddon.Addon()
         self.channelid = ''
         self.timer = None
+        self.refreshTimer = None
+        self.session = LoginSession(self.addon)
+        self.__initialize_session(self.session)
         xbmc.log("SERVICE-MONITOR initialized", xbmc.LOGDEBUG)
+
+    def __initialize_session(self, session: LoginSession):
+        addon_path = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
+        Path(addon_path).mkdir(parents=True, exist_ok=True)
+        if self.addon.getSetting('username') == '#notset#' or self.addon.getSetting('username') == '':
+            xbmcaddon.Addon().openSettings()
+        if self.addon.getSetting('username') == '':
+            username = json.loads(Path(r'C:\temp\credentials.json').read_text())['username']
+            password = json.loads(Path(r'C:\temp\credentials.json').read_text())['password']
+        else:
+            username = self.addon.getSetting('username')
+            password = self.addon.getSetting('password')
+
+        session.load_cookies()
+        session_info = session.login(username, password)
+        if len(session_info) == 0:
+            raise RuntimeError("Login failed, check your credentials")
+        xbmc.log("ADDON: {0}, authenticated with: {1}".format(self.addon.getAddonInfo('name'),
+                                                              username), 0)
+        self.__refresh_session()
+        self.refreshTimer = Timer(600, self.__refresh_session)
+        self.refreshTimer.start()
+
+    def __refresh_session(self):
+        self.session.refresh_widevine_license()
+        self.session.refresh_entitlements()
+        self.session.refresh_channels()
+        self.session.load_cookies()
 
     def update_token(self):
         if self.ProxyServer is None:
             xbmc.log('SERVICE-MONITOR ProxyServer not started yet', xbmc.LOGDEBUG)
             return
-        session = LoginSession(self.addon)
-        session.load_cookies()
+        # session = LoginSession(self.addon)
+        # self.session.load_cookies()
         xbmc.log("Refresh token interval expired", xbmc.LOGDEBUG)
         token = self.ProxyServer.get_streaming_token()
         if token is None or token == '':
             return
-        streaming_token = session.update_token(self.ProxyServer.get_streaming_token())
+        streaming_token = self.session.update_token(self.ProxyServer.get_streaming_token())
         self.ProxyServer.set_streaming_token(streaming_token)
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
@@ -79,36 +112,12 @@ class ServiceMonitor(xbmc.Monitor):
         # xbmc,Player.OnResume,{"item":{"title":"2. NPO 2","type":"video"},"player":{"playerid":1,"speed":1}}
         # xbmc,Player.OnSpeedChanged,{"item":{"title":"2. NPO 2","type":"video"},"player":{"playerid":1,"speed":2}}
 
-    async def cleanup(self):
-        await self.webapp.cleanup()
-        await self.webapp.shutdown()
-
-    async def start_proxy(self):
-        await self.stop_proxy()
-        self.isShutDown = False
-        lock = threading.Lock()
-        self.ProxyServer = ProxyServer(lock)
-
-        self.webapp.add_routes([web.get('/manifest', self.ProxyServer.manifest_handler),
-                                web.get('/ {tail:. *}', self.ProxyServer.default_handler),
-                                web.post('/license', self.ProxyServer.license_handler)])
-        self.apprunner = web.AppRunner(self.webapp)
-        await self.apprunner.setup()
-        port = xbmcaddon.Addon().getSettingNumber('proxy-port')
-        ip = xbmcaddon.Addon().getSetting('proxy-ip')
-        self.site = web.TCPSite(self.apprunner, port=port, host=ip)
-        await self.site.start()
-
-    async def stop_proxy(self):
-        self.isShutDown = True
-        if self.ProxyServer is not None:
-            await self.apprunner.cleanup()
-            # await self.webapp.shutdown()
-            # await self.webapp.cleanup()
-            print("PROXY SERVER SHUTDOWN")
-            self.ProxyServer = None
-        self.isShutDown = True
-
+    def shutdown(self):
+        if self.timer is not None:
+            self.timer.stop()
+        if self.refreshTimer is not None:
+            self.refreshTimer.stop()
+        xbmc.log("SERVICE-MONITOR Timers stopped", xbmc.LOGDEBUG)
 
 async def main():
     monitor_service = ServiceMonitor(loop)
@@ -118,14 +127,12 @@ async def main():
             await asyncio.sleep(10)
             # if monitor_service.waitForAbort(10):
             # Abort was requested while waiting. We should exit
-        print("MONITOR PROXY SERVICE WAITFORABORT timeout")
-        await monitor_service.cleanup()
+        xbmc.log("MONITOR PROXY SERVICE WAITFORABORT timeout", xbmc.LOGDEBUG)
 
     except Exception as exc:
-        print("UNEXPECTED EXCEPTION IN SERVICE: ", exc)
+        xbmc.log("UNEXPECTED EXCEPTION IN SERVICE: {0}".format(exc), xbmc.LOGDEBUG)
     #    await asyncio.sleep(600)
-    await monitor_service.stop_proxy()
-    print("STOPPING PROXY SERVICE")
+    xbmc.log("STOPPING PROXY SERVICE", xbmc.LOGDEBUG)
 
 
 if __name__ == '__main__':

@@ -129,6 +129,7 @@ class ProxyServer:
         self.locator = locator
 
     def __start_webserver(self):
+        xbmc.log("WEBSERVER STARTED", xbmc.LOGDEBUG)
         self.app = web.Application()
         self.app.add_routes([web.get('/manifest', self.manifest_handler),
                              web.get('/{tail:.*}', self.default_handler),
@@ -137,7 +138,7 @@ class ProxyServer:
         port = xbmcaddon.Addon().getSettingNumber('proxy-port')
         ip = xbmcaddon.Addon().getSetting('proxy-ip')
         web.run_app(app=self.app, host=ip, port=int(port))
-        xbmc.log("WEBSERVER STARTED", xbmc.LOGDEBUG)
+        xbmc.log("WEBSERVER STOPPED", xbmc.LOGDEBUG)
 
     def serve_forever(self):
         self.thread = threading.Thread(target=self.__start_webserver)

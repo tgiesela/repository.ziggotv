@@ -16,20 +16,22 @@ async def start_service():
     proxy.serve_forever()
     monitor_service = ServiceMonitor(proxy)
     try:
-        print("SERVICE-MONITOR loop entered ")
         while not monitor_service.abortRequested():
-            if monitor_service.waitForAbort(10):
+            if monitor_service.waitForAbort(5):
                 # Abort was requested while waiting. We should exit
-                xbmc.log("MONITOR PROXYSERVICE WAITFORABORT timeout", xbmc.LOGDEBUG)
+                xbmc.log("SERVICE-MONITOR WAITFORABORT timeout", xbmc.LOGDEBUG)
                 break
     except Exception as exc:
-        print("SERVICE-MONITOR Exception: ", exc)
+        xbmc.log("SERVICE-MONITOR Exception: {0}".format(exc), xbmc.LOGERROR)
+
     try:
         port = xbmcaddon.Addon().getSetting('proxy-port')
         ip = xbmcaddon.Addon().getSetting('proxy-ip')
         requests.delete('http://{0}:{1}/shutdown'.format(ip, port))
     except Exception as exc:
         pass
+    monitor_service.shutdown()
+    proxy.shutdown()
 
 REMOTE_DEBUG = False
 if __name__ == '__main__':

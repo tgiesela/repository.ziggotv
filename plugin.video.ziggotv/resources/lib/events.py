@@ -191,7 +191,7 @@ class ChannelGuide:
     def __init__(self, session):
         self.session: LoginSession = session
         self.windows = []
-        self.session.refresh_channels()
+        # self.session.refresh_channels()
         self.channels = []
         for channel in self.session.get_channels():
             self.channels.append(channel)
