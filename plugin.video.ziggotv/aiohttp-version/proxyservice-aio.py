@@ -6,8 +6,8 @@ import requests
 import xbmc
 import xbmcaddon
 
-from resources.lib.proxy import ProxyServer
-from resources.lib.servicemonitor import ServiceMonitor
+from resources.lib.proxyaio import ProxyServer
+from resources.lib.servicemonitoraio import ServiceMonitor
 
 
 async def start_service():

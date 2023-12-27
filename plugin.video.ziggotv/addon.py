@@ -16,6 +16,8 @@ import xbmcplugin
 import xbmcvfs
 from xbmcaddon import Addon
 
+from resources.lib.utils import SharedProperties
+
 try:
     from inputstreamhelper import Helper
 except:
@@ -86,6 +88,7 @@ class ZiggoPlugin:
         xbmc.log("ACTIVE PROFILE: {0}".format(self.session.active_profile['name']), xbmc.LOGDEBUG)
 
     def __initialization(self):
+        self.checkService()
         self.setActiveProfile()
 
     def load_movie_overviews(self):
@@ -776,6 +779,25 @@ class ZiggoPlugin:
 
             return overview['instances'][0]  # return the first one if none was goPlayable
         return None
+
+    @staticmethod
+    def checkService():
+        home: SharedProperties = SharedProperties(addon=addon)
+        if home.isServiceActive():
+            return
+        secondsToWait = 30
+        timeWaiting = 0
+        interval = 0.5
+        dlg = xbmcgui.DialogProgress()
+        dlg.create('ZiggoTV', 'Waiting for service to start...')
+        while (not home.isServiceActive() and
+               timeWaiting < secondsToWait and not home.isServiceActive() and not dlg.iscanceled()):
+            xbmc.sleep(int(interval * 1000))
+            timeWaiting += interval
+            dlg.update(int(timeWaiting / secondsToWait * 100), 'Waiting for service to start...')
+        dlg.close()
+        if not home.isServiceActive():
+            raise RuntimeError('Service did not start in time')
 
 
 REMOTE_DEBUG = False

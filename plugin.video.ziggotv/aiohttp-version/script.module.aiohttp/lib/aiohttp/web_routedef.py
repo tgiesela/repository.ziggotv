@@ -21,8 +21,6 @@ from .abc import AbstractView
 from .typedefs import Handler, PathLike
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .web_request import Request
-    from .web_response import StreamResponse
     from .web_urldispatcher import AbstractRoute, UrlDispatcher
 else:
     Request = StreamResponse = UrlDispatcher = AbstractRoute = None
