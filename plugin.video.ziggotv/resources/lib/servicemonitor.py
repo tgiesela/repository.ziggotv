@@ -92,7 +92,7 @@ class ServiceMonitor(xbmc.Monitor):
         addon_path = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
         Path(addon_path).mkdir(parents=True, exist_ok=True)
         self.__refresh_session()
-        self.refreshTimer = Timer(600, self.__refresh_session)
+        self.refreshTimer = Timer(60, self.__refresh_session)
         self.refreshTimer.start()
 
     def __refresh_session(self):

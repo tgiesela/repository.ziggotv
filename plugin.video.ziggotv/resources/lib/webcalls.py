@@ -273,7 +273,7 @@ class LoginSession(Web):
             xbmc.log("refresh at: {0}".format(DatetimeHelper.fromUnix(self.session_info['refreshTokenExpiry'])),
                      xbmc.LOGDEBUG)
             xbmc.log("logon still valid",
-                     xbmc.LOGINFO)
+                     xbmc.LOGDEBUG)
             return True
 
         return False
@@ -303,7 +303,7 @@ class LoginSession(Web):
                 exp = DatetimeHelper.now()
                 now = exp
             if exp > now:
-                xbmc.log("Accesstoken still valid", xbmc.LOGINFO)
+                xbmc.log("Accesstoken still valid", xbmc.LOGDEBUG)
             else:
                 self.cookies.pop("ACCESSTOKEN")
                 response = super().do_post(G.authentication_URL + "/refresh",
@@ -355,11 +355,11 @@ class LoginSession(Web):
         encoded_content = base64.b64encode(response.content)
         Path(self.pluginpath(G.WIDEVINE_LICENSE)).write_text(encoded_content.decode("ascii"))
 
-    def obtain_tv_streaming_token(self, channel: Channel, asset_type):
+    def obtain_tv_streaming_token(self, channelId, asset_type):
         url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/live'
         response = super().do_post(url,
                                    params={
-                                       'channelId': channel.id,
+                                       'channelId': channelId,
                                        'assetType': asset_type,
                                        'profileId': self.active_profile['profileId'],
                                        'liveContentTimestamp': DatetimeHelper.now(timezone.utc).isoformat()
@@ -368,8 +368,8 @@ class LoginSession(Web):
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during obtain streaming info")
         self.stream_info = StreamingInfo(json.loads(response.content))
-        self.streaming_token = response.headers["x-streaming-token"]
-        return response.headers["x-streaming-token"], self.stream_info
+        self.stream_info.token = response.headers["x-streaming-token"]
+        return self.stream_info
 
     def obtain_replay_streaming_token(self, path):
         url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/replay'
@@ -383,8 +383,8 @@ class LoginSession(Web):
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during obtain replay streaming info")
         self.replay_stream_info = ReplayStreamingInfo(json.loads(response.content))
-        self.streaming_token = response.headers["x-streaming-token"]
-        return response.headers["x-streaming-token"], self.replay_stream_info
+        self.replay_stream_info.token = response.headers["x-streaming-token"]
+        return self.replay_stream_info
 
     def obtain_vod_streaming_token(self, id):
         url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/vod'
@@ -398,8 +398,8 @@ class LoginSession(Web):
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during obtain vod streaming info")
         self.vod_stream_info = VodStreamingInfo(json.loads(response.content))
-        self.streaming_token = response.headers["x-streaming-token"]
-        return response.headers["x-streaming-token"], self.vod_stream_info
+        self.vod_stream_info.token = response.headers["x-streaming-token"]
+        return self.vod_stream_info
 
     def get_license(self, content_id, request_data, license_headers):
         url = G.license_URL
@@ -724,3 +724,9 @@ class LoginSession(Web):
         if not self.__status_code_ok(response):
             raise RuntimeError("status code <> 200 during get_event_details")
         return json.loads(response.content)
+
+    def get_extra_headers(self):
+        return self.extra_headers
+
+    def get_cookies_dict(self):
+        return self.cookies.get_dict()

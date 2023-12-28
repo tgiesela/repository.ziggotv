@@ -12,6 +12,7 @@ from resources.lib.UrlTools import UrlTools
 from resources.lib.ZiggoPlayer import ZiggoPlayer, VideoHelpers
 from resources.lib.events import Event, ChannelGuide
 from resources.lib.globals import G, S
+from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
 
 
@@ -22,6 +23,7 @@ class ProgramEventGrid:
                  mediaFolder: str,
                  session: LoginSession,
                  addon: xbmcaddon.Addon):
+        self.helper = ProxyHelper(addon)
         self.startWindow = None
         self.endWindow = None
         self.rows: List[ProgramEventRow] = []
@@ -165,18 +167,19 @@ class ProgramEventGrid:
         return avc, asset_type
 
     def __play_channel(self, channel):
-        helper = VideoHelpers(self.addon, self.session)
+        helper = VideoHelpers(self.addon)
         urlHelper = UrlTools(self.addon)
         player = ZiggoPlayer()
-        locator, asset_type = channel.get_locator()
-        streaming_token, streamInfo = self.session.obtain_tv_streaming_token(channel, asset_type)
-        url = urlHelper.build_url(streaming_token, locator)
+        locator, asset_type = channel.get_locator(self.addon)
+        streamInfo = self.helper.dynamicCall(LoginSession.obtain_tv_streaming_token,
+                                             channelId=channel.id, asset_type=asset_type)
+        url = urlHelper.build_url(streamInfo.token, locator)
         play_item = helper.listitem_from_url(requesturl=url,
-                                             streaming_token=streaming_token,
+                                             streaming_token=streamInfo.token,
                                              drmContentId=streamInfo.drmContentId)
         event = channel.events.getCurrentEvent()
         self.__addEventInfo(play_item, event)
-        player.setReplay(False, streamInfo.prePaddingTime)
+        player.setReplay(False, 0)
         player.play(item=url, listitem=play_item)
         while player.isPlaying():
             xbmc.sleep(500)
@@ -185,14 +188,15 @@ class ProgramEventGrid:
         if not event.canReplay:
             xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_REPLAY_NOT_AVAIALABLE))
             return
-        helper = VideoHelpers(self.addon, self.session)
+        helper = VideoHelpers(self.addon)
         urlHelper = UrlTools(self.addon)
         player = ZiggoPlayer()
-        streaming_token, streamInfo = self.session.obtain_replay_streaming_token(event.details.eventId)
+        streamInfo = self.helper.dynamicCall(LoginSession.obtain_replay_streaming_token,
+                                             path=event.details.eventId)
         player.setReplay(True, streamInfo.prePaddingTime)
-        url = urlHelper.build_url(streaming_token, streamInfo.url)
+        url = urlHelper.build_url(streamInfo.token, streamInfo.url)
         play_item = helper.listitem_from_url(requesturl=url,
-                                             streaming_token=streaming_token,
+                                             streaming_token=streamInfo.token,
                                              drmContentId=streamInfo.drmContentId)
         self.__addEventInfo(play_item, event)
         player.play(item=url, listitem=play_item)
@@ -211,7 +215,7 @@ class ProgramEventGrid:
 
     def __play(self, event: Event, channel: Channel):
         if not event.hasDetails:
-            event.details = self.session.get_event_details(event.id)
+            event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
         if event.startTime < utils.DatetimeHelper.unixDatetime(datetime.datetime.now()) < event.endTime:
             choice = xbmcgui.Dialog().yesnocustom('Play',
                                                   self.addon.getLocalizedString(S.MSG_SWITCH_OR_PLAY),
@@ -357,7 +361,7 @@ class ProgramEventGrid:
         program = self.rows[row].programs[program]
         event = program.event
         if not event.hasDetails:
-            event.details = self.session.get_event_details(event.id)
+            event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
         title: xbmcgui.ControlLabel = self.__getControl(1201)
         title.setLabel(event.title)
 
@@ -383,7 +387,7 @@ class ProgramEventGrid:
         if event is None:
             return
         if not event.hasDetails:
-            event.details = self.session.get_event_details(event.id)
+            event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
         tag: xbmc.InfoTagVideo = play_item.getVideoInfoTag()
         play_item.setLabel(event.title)
         tag.setPlot(event.details.description)

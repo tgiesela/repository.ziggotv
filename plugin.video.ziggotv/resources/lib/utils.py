@@ -3,6 +3,12 @@ from datetime import datetime
 from enum import Enum, IntEnum
 import threading
 import time
+from typing import Any
+import requests
+import json
+import pickle
+
+import xbmc
 import xbmcaddon
 import xbmcgui
 
@@ -92,6 +98,36 @@ class DatetimeHelper:
     @staticmethod
     def unixDatetime(dt: datetime):
         return int(time.mktime(dt.timetuple()))
+
+
+class ProxyHelper:
+    def __init__(self, addon: xbmcaddon.Addon):
+        self.port = addon.getSetting('proxy-port')
+        self.ip = addon.getSetting('proxy-ip')
+        self.host = 'http://{0}:{1}/'.format(self.ip, self.port)
+
+    def dynamicCall(self, method, **kwargs) -> Any:
+        try:
+            if kwargs is None:
+                arguments = {}
+            else:
+                arguments = kwargs
+            response = requests.get(
+                url=self.host + 'function/{method}'.format(method=method.__name__),
+                params={'args': json.dumps(arguments)},
+                timeout=60)
+            if response.status_code != 200:
+                raise Exception('Unexpected status-code in dynamic Call: {0}'.format(response.status_code))
+            contentType = response.headers.get('content-type')
+            if contentType == 'text/html':
+                return response.content
+            elif contentType == 'application/octet-stream':
+                result = pickle.loads(response.content)
+                return result
+            else:
+                return None
+        except Exception as exc:
+            xbmc.log('Exception during dynamic Call: {0}'.format(exc), xbmc.LOGERROR)
 
 
 if __name__ == '__main__':

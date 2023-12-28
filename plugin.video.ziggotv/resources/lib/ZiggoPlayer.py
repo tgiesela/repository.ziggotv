@@ -6,6 +6,8 @@ import xbmcvfs
 import json
 
 from resources.lib.globals import G
+from resources.lib.utils import ProxyHelper
+from resources.lib.webcalls import LoginSession
 
 
 class ZiggoPlayer(xbmc.Player):
@@ -40,9 +42,9 @@ class ZiggoPlayer(xbmc.Player):
 
 
 class VideoHelpers:
-    def __init__(self, addon: xbmcaddon.Addon, session):
-        self.session = session
+    def __init__(self, addon: xbmcaddon.Addon):
         self.addon = addon
+        self.customer_info = ProxyHelper(addon).dynamicCall(LoginSession.get_customer_info)
 
     def __get_widevine_license(self, addon_name):
         addon_path = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
@@ -94,13 +96,14 @@ class VideoHelpers:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
             'Host': 'prod.spark.ziggogo.tv',
             'x-streaming-token': streaming_token,
-            'X-cus': self.session.customer_info['customerId'],
+            'X-cus': self.customer_info['customerId'],
             'x-go-dev': '214572a3-2033-4327-b8b3-01a9a674f1e0',  # Dummy? TBD: Generate one
             'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
             'deviceName': 'Firefox'
         })
-        for key in self.session.extra_headers:
-            license_headers.update({key: self.session.extra_headers[key]})
+        extra_headers = ProxyHelper(self.addon).dynamicCall(LoginSession.get_extra_headers)
+        for key in extra_headers:
+            license_headers.update({key: extra_headers[key]})
 
         from urllib.parse import urlencode
         use_license_proxy = True
@@ -115,7 +118,7 @@ class VideoHelpers:
                    '|R{SSM}'
                    '|')
         else:
-            cookies = self.session.cookies.get_dict()
+            cookies = ProxyHelper(self.addon).dynamicCall(LoginSession.get_cookies_dict)
             url = G.license_URL
             params = {'ContentId': drmContentId}
             url = (url + '?' + urlencode(params) +

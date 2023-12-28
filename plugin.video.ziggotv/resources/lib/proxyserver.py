@@ -1,3 +1,4 @@
+import pickle
 from urllib.parse import urlparse, parse_qs, unquote
 
 import typing
@@ -12,6 +13,8 @@ from http.client import HTTPConnection
 from http.client import HTTPSConnection
 import http.server
 import socketserver
+import json
+import base64
 
 
 class HTTPRequestHandler(BaseHTTPRequestHandler):
@@ -145,6 +148,8 @@ class ProxyServer(http.server.HTTPServer):
         try:
             if '/manifest' in path:
                 self.handle_manifest(request)
+            elif '/function' in path:
+                self.handle_function(request)
             else:
                 self.handle_default(request)
 
@@ -190,4 +195,28 @@ class ProxyServer(http.server.HTTPServer):
         except Exception as exc:
             xbmc.log('Exception in do_post(): {0}'.format(exc), xbmc.LOGERROR)
             request.send_response(500)
+            request.end_headers()
+
+    def handle_function(self, request):
+        parsed_url = urlparse(request.path)
+        method = parsed_url.path[10:]
+        qs = parse_qs(parsed_url.query)
+        if 'args' in qs:
+            args = json.loads(qs['args'][0])
+            callableMethod = getattr(self.session, method)
+            retval = callableMethod(**args)
+            request.send_response(200)
+            if retval is None:
+                request.send_header('content-type', 'text/html')
+                request.end_headers()
+            elif type(retval) is str:
+                request.send_header('content-type', 'text/html')
+                request.end_headers()
+                request.wfile.write(retval)
+            else:
+                request.send_header('content-type', 'application/octet-stream')
+                request.end_headers()
+                request.wfile.write(pickle.dumps(retval))
+        else:
+            request.send_response(400)
             request.end_headers()

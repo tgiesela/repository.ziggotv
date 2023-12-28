@@ -7,6 +7,7 @@ class StreamingInfo:
         self.isAdult = False
         if 'isAdult' in streamingJson:
             self.isAdult = streamingJson['isAdult']
+        self.token = None
 
 
 class ReplayStreamingInfo:
@@ -14,7 +15,10 @@ class ReplayStreamingInfo:
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.drmContentId = streamingJson['drmContentId']
-        self.licenseDurationSeconds = streamingJson['licenceDurationSeconds']
+        if 'licenceDurationSeconds' in streamingJson:
+            self.licenseDurationSeconds = streamingJson['licenceDurationSeconds']
+        else:
+            self.licenseDurationSeconds = -1
         self.endTime = streamingJson['eventSessionEndTime']
         self.startTime = streamingJson['eventSessionStartTime']
         self.prePaddingTime = streamingJson['prePaddingTime']
@@ -27,6 +31,7 @@ class ReplayStreamingInfo:
         self.fallbackUrl = streamingJson['fallbackUrl']
         self.url = streamingJson['url']
         self.isAvad = streamingJson['isAvad']
+        self.token = None
 
 
 class VodStreamingInfo:
@@ -39,4 +44,8 @@ class VodStreamingInfo:
         self.contentProvider = streamingJson['contentProvider']
         self.thumbnailUrl = streamingJson['thumbnailServiceUrl']
         self.url = streamingJson['url']
-        self.licenseDurationSeconds = streamingJson['licenceDurationSeconds']
+        if 'licenceDurationSeconds' in streamingJson:
+            self.licenseDurationSeconds = streamingJson['licenceDurationSeconds']
+        else:
+            self.licenseDurationSeconds = -1
+        self.token = None

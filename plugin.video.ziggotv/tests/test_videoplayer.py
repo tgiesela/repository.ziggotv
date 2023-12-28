@@ -47,7 +47,7 @@ class TestVideoPlayer(unittest.TestCase):
     def test_buildurl(self):
         addon = xbmcaddon.Addon('plugin.video.ziggotv')
         urlHelper = UrlTools(addon)
-        helpers = VideoHelpers(addon, self.session)
+        helpers = VideoHelpers(addon)
 
         # Test for play channels
 

@@ -29,6 +29,8 @@ class EventDetails:
                 self.episodeName = eventJson['episodeName']
         if 'actors' in eventJson:
             self.actors = eventJson['actors']
+        else:
+            self.actors = []
 
     @property
     def isSeries(self):

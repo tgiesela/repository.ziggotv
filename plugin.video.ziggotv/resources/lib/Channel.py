@@ -59,7 +59,7 @@ class Channel:
     def id(self):
         return self.channelId
 
-    def get_locator(self) -> typing.Tuple[str, str]:
+    def get_locator(self, addon: xbmcaddon.Addon) -> typing.Tuple[str, str]:
         try:
             # max_res = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.max')
             max_res_drm = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.secure.max')
@@ -70,7 +70,7 @@ class Channel:
         except Exception as exc:
             hd_allowed = True
         asset_type = 'Orion-DASH'
-        fullHD = xbmcaddon.Addon().getSettingBool('full-hd')
+        fullHD = addon.getSettingBool('full-hd')
         if hd_allowed and not fullHD:
             hd_allowed = False
         if 'Orion-DASH-HEVC' in self.locators and hd_allowed:

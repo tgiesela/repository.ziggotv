@@ -1,7 +1,10 @@
 import json
 import os
 import sys
+import requests
+import pickle
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qsl
 
 from resources.lib.Channel import Channel
@@ -16,7 +19,7 @@ import xbmcplugin
 import xbmcvfs
 from xbmcaddon import Addon
 
-from resources.lib.utils import SharedProperties
+from resources.lib.utils import SharedProperties, ProxyHelper
 
 try:
     from inputstreamhelper import Helper
@@ -36,15 +39,15 @@ class ZiggoPlugin:
         self.url = None
         self.addon: xbmcaddon.Addon = my_addon
         self.addon_path = xbmcvfs.translatePath(my_addon.getAddonInfo('profile'))
-        self.session: LoginSession = LoginSession(my_addon)
-        self.videoHelper = VideoHelpers(self.addon, self.session)
+        self.helper = ProxyHelper(my_addon)
+        self.videoHelper = VideoHelpers(self.addon)
         self.__initialization()
 
     def pluginPath(self, name):
         return self.addon_path + name
 
     def selectProfile(self):
-        custinfo = self.session.get_customer_info()
+        custinfo: {} = self.helper.dynamicCall(LoginSession.get_customer_info)
         profile_id = self.addon.getSettingString('profile')
         if 'assignedDevices' in custinfo:
             default_profile_id = custinfo['assignedDevices'][0]['defaultProfileId']
@@ -67,7 +70,7 @@ class ZiggoPlugin:
         self.addon.setSetting('profile', profile_id)
 
     def setActiveProfile(self):
-        custinfo = self.session.get_customer_info()
+        custinfo: {} = self.helper.dynamicCall(LoginSession.get_customer_info)
         profile = self.addon.getSettingString('profile')
         if 'assignedDevices' in custinfo:
             default_profile_id = custinfo['assignedDevices'][0]['defaultProfileId']
@@ -79,13 +82,13 @@ class ZiggoPlugin:
         if chosen_profile == '':  # still not set, use default
             for profile in custinfo['profiles']:
                 if profile['profileId'] == default_profile_id:
-                    self.session.set_active_profile(profile)
+                    self.helper.dynamicCall(LoginSession.set_active_profile(profile, profile=default_profile_id))
+                    xbmc.log("ACTIVE PROFILE: {0}".format(default_profile_id), xbmc.LOGDEBUG)
         else:
             for profile in custinfo['profiles']:
                 if profile['profileId'] == chosen_profile:
-                    self.session.set_active_profile(profile)
-
-        xbmc.log("ACTIVE PROFILE: {0}".format(self.session.active_profile['name']), xbmc.LOGDEBUG)
+                    self.helper.dynamicCall(LoginSession.set_active_profile, profile=profile)
+                    xbmc.log("ACTIVE PROFILE: {0}".format(profile), xbmc.LOGDEBUG)
 
     def __initialization(self):
         self.checkService()
@@ -147,7 +150,7 @@ class ZiggoPlugin:
         :return: None
         """
         # Create a playable item with a path to play.
-        channels = self.session.get_channels()
+        channels = self.helper.dynamicCall(LoginSession.get_channels)
         channel = None
         for video in channels:
             if video.id == path:
@@ -157,27 +160,28 @@ class ZiggoPlugin:
         if channel is None:
             raise RuntimeError("Channel not found: " + path)
 
-        streaming_token = None
+        streamInfo = None
         try:
             is_helper = Helper(G.PROTOCOL, drm=G.DRM)
             if is_helper.check_inputstream():
                 xbmc.log('Inside play condition...')
 
             locator, asset_type = channel.get_locator()
-            streaming_token, streamInfo = self.session.obtain_tv_streaming_token(channel, asset_type)
+            streamInfo = self.helper.dynamicCall(LoginSession.obtain_tv_streaming_token,
+                                            channelId=channel.id, asset_type=asset_type)
 
             urlHelper = UrlTools(self.addon)
-            url = urlHelper.build_url(streaming_token, locator)
+            url = urlHelper.build_url(streamInfo.token, locator)
             play_item = self.videoHelper.listitem_from_url(
                 requesturl=url,
-                streaming_token=streaming_token,
+                streaming_token=streamInfo.token,
                 drmContentId=streamInfo.drmContentId)
             xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
 
         except Exception as exc:
             xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
-            if streaming_token is not None:
-                self.session.delete_token(streaming_token)
+            if streamInfo is not None and streamInfo.token is not None:
+                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
 
     def replay_video(self, path):
         global channels
@@ -187,24 +191,24 @@ class ZiggoPlugin:
         :return: None
         """
         # Create a playable item with a path to play.
-        streaming_token = None
+        streamInfo = None
         try:
             is_helper = Helper(G.PROTOCOL, drm=G.DRM)
             if is_helper.check_inputstream():
                 xbmc.log('Inside play condition...')
-            helpers = VideoHelpers(self.addon, self.session)
-            streaming_token, streamInfo = self.session.obtain_replay_streaming_token(path)
+            helpers = VideoHelpers(self.addon)
+            streamInfo = self.helper.dynamicCall(LoginSession.obtain_replay_streaming_token, path=path)
             urlHelper = UrlTools(self.addon)
-            url = urlHelper.build_url(streaming_token, streamInfo.url)
+            url = urlHelper.build_url(streamInfo.token, streamInfo.url)
             play_item = helpers.listitem_from_url(requesturl=url,
-                                                  streaming_token=streaming_token,
+                                                  streaming_token=streamInfo.token,
                                                   drmContentId=streamInfo.drmContentId)
             xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
 
         except Exception as exc:
             xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
-            if streaming_token is not None:
-                self.session.delete_token(streaming_token)
+            if streamInfo is not None and streamInfo.token is not None:
+                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
 
     def play_movie(self, path):
         global channels
@@ -215,27 +219,26 @@ class ZiggoPlugin:
         """
         # Create a playable item with a path to play.
 
-        streaming_token = None
+        streamInfo = None
         try:
             is_helper = Helper(G.PROTOCOL, drm=G.DRM)
             if is_helper.check_inputstream():
                 xbmc.log('Inside play condition...')
 
-            helpers = VideoHelpers(self.addon, self.session)
-            streaming_token, streamInfo = self.session.obtain_vod_streaming_token(path)
+            streamInfo = self.helper.dynamicCall(LoginSession.obtain_vod_streaming_token, id=path)
             urlHelper = UrlTools(self.addon)
-            url = urlHelper.build_url(streaming_token, streamInfo.url)
+            url = urlHelper.build_url(streamInfo.token, streamInfo.url)
 
             play_item = self.videoHelper.listitem_from_url(
                 requesturl=url,
-                streaming_token=streaming_token,
+                streaming_token=streamInfo.token,
                 drmContentId=streamInfo.drmContentId)
             xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
 
         except Exception as exc:
             xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
-            if streaming_token is not None:
-                self.session.delete_token(streaming_token)
+            if streamInfo is not None and streamInfo.token is not None:
+                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
 
     @staticmethod
     def __getPricingFromOffer(instance):
@@ -442,7 +445,7 @@ class ZiggoPlugin:
         # Get video categories
         categories = {'Channels': '1. ' + self.addon.getLocalizedString(S.MENU_CHANNELS),
                       'Guide': '2. ' + self.addon.getLocalizedString(S.MENU_GUIDE)}
-        response = self.session.obtain_vod_screens()
+        response = self.helper.dynamicCall(LoginSession.obtain_vod_screens)
         screens = response['screens']
         if self.addon.getSettingBool('adult-allowed'):
             screens.append(response['hotlinks']['adultRentScreen'])
@@ -481,13 +484,12 @@ class ZiggoPlugin:
         global channels
         # Create a list for our items.
         listing = []
-        # self.session.refresh_channels()
-        channels = self.session.get_channels()
-        entitlements = self.session.get_entitlements()["entitlements"]
-        entitlementlist = []
+        channels = self.helper.dynamicCall(LoginSession.get_channels)
+        entitlements = self.helper.dynamicCall(LoginSession.get_entitlements)["entitlements"]
+        entitlementList = []
         i = 0
         while i < len(entitlements):
-            entitlementlist.append(entitlements[i]["id"])
+            entitlementList.append(entitlements[i]["id"])
             i += 1
 
         # Iterate through channels
@@ -496,7 +498,7 @@ class ZiggoPlugin:
             if video.isHidden:
                 continue
             for linearProduct in video.linearProducts:
-                if linearProduct in entitlementlist:
+                if linearProduct in entitlementList:
                     subscribed = True
             li = self.listItem_from_channel(video)
 
@@ -532,15 +534,14 @@ class ZiggoPlugin:
             if overview['id'] == item_id:
                 return overview
 
-        overview = self.session.obtain_series_overview(item_id)
+        overview = self.helper.dynamicCall(LoginSession.obtain_series_overview, id=item_id)
         self.series_overviews.append(overview)
         return overview
 
     def list_series_seasons(self, categoryId):
         listing = []
-        #        seasons = self.session.obtain_series_overview(categoryId)
         self.load_series_overviews()
-        episodes = self.session.get_episode_list(self.__get_series_overview(categoryId))
+        episodes = self.helper.dynamicCall(LoginSession.get_episode_list, item=self.__get_series_overview(categoryId))
 
         for season in episodes['seasons']:
             li = self.listItem_from_season(season, episodes)
@@ -561,7 +562,7 @@ class ZiggoPlugin:
     def list_series_episodes(self, seriesId, seasonId):
         listing = []
         self.load_series_overviews()
-        episodes = self.session.get_episode_list(self.__get_series_overview(seriesId))
+        episodes = self.helper.dynamicCall(LoginSession.get_episode_list, item=self.__get_series_overview(seriesId))
 
         for season in episodes['seasons']:
             if season['id'] == seasonId:
@@ -591,7 +592,7 @@ class ZiggoPlugin:
         listing = []
         self.load_series_overviews()
         self.load_movie_overviews()
-        grid_content = self.session.obtain_grid_screen_details(genreId)
+        grid_content = self.helper.dynamicCall(LoginSession.obtain_grid_screen_details, collection_id=genreId)
 
         for item in grid_content['items']:
             if item['type'] == 'ASSET':
@@ -624,7 +625,7 @@ class ZiggoPlugin:
 
     def list_genres(self, categoryId):
         listing = []
-        screens = self.session.obtain_vod_screen_details(categoryId)
+        screens = self.helper.dynamicCall(LoginSession.obtain_vod_screen_details, collection_id=categoryId)
         for screen in screens['collections']:
             if screen['collectionLayout'] == 'TileCollection':
                 for genre in screen['items']:
@@ -644,7 +645,7 @@ class ZiggoPlugin:
 
     def list_series(self, categoryId):
         listing = []
-        screen_details = self.session.obtain_vod_screen_details(categoryId)
+        screen_details = self.helper.dynamicCall(LoginSession.obtain_vod_screen_details, collection_id=categoryId)
         items_seen = []
         self.load_series_overviews()
         for collection in screen_details['collections']:
@@ -676,16 +677,18 @@ class ZiggoPlugin:
                 return overview
 
         if 'brandingProviderId' in item:
-            overview = self.session.obtain_asset_details(item['id'], item['brandingProviderId'])
+            overview = self.helper.dynamicCall(LoginSession.obtain_asset_details, id=item['id'],
+                                                                              brandingProviderId=item[
+                                                                                  'brandingProviderId'])
         else:
-            overview = self.session.obtain_asset_details(item['id'])
+            overview = self.helper.dynamicCall(LoginSession.obtain_asset_details, id=item['id'])
         self.movie_overviews.append(overview)
         return overview
 
     def list_movies(self, categoryId):
         # Create a list for our items.
         listing = []
-        movie_list = self.session.obtain_vod_screen_details(categoryId)
+        movie_list = self.helper.dynamicCall(LoginSession.obtain_vod_screen_details, collection_id=categoryId)
         items_seen = []
         self.load_movie_overviews()
         for collection in movie_list['collections']:
