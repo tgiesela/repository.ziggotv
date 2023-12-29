@@ -442,9 +442,9 @@ class ZiggoPlugin:
         Create the list of video categories in the Kodi interface.
         :return: None
         """
-        # Get video categories
-        categories = {'Channels': '1. ' + self.addon.getLocalizedString(S.MENU_CHANNELS),
-                      'Guide': '2. ' + self.addon.getLocalizedString(S.MENU_GUIDE)}
+        # Get video categories, the first 2 are fixed
+        categories = {'Channels': self.addon.getLocalizedString(S.MENU_CHANNELS),
+                      'Guide': self.addon.getLocalizedString(S.MENU_GUIDE)}
         response = self.helper.dynamicCall(LoginSession.obtain_vod_screens)
         screens = response['screens']
         if self.addon.getSettingBool('adult-allowed'):
@@ -455,20 +455,20 @@ class ZiggoPlugin:
         # Create a list for our items.
         listing = []
         # Iterate through categories
-        for categoryId, categoryname in categories.items():
+        for categoryId, categoryName in categories.items():
             # Create a list item with a text label and a thumbnail image.
-            list_item = xbmcgui.ListItem(label=categoryname)
+            list_item = xbmcgui.ListItem(label=categoryName)
             # Set additional info for the list item.
             tag: xbmc.InfoTagVideo = list_item.getVideoInfoTag()
-            tag.setTitle(categoryname)
+            tag.setTitle(categoryName)
             tag.setMediaType('video')
-            tag.setGenres([categoryname])
+            tag.setGenres([categoryName])
             if categoryId == 'Channels':
-                url = '{0}?action=listing&category={1}&categoryId={2}'.format(self.url, categoryname, categoryId)
+                url = '{0}?action=listing&category={1}&categoryId={2}'.format(self.url, categoryName, categoryId)
             elif categoryId == 'Guide':
                 url = '{0}?action=epg'.format(self.url)
             else:
-                url = '{0}?action=subcategory&category={1}&categoryId={2}'.format(self.url, categoryname, categoryId)
+                url = '{0}?action=subcategory&category={1}&categoryId={2}'.format(self.url, categoryName, categoryId)
             # is_folder = True means that this item opens a sub-list of lower level items.
             is_folder = True
             # Add our item to the listing as a 3-element tuple.
@@ -476,7 +476,7 @@ class ZiggoPlugin:
         # Add our listing to Kodi.
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
         # Add a sort method for the virtual folder items (alphabetically, ignore articles)
-        xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL_IGNORE_FOLDERS)
+        # xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL_IGNORE_FOLDERS)
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 

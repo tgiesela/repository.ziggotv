@@ -292,19 +292,19 @@ class ProtoParser:
         max_key = -1
         found = False
         key = None
-        for tag in parent_tag.subelements:
+        for tag in parent_tag.subElements:
             if tag > max_key:
                 max_key = tag
-            el = parent_tag.subelements[tag]
+            el = parent_tag.subElements[tag]
             if el.field_number == child.field_number:
                 print("Replacing tag with fieldnumber: ", child.field_number)
                 key = tag
                 found = True
         child.parent = parent_tag
         if found:
-            parent_tag.subelements.update({key: child})
+            parent_tag.subElements.update({key: child})
         else:
-            parent_tag.subelements.update({max_key+1: child})
+            parent_tag.subElements.update({max_key + 1: child})
 
     def get_tags(self):
         return self.__tag_dict

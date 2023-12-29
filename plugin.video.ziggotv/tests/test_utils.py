@@ -19,6 +19,7 @@ def timer_stopit():
     print("Other timer stopped")
     tmr_runs = False
 
+
 class TestVideoPlayer(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -40,7 +41,6 @@ class TestVideoPlayer(unittest.TestCase):
         while tmr_runs:
             sleep(1)
         stop_tmr.stop()
-
 
 
 if __name__ == '__main__':
