@@ -93,7 +93,6 @@ class VideoHelpers:
         license_headers = dict(G.CONST_BASE_HEADERS)
         # 'Content-Type': 'application/octet-stream',
         license_headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
             'Host': 'prod.spark.ziggogo.tv',
             'x-streaming-token': streaming_token,
             'X-cus': self.customer_info['customerId'],

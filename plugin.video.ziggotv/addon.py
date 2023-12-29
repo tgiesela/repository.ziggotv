@@ -166,7 +166,7 @@ class ZiggoPlugin:
             if is_helper.check_inputstream():
                 xbmc.log('Inside play condition...')
 
-            locator, asset_type = channel.get_locator()
+            locator, asset_type = channel.get_locator(self.addon)
             streamInfo = self.helper.dynamicCall(LoginSession.obtain_tv_streaming_token,
                                             channelId=channel.id, asset_type=asset_type)
 
@@ -179,7 +179,7 @@ class ZiggoPlugin:
             xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
 
         except Exception as exc:
-            xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+            xbmc.log('Error in play_video: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
             if streamInfo is not None and streamInfo.token is not None:
                 self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
 

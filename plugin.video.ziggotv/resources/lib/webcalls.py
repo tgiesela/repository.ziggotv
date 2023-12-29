@@ -62,7 +62,8 @@ class Web(requests.Session):
         self.cookies.update(cookies)
         return cookies
 
-    def merge(self, dict1, dict2):
+    @staticmethod
+    def merge(dict1, dict2):
         dict2.update(dict1)
         return dict2
 

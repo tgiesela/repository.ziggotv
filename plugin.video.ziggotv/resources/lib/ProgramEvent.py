@@ -343,12 +343,14 @@ class ProgramEventGrid:
         self.rows[self.__currentRow].setFocusFirst()
 
     def moveUp(self):
-        if self.__currentRow > 0:
-            self.__currentRow -= 1
+        self.__currentRow -= 1
         while self.__currentRow >= 0 and len(self.rows[self.__currentRow].programs) == 0:
             self.__currentRow -= 1
-        if self.__currentRow <= 0:
-            self.shiftUp()
+        if self.__currentRow < 0:
+            if self.__firstChannelIndex > 0:
+                self.shiftUp()
+            else:
+                self.__currentRow = 0
         self.rows[self.__currentRow].setFocusFirst()
 
     def pageUp(self):
@@ -540,7 +542,7 @@ class ProgramEvent:
                                             noFocusTexture=self.mediafolder + 'tvg-program-nofocus.png',
                                             font='font10',
                                             focusedColor=textColor,
-                                            textColor='red',
+                                            textColor=textColor,
                                             textOffsetY=5,
                                             alignment=G.ALIGNMENT.XBFONT_CENTER_Y + G.ALIGNMENT.XBFONT_TRUNCATED
                                             )

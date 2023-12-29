@@ -1,4 +1,5 @@
 import gzip
+import sys
 import traceback
 import typing
 import zipfile
@@ -189,10 +190,10 @@ class Generator:
         addons = 'repository.ziggotv'
         for addon in self.repoConfig.addons():
             addons = addons + ' ' + addon
-        targetfolder = pathAppendSep(self.repoConfig.targetFolder())
-        if not os.path.exists(targetfolder):
-            os.makedirs(targetfolder)
-        retval = os.system(script + ' --datadir ' + targetfolder + ' ' + addons)
+        targetFolder = pathAppendSep(self.repoConfig.targetFolder())
+        if not os.path.exists(targetFolder):
+            os.makedirs(targetFolder)
+        retval = os.system(sys.executable + ' ' + script + ' --datadir ' + targetFolder + ' ' + addons)
         if retval == 0:
             print('Repositories successfully created')
         else:

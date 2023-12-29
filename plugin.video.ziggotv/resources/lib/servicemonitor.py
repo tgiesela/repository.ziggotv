@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 
 import xbmc
@@ -83,6 +84,7 @@ class ServiceMonitor(xbmc.Monitor):
         self.service: HttpProxyService = service
         self.timer = None
         self.refreshTimer = None
+        self.licenseRefreshed = datetime.datetime.now() - datetime.timedelta(days=2)
         self.session = LoginSession(self.addon)
         self.__initialize_session(self.session)
         xbmc.log("SERVICEMONITOR initialized: {0}".format(service), xbmc.LOGINFO)
@@ -92,8 +94,9 @@ class ServiceMonitor(xbmc.Monitor):
         addon_path = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
         Path(addon_path).mkdir(parents=True, exist_ok=True)
         self.__refresh_session()
-        self.refreshTimer = Timer(60, self.__refresh_session)
+        self.refreshTimer = Timer(600, self.__refresh_session)
         self.refreshTimer.start()
+        self.session.close()
 
     def __refresh_session(self):
         if self.addon.getSetting('username') == '':
@@ -106,13 +109,23 @@ class ServiceMonitor(xbmc.Monitor):
             password = self.addon.getSetting('password')
 
         self.session.load_cookies()
-        session_info = self.session.login(username, password)
-        if len(session_info) == 0:
-            raise RuntimeError("Login failed, check your credentials")
-        self.session.load_cookies()
-        self.session.refresh_widevine_license()
-        self.session.refresh_entitlements()
-        self.session.refresh_channels()
+        try:
+            session_info = self.session.login(username, password)
+            if len(session_info) == 0:
+                raise RuntimeError("Login failed, check your credentials")
+            self.session.load_cookies()
+            # The Widevine license and entitlements will only be refreshed once per day, because they do not change
+            # If entitlements change or the license becomes invalid, a restart is required.
+            if (self.licenseRefreshed + datetime.timedelta(days=1)) <= datetime.datetime.now():
+                self.licenseRefreshed = datetime.datetime.now()
+                self.session.refresh_widevine_license()
+                self.session.refresh_entitlements()
+            self.session.refresh_channels()
+            self.session.close()
+        except ConnectionResetError as exc:
+            xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)
+        except Exception as exc:
+            xbmc.log('Unexpected exception in __refresh_session: {0}'.format(exc),xbmc.LOGERROR)
 
     def update_token(self):
         if self.service.ProxyServer is None:
