@@ -61,6 +61,10 @@ msgctxt "#41010"
 msgid "Full-HD"
 msgstr "Full-HD"
 
+msgctxt "#41014"
+msgid "AllowedChannelsOnly"
+msgstr "Hide channels outside subscription"
+
 # Labels used in python scripts
 
 msgctxt "#40004"
@@ -69,7 +73,7 @@ msgstr "Program is currently running.\nPlay from beginning (Play) or switch to c
 
 msgctxt "#40005"
 msgid "Switch"
-msgstr "Cannot start program, its start time is in the future.\nSwitch to channel (Switch)?"
+msgstr "Replay not possible.\nSwitch to channel (Switch)?"
 
 msgctxt "#40006"
 msgid "ButtonPlay"
@@ -98,3 +102,7 @@ msgstr "EPG"
 msgctxt "#40012"
 msgid "ReplayNotAvailable"
 msgstr "Replay not available for this event"
+
+msgctxt "#40013"
+msgid "NotEntitled"
+msgstr "You are not entitled to watch this channel/event"

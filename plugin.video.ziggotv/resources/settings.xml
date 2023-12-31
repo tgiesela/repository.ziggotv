@@ -13,7 +13,7 @@
 		                <heading></heading>
 	                </control>
                 </setting>
-                <setting id="password" type="string" option="hidden" label="41002">
+                <setting id="password" type="string" label="41002">
                     <default></default>
                     <constraints>
 		                <allowempty>true</allowempty>
@@ -21,6 +21,7 @@
                     <level>0</level>
                     <control type="edit" format="string">
 		                <heading></heading>
+                        <hidden>true</hidden>
 	                </control>
                 </setting>
                 <setting id="profile" type="string" label="41003" >
@@ -69,6 +70,11 @@
 					</dependencies>
                 </setting>
                 <setting id="full-hd" type="boolean" label="41010">
+                    <default>true</default>
+                    <level>0</level>
+                    <control type="toggle"/>
+                </setting>
+                <setting id="allowed-channels-only" type="boolean" label="41014">
                     <default>true</default>
                     <level>0</level>
                     <control type="toggle"/>

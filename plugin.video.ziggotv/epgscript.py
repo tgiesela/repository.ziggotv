@@ -5,8 +5,10 @@ import xbmcaddon
 import xbmcgui
 from xbmcgui import Action, Control
 
+from resources.lib.Channel import ChannelList
 from resources.lib.ProgramEvent import ProgramEventGrid
 from resources.lib.globals import G
+from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
 
 
@@ -22,11 +24,20 @@ class EpgWindowXml(xbmcgui.WindowXML):
         self.epgDatetime = None  # date in local timezone
         self.epgEndDatetime = None  # last date in local timezone
         self.addon = my_addon
-        self.session = LoginSession(my_addon)
-        self.channels = self.session.get_channels()
-        self.mediafolder = self.addon.getAddonInfo('path') + 'resources/skins/Default/media/'
+        self.helper = ProxyHelper(my_addon)
+        self.channels = None
+        self.__initialize_session()
+        self.channelList = ChannelList(self.channels, self.entitlements)
+        self.channelList.entitledOnly = my_addon.getSettingBool('allowed-channels-only')
+        self.channelList.applyFilter()
+        self.mediaFolder = self.addon.getAddonInfo('path') + 'resources/skins/Default/media/'
 
     # Private methods
+    def __initialize_session(self):
+        self.helper.dynamicCall(LoginSession.refresh_channels)
+        self.helper.dynamicCall(LoginSession.refresh_entitlements)
+        self.channels = self.helper.dynamicCall(LoginSession.get_channels)
+        self.entitlements = self.helper.dynamicCall(LoginSession.get_entitlements)
 
     # Callbacks
 
@@ -46,9 +57,8 @@ class EpgWindowXml(xbmcgui.WindowXML):
         if self.initDone:
             return
         self.grid = ProgramEventGrid(self,
-                                     channels=self.channels,
-                                     mediaFolder=self.mediafolder,
-                                     session=self.session,
+                                     channels=self.channelList,
+                                     mediaFolder=self.mediaFolder,
                                      addon=self.addon)
         self.grid.build()
         self.grid.show()

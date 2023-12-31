@@ -8,13 +8,12 @@ from resources.lib.UrlTools import UrlTools
 from resources.lib.ZiggoPlayer import VideoHelpers
 from resources.lib.globals import G
 from resources.lib.webcalls import LoginSession
+from tests.test_base import TestBase
 
 
-class TestVideoPlayer(unittest.TestCase):
+class TestVideoPlayer(TestBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = LoginSession(xbmcaddon.Addon())
-        self.session.print_network_traffic = 'false'
         self.do_login()
 
     #        self.cleanup_all()
@@ -22,37 +21,18 @@ class TestVideoPlayer(unittest.TestCase):
     #        self.session.print_network_traffic = 'false'
     #        self.do_login()
 
-    def setUp(self):
-        print("Executing setup")
-
-    def remove(self, file):
-        if os.path.exists(file):
-            os.remove(file)
-
-    def cleanup_widevine(self):
-        self.remove(G.WIDEVINE_LICENSE)
-        self.remove(G.WIDEVINE_LICENSE + '.raw')
-
-    def cleanup_all(self):
-        self.cleanup_widevine()
-
-    def do_login(self):
-        with open(f'c:/temp/credentials.json', 'r') as credfile:
-            credentials = json.loads(credfile.read())
-        self.session.login(credentials['username'], credentials['password'])
-
     def test_widevine_license(self):
         self.session.refresh_widevine_license()
 
     def test_buildurl(self):
-        addon = xbmcaddon.Addon('plugin.video.ziggotv')
-        urlHelper = UrlTools(addon)
-        helpers = VideoHelpers(addon)
+        urlHelper = UrlTools(self.addon)
+        helpers = VideoHelpers(self.addon)
+        self.session.refresh_widevine_license()
 
         # Test for play channels
 
         url = 'http://wp-obc1-live-nl-prod.prod.cdn.dmdsdp.com/dash/go-dash-hdready-avc/NL_000001_019401/manifest.mpd'
-        expected_url = ('http://127.0.0.1:6969/manifest?'
+        expected_url = ('http://127.0.0.1:6868/manifest?'
                         'path=%2Fdash%2Fgo-dash-hdready-avc%2FNL_000001_019401%2Fmanifest.mpd&'
                         'token=0123456789ABCDEF&'
                         'hostname=wp-obc1-live-nl-prod.prod.cdn.dmdsdp.com')
@@ -62,7 +42,6 @@ class TestVideoPlayer(unittest.TestCase):
         redirected_url = (
             'https://da-d436304820010b88000108000000000000000008.id.cdn.upcbroadband.com/dash,'
             'vxttoken=0123456789ABCDEF/go-dash-hdready-avc/NL_000001_019401/manifest.mpd')
-
         created_url = urlHelper.build_url('0123456789ABCDEF', url)
         self.assertEqual(created_url, expected_url, 'URL not as expected')
         s = created_url.find('/manifest')
@@ -86,7 +65,7 @@ class TestVideoPlayer(unittest.TestCase):
 
         url = ('http://wp-pod3-replay-vxtoken-nl-prod.prod.cdn.dmdsdp.com/sdash/LIVE$NL_000001_019401/index.mpd'
                '/Manifest?device=AVC-OTT-DASH-PR-WV&start=2023-12-15T14%3A16%3A00Z&end=2023-12-15T14%3A51%3A00Z')
-        expected_url = ('http://127.0.0.1:6969/manifest?path=%2Fsdash%2FLIVE%24NL_000001_019401%2Findex.mpd%2FManifest'
+        expected_url = ('http://127.0.0.1:6868/manifest?path=%2Fsdash%2FLIVE%24NL_000001_019401%2Findex.mpd%2FManifest'
                         '&token=0123456789ABCDEF&hostname=wp-pod3-replay-vxtoken-nl-prod.prod.cdn.dmdsdp.com&device'
                         '=AVC-OTT-DASH-PR-WV&start=2023-12-15T14%3A16%3A00Z&end=2023-12-15T14%3A51%3A00Z')
         expected_manifest_url = (
@@ -127,7 +106,7 @@ class TestVideoPlayer(unittest.TestCase):
         url = (
             'https://wp-pod1-vod-vxtoken-nl-prod.prod.cdn.dmdsdp.com/sdash'
             '/0e378a707155514f39851ab1e45b6560_734142457f0da3caf957ba97e73249e6/index.mpd/Manifest?device=BR-AVC-DASH')
-        expected_url = ('http://127.0.0.1:6969/manifest?path=%2Fsdash'
+        expected_url = ('http://127.0.0.1:6868/manifest?path=%2Fsdash'
                         '%2F0e378a707155514f39851ab1e45b6560_734142457f0da3caf957ba97e73249e6%2Findex.mpd%2FManifest'
                         '&token=0123456789ABCDEF&hostname=wp-pod1-vod-vxtoken-nl-prod.prod.cdn.dmdsdp.com&device=BR'
                         '-AVC-DASH')

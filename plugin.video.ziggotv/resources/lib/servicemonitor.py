@@ -9,6 +9,8 @@ import xbmcvfs
 import os
 import json
 import threading
+import http.server
+
 from resources.lib.proxyserver import ProxyServer
 from resources.lib.utils import Timer, SharedProperties, ServiceStatus
 from resources.lib.webcalls import LoginSession
@@ -22,7 +24,7 @@ class HttpProxyService:
         self.port = 80
         self.isShutDown = True
         self.HTTPServerThread = None
-        self.ProxyServer = None  # started by me
+        self.ProxyServer: http.server.HTTPServer = None  # started by me
         self.settingsChangeLock = threading.Lock()
         xbmc.log("Proxy service initialized", xbmc.LOGDEBUG)
 
@@ -57,7 +59,7 @@ class HttpProxyService:
     def stopHttpServer(self):
         if self.ProxyServer is not None:
             self.ProxyServer.shutdown()
-            self.ProxyServer = None
+            # self.ProxyServer = None
             xbmc.log("PROXY SERVER STOPPPED", xbmc.LOGDEBUG)
         if self.HTTPServerThread is not None:
             self.HTTPServerThread.join()
@@ -146,7 +148,7 @@ class ServiceMonitor(xbmc.Monitor):
             xbmc.log('SERVICEMONITOR ProxyServer not started yet', xbmc.LOGERROR)
             return
         proxy: ProxyServer = self.service.ProxyServer
-        xbmc.log("SERVICEMONITOR Notification: {0},{1},{2}".format(sender, method, data), xbmc.LOGINFO)
+        xbmc.log("SERVICEMONITOR Notification: {0},{1},{2}".format(sender, method, data), xbmc.LOGDEBUG)
         if sender == self.addon.getAddonInfo("id"):
             params = json.loads(data)
             xbmc.log("SERVICEMONITOR command and params: {0},{1}".format(params['command'],

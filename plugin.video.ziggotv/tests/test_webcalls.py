@@ -10,54 +10,13 @@ from resources.lib import utils
 from resources.lib.events import ChannelGuide, EventList
 from resources.lib.webcalls import LoginSession
 from resources.lib.globals import G
+from tests.test_base import TestBase
 
 
-class TestWebcalls(unittest.TestCase):
+class TestWebCalls(TestBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.cleanup_all()
-        self.session = LoginSession(xbmcaddon.Addon())
-        self.session.print_network_traffic = 'false'
         self.do_login()
-
-    def remove(self, file):
-        if os.path.exists(file):
-            os.remove(file)
-
-    def cleanup_cookies(self):
-        self.remove(G.COOKIES_INFO)
-
-    def cleanup_channels(self):
-        self.remove(G.CHANNEL_INFO)
-
-    def cleanup_customer(self):
-        self.remove(G.CUSTOMER_INFO)
-
-    def cleanup_session(self):
-        self.remove(G.SESSION_INFO)
-
-    def cleanup_entitlements(self):
-        self.remove(G.ENTITLEMENTS_INFO)
-
-    def cleanup_widevine(self):
-        self.remove(G.WIDEVINE_LICENSE)
-        self.remove(G.WIDEVINE_LICENSE + '.raw')
-
-    def cleanup_all(self):
-        self.cleanup_customer()
-        self.cleanup_session()
-        self.cleanup_channels()
-        self.cleanup_cookies()
-        self.cleanup_entitlements()
-        self.cleanup_widevine()
-
-    def setUp(self):
-        print("Executing setup")
-
-    def do_login(self):
-        with open(f'c:/temp/credentials.json', 'r') as credfile:
-            credentials = json.loads(credfile.read())
-        self.session.login(credentials['username'], credentials['password'])
 
     def test_login(self):
         self.cleanup_all()
@@ -101,12 +60,13 @@ class TestWebcalls(unittest.TestCase):
         self.session.refresh_channels()
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        streaming_token, streamInfo = self.session.obtain_tv_streaming_token(channel, asset_type='Orion-DASH')
+        streamInfo = self.session.obtain_tv_streaming_token(channel.id, asset_type='Orion-DASH')
+        self.session.streaming_token = streamInfo.token
         headers = {}
         headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
             'Host': 'prod.spark.ziggogo.tv',
-            'x-streaming-token': streaming_token,
+            'x-streaming-token': streamInfo.token,
             'X-cus': self.session.customer_info['customerId'],
             'x-go-dev': '214572a3-2033-4327-b8b3-01a9a674f1e0',
             'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
@@ -115,9 +75,9 @@ class TestWebcalls(unittest.TestCase):
 
         response = self.session.get_license('nl_tv_standaard_cenc', '\x08\x04', headers)
         updated_streaming_token = response.headers['x-streaming-token']
-        self.assertFalse(updated_streaming_token == streaming_token)
+        self.assertFalse(updated_streaming_token == streamInfo.token)
         new_streaming_token = self.session.update_token(updated_streaming_token)
-        self.assertFalse(new_streaming_token == streaming_token)
+        self.assertFalse(new_streaming_token == streamInfo.token)
         self.session.delete_token(new_streaming_token)
 
     def test_manifest(self):
@@ -132,7 +92,7 @@ class TestWebcalls(unittest.TestCase):
     def test_events(self):
         self.session.refresh_channels()
 
-        guide = ChannelGuide(self.session)
+        guide = ChannelGuide(self.addon)
 
         startDate = datetime.datetime.now()
         endDate = startDate + datetime.timedelta(hours=2)
@@ -300,7 +260,7 @@ class TestWebcalls(unittest.TestCase):
                                     print('\t\t\t\tentitled {0}, price {1}'.format(
                                         instance['offers'][0]['entitled']
                                         , instance['offers'][0]['price']))
-
+            break # We only test one profile !
             # print(response)
 
 

@@ -2,9 +2,11 @@ import datetime
 from typing import List
 
 import xbmc
+import xbmcaddon
 
 from resources.lib import utils
 from resources.lib.LinkedList import LinkedList, Node
+from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
 
 
@@ -39,7 +41,7 @@ class EventDetails:
 
 class Event:
     def __init__(self, eventJson):
-        self.__programdetails: EventDetails = None
+        self.__programDetails: EventDetails = None
         self.startTime = eventJson['startTime']
         self.endTime = eventJson['endTime']
         self.title = eventJson['title']
@@ -83,19 +85,31 @@ class Event:
 
     @property
     def hasDetails(self):
-        return self.__programdetails is not None
+        return self.__programDetails is not None
 
     @property
     def details(self):
-        return self.__programdetails
+        return self.__programDetails
 
     @details.setter
     def details(self, value):
-        self.__programdetails = EventDetails(value)
+        self.__programDetails = EventDetails(value)
 
     @property
     def canReplay(self):
-        return self.__hasStartOver and self.__hasReplayTV
+        now = utils.DatetimeHelper.unixDatetime(datetime.datetime.now())
+        if self.startTime < now < self.endTime or self.endTime <= now:
+            return self.__hasStartOver and self.__hasReplayTV
+        else:
+            return False
+
+    @property
+    def isPlaying(self):
+        now = utils.DatetimeHelper.unixDatetime(datetime.datetime.now())
+        if self.startTime < now < self.endTime:
+            return True
+        else:
+            return False
 
 
 class EventList(LinkedList):
@@ -190,12 +204,16 @@ class EventList(LinkedList):
 
 
 class ChannelGuide:
-    def __init__(self, session):
-        self.session: LoginSession = session
+    def __init__(self, addon: xbmcaddon.Addon):
+        self.addon = addon
+        self.helper = ProxyHelper(self.addon)
         self.windows = []
-        # self.session.refresh_channels()
         self.channels = []
-        for channel in self.session.get_channels():
+        self.__initializeSession()
+
+    # Private methods
+    def __initializeSession(self):
+        for channel in self.helper.dynamicCall(LoginSession.get_channels):
             self.channels.append(channel)
 
     @staticmethod
@@ -246,7 +264,7 @@ class ChannelGuide:
         return firstdate
 
     def __processEvents(self, evtDate: datetime.datetime):
-        response = self.session.get_events(evtDate.strftime('%Y%m%d%H%M%S'))
+        response = self.helper.dynamicCall(LoginSession.get_events, starttime=evtDate.strftime('%Y%m%d%H%M%S'))
         for channel in response['entries']:
             from resources.lib.Channel import Channel
             current_channel: Channel = None
@@ -319,3 +337,4 @@ class ChannelGuide:
             if self.__dateInWindow(end):
                 return True
         return False
+

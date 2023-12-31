@@ -7,7 +7,7 @@ import xbmcaddon
 import xbmcgui
 
 from resources.lib import utils
-from resources.lib.Channel import Channel
+from resources.lib.Channel import Channel, ChannelList
 from resources.lib.UrlTools import UrlTools
 from resources.lib.ZiggoPlayer import ZiggoPlayer, VideoHelpers
 from resources.lib.events import Event, ChannelGuide
@@ -19,15 +19,14 @@ from resources.lib.webcalls import LoginSession
 class ProgramEventGrid:
     def __init__(self,
                  window: xbmcgui.WindowXML,
-                 channels: List[Channel],
+                 channels: ChannelList,
                  mediaFolder: str,
-                 session: LoginSession,
                  addon: xbmcaddon.Addon):
         self.helper = ProxyHelper(addon)
         self.startWindow = None
         self.endWindow = None
         self.rows: List[ProgramEventRow] = []
-        self.channels: List[Channel] = channels
+        self.channels: ChannelList = channels
         self.channelsInGrid: List[Channel] = []
         self.mediaFolder = mediaFolder
         self.window = window
@@ -35,9 +34,8 @@ class ProgramEventGrid:
         self.__firstChannelIndex = 0
         self.__currentRow = 0
         self.__getFirstWindow()
-        self.session = session
         self.addon = addon
-        self.guide = ChannelGuide(session)
+        self.guide = ChannelGuide(addon)
         self.guide.obtainEvents()
         for channel in self.channels:
             channel.events = self.guide.getEvents(channel.id)
@@ -170,7 +168,10 @@ class ProgramEventGrid:
         helper = VideoHelpers(self.addon)
         urlHelper = UrlTools(self.addon)
         player = ZiggoPlayer()
-        locator, asset_type = channel.get_locator(self.addon)
+        locator, asset_type = channel.getLocator(self.addon)
+        if locator is None:
+            xbmcgui.Dialog().ok('Info', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
+            return
         streamInfo = self.helper.dynamicCall(LoginSession.obtain_tv_streaming_token,
                                              channelId=channel.id, asset_type=asset_type)
         url = urlHelper.build_url(streamInfo.token, locator)
@@ -209,38 +210,43 @@ class ProgramEventGrid:
             xbmc.log("VIDEO IS NOT PLAYING AFTER 10 SECONDS !!!", xbmc.LOGDEBUG)
         if player.isPlaying():
             xbmc.log("VIDEO POSITIONED TO START OF EVENT", xbmc.LOGDEBUG)
-#            player.seekTime(streamInfo.prePaddingTime)
         while player.isPlaying():
             xbmc.sleep(500)
 
     def __play(self, event: Event, channel: Channel):
+        if xbmc.Player().isPlaying():
+            xbmc.Player().stop()
+        if not self.channels.isEntitled(channel):
+            xbmcgui.Dialog().ok('Info', self.addon.getLocalizedString(S.MSG_NOT_ENTITLED))
+            return
         if not event.hasDetails:
             event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
-        if event.startTime < utils.DatetimeHelper.unixDatetime(datetime.datetime.now()) < event.endTime:
-            choice = xbmcgui.Dialog().yesnocustom('Play',
-                                                  self.addon.getLocalizedString(S.MSG_SWITCH_OR_PLAY),
-                                                  self.addon.getLocalizedString(S.BTN_CANCEL),
-                                                  self.addon.getLocalizedString(S.BTN_PLAY),
-                                                  self.addon.getLocalizedString(S.BTN_SWITCH),
-                                                  False,
-                                                  xbmcgui.DLG_YESNO_CUSTOM_BTN)
-            if choice in [-1, 2]:
-                return
-            else:
-                if choice == 0:  # nobutton -> Play
-                    self.__replay_event(event)
-                elif choice == 1:  # yesbutton -> Switch to channel
-                    self.__play_channel(channel)
-        elif event.endTime <= utils.DatetimeHelper.unixDatetime(datetime.datetime.now()):  # event already finished
-            self.__replay_event(event)
+
+        if not self.channels.supportsReplay(channel):
+            if self.userWantsSwitch():
+                self.__play_channel(channel)
+            return
+
+        if event.canReplay:
+            if event.isPlaying:
+                choice = xbmcgui.Dialog().yesnocustom('Play',
+                                                      self.addon.getLocalizedString(S.MSG_SWITCH_OR_PLAY),
+                                                      self.addon.getLocalizedString(S.BTN_CANCEL),
+                                                      self.addon.getLocalizedString(S.BTN_PLAY),
+                                                      self.addon.getLocalizedString(S.BTN_SWITCH),
+                                                      False,
+                                                      xbmcgui.DLG_YESNO_CUSTOM_BTN)
+                if choice in [-1, 2]:
+                    return
+                else:
+                    if choice == 0:  # nobutton -> Play event
+                        self.__replay_event(event)
+                    elif choice == 1:  # yesbutton -> Switch to channel
+                        self.__play_channel(channel)
+            else: # event already finished
+                self.__replay_event(event)
         else:
-            choice = xbmcgui.Dialog().yesno('Play',
-                                            self.addon.getLocalizedString(S.MSG_SWITCH),
-                                            self.addon.getLocalizedString(S.BTN_CANCEL),
-                                            self.addon.getLocalizedString(S.BTN_SWITCH),
-                                            False,
-                                            xbmcgui.DLG_YESNO_NO_BTN)
-            if choice == True:
+            if self.userWantsSwitch():
                 self.__play_channel(channel)
 
     def clear(self):
@@ -321,12 +327,16 @@ class ProgramEventGrid:
         pass
 
     def shiftDown(self):
+        if self.__firstChannelIndex + self.__MAXROWS >= len(self.channels):
+            return
         self.__firstChannelIndex += self.__MAXROWS - 1
         self.clear()
         self.build()
         self.show()
 
     def shiftUp(self):
+        if self.__firstChannelIndex <= 0:
+            return
         self.__firstChannelIndex -= self.__MAXROWS - 1
         if self.__firstChannelIndex < 0:
             self.__firstChannelIndex = 0
@@ -398,6 +408,15 @@ class ProgramEventGrid:
             tag.setSeason(event.details.season)
         tag.setArtists(event.details.actors)
 
+    def userWantsSwitch(self):
+        choice = xbmcgui.Dialog().yesno('Play',
+                                        self.addon.getLocalizedString(S.MSG_SWITCH),
+                                        self.addon.getLocalizedString(S.BTN_CANCEL),
+                                        self.addon.getLocalizedString(S.BTN_SWITCH),
+                                        False,
+                                        xbmcgui.DLG_YESNO_NO_BTN)
+        return choice
+
 
 class ProgramEventRow:
     def __init__(self,
@@ -437,12 +456,17 @@ class ProgramEventRow:
         width = ctrl.getWidth()
         offset_x = ctrlgroup.getX() + ctrl.getX()
         offset_y = ctrlgroup.getY() + ctrl.getY() + self.rownr * self.rowheight
+        if self.grid.channels.isEntitled(channel):
+            txtColor = 'white'
+        else:
+            txtColor = '80FF3300'
         self.channelName = xbmcgui.ControlLabel(x=offset_x + 5,
                                                 y=offset_y,
                                                 width=width - 5,
                                                 height=self.rowheight,
                                                 label='{0}. {1}'.format(channel.logicalChannelNumber, channel.name),
-                                                font='font10'
+                                                font='font10',
+                                                textColor=txtColor
                                                 )
         self.grid.window.addControls([self.channelIcon, self.channelName])
 
@@ -529,10 +553,15 @@ class ProgramEvent:
         offset_x = ctrlgroup.getX() + ctrl.getX() + int(
             ((eventStart - self.grid.unixstarttime) / 60) * self.pixelsPerMinute)
         offset_y = ctrlgroup.getY() + ctrl.getY() + row.rownr * self.rowheight
-        if event.canReplay:
+        textColor = '80FF3300'
+        if event.canReplay and row.grid.channels.supportsReplay(row.channel):
             textColor = 'white'
         else:
-            textColor = '80FF3300'
+            #  Replay not allowed or not possible
+            #  Let's check if event is still running or in the future,
+            #  then we can switch to the channel if it is selected
+            if event.endTime > utils.DatetimeHelper.unixDatetime(datetime.datetime.now()):
+                textColor = 'white'
         self.button = xbmcgui.ControlButton(x=offset_x,
                                             y=offset_y,
                                             width=width - 1,

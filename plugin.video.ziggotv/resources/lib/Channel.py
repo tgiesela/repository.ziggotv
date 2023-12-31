@@ -1,4 +1,6 @@
 import typing
+from collections import UserList
+
 import xbmcaddon
 
 
@@ -59,7 +61,7 @@ class Channel:
     def id(self):
         return self.channelId
 
-    def get_locator(self, addon: xbmcaddon.Addon) -> typing.Tuple[str, str]:
+    def getLocator(self, addon: xbmcaddon.Addon) -> typing.Tuple[str, str]:
         try:
             # max_res = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.max')
             max_res_drm = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.secure.max')
@@ -83,3 +85,64 @@ class Channel:
         return avc, asset_type
 
 
+class ChannelList(UserList):
+    def __init__(self, channels: [Channel], entitlements):
+        super().__init__(channels)
+        self.channels: [Channel] = channels
+        self.filteredChannels: [Channel] = []
+        self.entitlements = entitlements
+        self.suppressHidden = True
+        self._entitledOnly = False
+        self.entitlementList = []
+        i = 0
+        while i < len(entitlements['entitlements']):
+            self.entitlementList.append(entitlements['entitlements'][i]["id"])
+            i += 1
+        self.applyFilter()
+
+    @property
+    def hiddenSuppressed(self):
+        return self.suppressHidden
+
+    @hiddenSuppressed.setter
+    def hiddenSuppressed(self, value):
+        self.suppressHidden = value
+
+    @property
+    def entitledOnly(self):
+        return self._entitledOnly
+
+    @entitledOnly.setter
+    def entitledOnly(self, value):
+        self._entitledOnly = value
+
+    def applyFilter(self):
+        self.filteredChannels = []
+        for channel in self.channels:
+            if channel.isHidden and self.suppressHidden:
+                continue
+            if self.entitledOnly:
+                if self.isEntitled(channel):
+                    self.filteredChannels.append(channel)
+            else:
+                self.filteredChannels.append(channel)
+        self.data = self.filteredChannels
+
+    def isEntitled(self, channel):
+        for product in channel.linearProducts:
+            if product in self.entitlementList:
+                return True
+        return False
+
+    def supportsReplay(self, channel):
+        for product in channel.replayProducts:
+            if product['entitlementId'] in self.entitlementList:
+                if product['allowStartOver']:
+                    return True
+        return False
+
+    def channelsByLCN(self):
+        return sorted(self.channels, key=lambda x: x.logicalChannelNumber, reverse=False)
+
+    def channelsByName(self):
+        return sorted(self.channels, key=lambda x: x.name, reverse=False)

@@ -1,15 +1,12 @@
 import json
 import os
 import sys
-import requests
-import pickle
 from pathlib import Path
-from typing import Any
 from urllib.parse import parse_qsl
 
-from resources.lib.Channel import Channel
+from resources.lib.Channel import Channel, ChannelList
 from resources.lib.UrlTools import UrlTools
-from resources.lib.ZiggoPlayer import VideoHelpers
+from resources.lib.ZiggoPlayer import VideoHelpers, ZiggoPlayer
 from resources.lib.globals import G, S
 
 import xbmc
@@ -27,9 +24,6 @@ except:
     pass
 
 from resources.lib.webcalls import LoginSession
-
-channels = []
-session_info = {}
 
 
 class ZiggoPlugin:
@@ -143,7 +137,6 @@ class ZiggoPlugin:
         return li
 
     def play_video(self, path):
-        global channels
         """
         Play a video by the provided path.
         :param path: str
@@ -152,9 +145,9 @@ class ZiggoPlugin:
         # Create a playable item with a path to play.
         channels = self.helper.dynamicCall(LoginSession.get_channels)
         channel = None
-        for video in channels:
-            if video.id == path:
-                channel = video
+        for c in channels:
+            if c.id == path:
+                channel = c
                 break
 
         if channel is None:
@@ -166,9 +159,9 @@ class ZiggoPlugin:
             if is_helper.check_inputstream():
                 xbmc.log('Inside play condition...')
 
-            locator, asset_type = channel.get_locator(self.addon)
+            locator, asset_type = channel.getLocator(self.addon)
             streamInfo = self.helper.dynamicCall(LoginSession.obtain_tv_streaming_token,
-                                            channelId=channel.id, asset_type=asset_type)
+                                                 channelId=channel.id, asset_type=asset_type)
 
             urlHelper = UrlTools(self.addon)
             url = urlHelper.build_url(streamInfo.token, locator)
@@ -183,35 +176,7 @@ class ZiggoPlugin:
             if streamInfo is not None and streamInfo.token is not None:
                 self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
 
-    def replay_video(self, path):
-        global channels
-        """
-        Play a movie by the provided path.
-        :param path: str
-        :return: None
-        """
-        # Create a playable item with a path to play.
-        streamInfo = None
-        try:
-            is_helper = Helper(G.PROTOCOL, drm=G.DRM)
-            if is_helper.check_inputstream():
-                xbmc.log('Inside play condition...')
-            helpers = VideoHelpers(self.addon)
-            streamInfo = self.helper.dynamicCall(LoginSession.obtain_replay_streaming_token, path=path)
-            urlHelper = UrlTools(self.addon)
-            url = urlHelper.build_url(streamInfo.token, streamInfo.url)
-            play_item = helpers.listitem_from_url(requesturl=url,
-                                                  streaming_token=streamInfo.token,
-                                                  drmContentId=streamInfo.drmContentId)
-            xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
-
-        except Exception as exc:
-            xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
-            if streamInfo is not None and streamInfo.token is not None:
-                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
-
     def play_movie(self, path):
-        global channels
         """
         Play a movie by the provided path.
         :param path: str
@@ -480,28 +445,19 @@ class ZiggoPlugin:
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 
-    def list_channels(self):
-        global channels
+    def listChannels(self):
         # Create a list for our items.
         listing = []
         channels = self.helper.dynamicCall(LoginSession.get_channels)
-        entitlements = self.helper.dynamicCall(LoginSession.get_entitlements)["entitlements"]
-        entitlementList = []
-        i = 0
-        while i < len(entitlements):
-            entitlementList.append(entitlements[i]["id"])
-            i += 1
+        entitlements = self.helper.dynamicCall(LoginSession.get_entitlements)
+        channelList = ChannelList(channels, entitlements)
+        channelList.entitledOnly = self.addon.getSettingBool('allowed-channels-only')
+        channelList.applyFilter()
 
         # Iterate through channels
-        for video in channels:  # create a list item using the song filename for the label
-            subscribed = False
-            if video.isHidden:
-                continue
-            for linearProduct in video.linearProducts:
-                if linearProduct in entitlementList:
-                    subscribed = True
-            li = self.listItem_from_channel(video)
-
+        for channel in channelList:  # create a list item using the song filename for the label
+            subscribed = channelList.isEntitled(channel)
+            li = self.listItem_from_channel(channel)
             tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
             title = tag.getTitle()
             tag.setSortTitle(title)
@@ -512,13 +468,13 @@ class ZiggoPlugin:
 
             if not subscribed:
                 li.setProperty('IsPlayable', 'false')
-            if video.locators['Default'] is None:
+            if channel.locators['Default'] is None:
                 li.setProperty('IsPlayable', 'false')
             if li.getProperty('IsPlayable') == 'true':
-                callback_url = '{0}?action=play&video={1}'.format(self.url, video.id)
+                callback_url = '{0}?action=play&video={1}'.format(self.url, channel.id)
             else:
                 tag.setTitle(title[0:title.find('.') + 1] + '[COLOR red]' + title[title.find('.') + 1:] + '[/COLOR]')
-                callback_url = '{0}?action=cantplay&video={1}'.format(self.url, video.id)
+                callback_url = '{0}?action=cantplay&video={1}'.format(self.url, channel.id)
             listing.append((callback_url, li, False))
 
         # Add our listing to Kodi.
@@ -678,8 +634,8 @@ class ZiggoPlugin:
 
         if 'brandingProviderId' in item:
             overview = self.helper.dynamicCall(LoginSession.obtain_asset_details, id=item['id'],
-                                                                              brandingProviderId=item[
-                                                                                  'brandingProviderId'])
+                                               brandingProviderId=item[
+                                                   'brandingProviderId'])
         else:
             overview = self.helper.dynamicCall(LoginSession.obtain_asset_details, id=item['id'])
         self.movie_overviews.append(overview)
@@ -736,7 +692,7 @@ class ZiggoPlugin:
             if params['action'] == 'listing':
                 # Display the list of videos in a provided category.
                 if params['categoryId'] == "Channels":
-                    self.list_channels()
+                    self.listChannels()
                 elif params['category'] == G.MOVIES:
                     self.list_movies(params['categoryId'])
                 elif params['category'] == G.SERIES:
@@ -744,6 +700,8 @@ class ZiggoPlugin:
                 elif params['category'] == G.GENRES:
                     self.list_genres(params['categoryId'])
             elif params['action'] == 'epg':
+                if xbmc.Player().isPlaying():
+                    xbmc.Player().stop()  # Currently strange errors occur if we keep the player running
                 xbmc.executebuiltin('RunScript(' +
                                     addon.getAddonInfo('path') +
                                     'epgscript.py,' +
@@ -753,9 +711,6 @@ class ZiggoPlugin:
             elif params['action'] == 'play':
                 # Play a video from a provided URL.
                 self.play_video(params['video'])
-            elif params['action'] == 'replay':
-                # Play a video from a provided URL.
-                self.replay_video(params['video'])
             elif params['action'] == 'listseries':
                 self.list_series_seasons(params['seriesId'])
             elif params['action'] == 'listseason':
@@ -772,6 +727,8 @@ class ZiggoPlugin:
             # If the plugin is called from Kodi UI without any parameters,
             # display the list of video categories
             self.list_categories()
+        # Close opened session if any
+        self.helper.dynamicCall(LoginSession.close)
 
     @staticmethod
     def __get_playable_instance(overview):

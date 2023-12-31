@@ -1,8 +1,9 @@
-# plugin.video.ziggotg
+# plugin.video.ziggotv
 Kodi plugin to watch Ziggo NL.
+Developed for educational purposes.
 
 ## Features
-First of all a subscription to Ziggo is required. Without that the plugin will not work.
+First of all a subscription to Ziggo-NL is required. Without that the plugin will not work.
 You can watch the channels available in your subscription. Channels are sorted by logical channel number.
 An EPG is presented from which you can select an event in the past or simply switch to a channel.
 Also, some folders with Series and Movies are created. Items which are not available to you or required a payment will be marked red.
