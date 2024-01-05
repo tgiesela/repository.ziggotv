@@ -80,7 +80,7 @@ class Timer(threading.Thread):
 class DatetimeHelper:
     @staticmethod
     def fromUnix(unix_time: int, tz: datetime.tzinfo = None) -> datetime:
-        date_time_max = datetime(2100, 12, 31, 0, 0)
+        date_time_max = datetime(2035, 12, 31, 0, 0)
         max_unix_time_in_secs = time.mktime(date_time_max.timetuple())
         if unix_time > max_unix_time_in_secs:
             return datetime.fromtimestamp(unix_time / 1000, tz)

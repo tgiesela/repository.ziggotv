@@ -38,23 +38,23 @@ msgid "Options"
 msgstr "Opties"
 
 msgctxt "#41005"
-msgid "Trace-network-traffic"
+msgid "Trace network traffic"
 msgstr "Trace network traffic"
 
 msgctxt "#41006"
-msgid "use-proxy"
+msgid "Use proxy"
 msgstr "Gebruik proxy"
 
 msgctxt "#41007"
-msgid "adult-allowed"
+msgid "Allow adult"
 msgstr "Erotiek toestaan"
 
 msgctxt "#41008"
-msgid "proxy-port"
+msgid "Port"
 msgstr "Poortnummer"
 
 msgctxt "#41009"
-msgid "proxy-ip"
+msgid "Proxy IP-address"
 msgstr "IP-address"
 
 msgctxt "#41010"
@@ -62,47 +62,47 @@ msgid "Full-HD"
 msgstr "Full-HD"
 
 msgctxt "#41014"
-msgid "AllowedChannelsOnly"
+msgid "Hide channels outside subscription"
 msgstr "Verberg zenders buiten abonnement"
 
 # Labels used in python scripts
 
 msgctxt "#40004"
-msgid "SwitchOrPlay"
+msgid "Program is currently running.\nPlay from beginning (Play) or switch to channel (Switch)?"
 msgstr "Programma speelt op dit moment.\nAfspelen vanaf begin (Afspelen) of overschakelen naar zender (Zender)?"
 
 msgctxt "#40005"
-msgid "Switch"
+msgid "Replay not possible.\nSwitch to channel (Switch)?"
 msgstr "Terugkijken niet mogelijk.\nOverschakelen naar zender(Zender)?"
 
 msgctxt "#40006"
-msgid "ButtonPlay"
+msgid "Play"
 msgstr "Afspelen"
 
 msgctxt "#40007"
-msgid "ButtonSwitch"
+msgid "Switch"
 msgstr "Zender"
 
 msgctxt "#40008"
-msgid "ButtonCancel"
+msgid "Cancel"
 msgstr "Annuleren"
 
 mxgctxt "#40009"
-msgid "CannotWatch"
+msgid "Cannot watch this channel. Not allowed."
 msgstr "Kan dit niet bekijken. Geen abonnement."
 
 msgctxt "#40010"
-msgid "MenuChannel"
+msgid "Channels"
 msgstr "Zenders"
 
 msgctxt "#40011"
-msgid "MenuGuide"
+msgid "EPG"
 msgstr "EPG"
 
 msgctxt "#40012"
-msgid "ReplayNotAvailable"
+msgid "Replay not available for this event"
 msgstr "Terugkijken niet mogelijk voor dit programma"
 
 msgctxt "#40013"
-msgid "NotEntitled"
+msgid "You are not entitled to watch this channel/event"
 msgstr "U hebt geen toestemming voor deze zender of dit programma"
