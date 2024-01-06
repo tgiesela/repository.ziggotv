@@ -95,9 +95,6 @@ class GlobalVariables:
     MOVIES = 'Movies'
     GENRES = 'Genre'
 
-    # Keyboard actions
-    ACTION_STOP = 10
-
     PROTOCOL = 'mpd'
     DRM = 'com.widevine.alpha'
 

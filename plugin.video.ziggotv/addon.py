@@ -37,6 +37,11 @@ class ZiggoPlugin:
         self.videoHelper = VideoHelpers(self.addon)
         self.__initialization()
 
+    @staticmethod
+    def __stopPlayer():
+        if xbmc.Player().isPlaying():
+            xbmc.Player().stop()
+
     def pluginPath(self, name):
         return self.addon_path + name
 
@@ -143,6 +148,7 @@ class ZiggoPlugin:
         :return: None
         """
         # Create a playable item with a path to play.
+        self.__stopPlayer()
         channels = self.helper.dynamicCall(LoginSession.get_channels)
         channel = None
         for c in channels:
@@ -183,7 +189,7 @@ class ZiggoPlugin:
         :return: None
         """
         # Create a playable item with a path to play.
-
+        self.__stopPlayer()
         streamInfo = None
         try:
             is_helper = Helper(G.PROTOCOL, drm=G.DRM)
@@ -700,8 +706,6 @@ class ZiggoPlugin:
                 elif params['category'] == G.GENRES:
                     self.list_genres(params['categoryId'])
             elif params['action'] == 'epg':
-                if xbmc.Player().isPlaying():
-                    xbmc.Player().stop()  # Currently strange errors occur if we keep the player running
                 xbmc.executebuiltin('RunScript(' +
                                     addon.getAddonInfo('path') +
                                     'epgscript.py,' +

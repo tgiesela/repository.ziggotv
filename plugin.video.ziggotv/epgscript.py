@@ -65,8 +65,16 @@ class EpgWindowXml(xbmcgui.WindowXML):
         self.initDone = True
 
     def onAction(self, action: Action) -> None:
-        if action.getId() == G.ACTION_STOP:
+        if action.getId() == xbmcgui.ACTION_STOP:
+            self.grid.onAction(action)
             self.close()
+            return
+
+        if action.getId() == xbmcgui.ACTION_PREVIOUS_MENU:  # Esc
+            self.grid.onAction(action)
+            self.close()
+            return
+
         if self.grid.isAtFirstRow():
             #  Set control to header to select date or back to grid
             if action.getId() == xbmcgui.ACTION_MOVE_UP:

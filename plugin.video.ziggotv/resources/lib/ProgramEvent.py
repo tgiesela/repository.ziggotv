@@ -285,27 +285,43 @@ class ProgramEventGrid:
                  xbmc.LOGDEBUG)
 
     def onAction(self, action: xbmcgui.Action):
+        if action.getId() == xbmcgui.ACTION_STOP:
+            # if xbmc.Player().isPlaying():
+            #    xbmc.Player().stop()
+            return
+
+        if action.getId() == xbmcgui.ACTION_PREVIOUS_MENU:
+            # if xbmc.Player().isPlaying():
+            #    xbmc.Player().stop()
+            return
+
         if action.getId() == xbmcgui.ACTION_MOVE_LEFT:
             moved = self.rows[self.__currentRow].moveLeft()
             if not moved:
                 self.__shiftWindow(-1)
+            return
 
         if action.getId() == xbmcgui.ACTION_MOVE_RIGHT:
             moved = self.rows[self.__currentRow].moveRight()
             if not moved:
                 self.__shiftWindow(1)
+            return
 
         if action.getId() == xbmcgui.ACTION_MOVE_DOWN:
             self.moveDown()
+            return
 
         if action.getId() == xbmcgui.ACTION_MOVE_UP:
             self.moveUp()
+            return
 
         if action.getId() == xbmcgui.ACTION_PAGE_DOWN:
             self.pageDown()
+            return
 
         if action.getId() == xbmcgui.ACTION_PAGE_UP:
             self.pageUp()
+            return
 
     def onClick(self, controlId: int) -> None:
         if controlId == 1016:  # Move back 1 Day
