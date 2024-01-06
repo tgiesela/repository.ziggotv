@@ -249,6 +249,9 @@ class ProgramEventGrid:
             if self.userWantsSwitch():
                 self.__play_channel(channel)
 
+    def isAtFirstRow(self):
+        return self.__firstChannelIndex <= 0 and self.__currentRow == 0
+
     def clear(self):
         for row in self.rows:
             row.clear()
@@ -416,6 +419,11 @@ class ProgramEventGrid:
                                         False,
                                         xbmcgui.DLG_YESNO_NO_BTN)
         return choice
+
+    def setFocus(self):
+        row: ProgramEventRow = self.rows[self.__currentRow]
+        program: ProgramEvent = row.programs[row.focusItem]
+        self.window.setFocusId(program.controlId)
 
 
 class ProgramEventRow:

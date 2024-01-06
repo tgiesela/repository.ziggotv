@@ -19,7 +19,7 @@ class EpgWindowXml(xbmcgui.WindowXML):
     def __init__(self, xmlFilename: str, scriptPath: str, my_addon: xbmcaddon.Addon):
         super().__init__(xmlFilename, scriptPath)
         self.initDone = False
-        self.grid = None
+        self.grid: ProgramEventGrid = None
         self.currentFocusedNode = None
         self.epgDatetime = None  # date in local timezone
         self.epgEndDatetime = None  # last date in local timezone
@@ -67,7 +67,20 @@ class EpgWindowXml(xbmcgui.WindowXML):
     def onAction(self, action: Action) -> None:
         if action.getId() == G.ACTION_STOP:
             self.close()
-        self.grid.onAction(action)
+        if self.grid.isAtFirstRow():
+            #  Set control to header to select date or back to grid
+            if action.getId() == xbmcgui.ACTION_MOVE_UP:
+                self.setFocusId(1010)
+            elif (action.getId() == xbmcgui.ACTION_MOVE_DOWN and
+                  self.getFocusId() in [1016, 1017]):
+                self.grid.setFocus()
+            elif (action.getId() in [xbmcgui.ACTION_MOVE_LEFT, xbmcgui.ACTION_MOVE_RIGHT] and
+                  self.getFocusId() in [1016, 1017]):
+                pass  # Action handled via .xml <onleft> <onright>
+            else:
+                self.grid.onAction(action)
+        else:
+            self.grid.onAction(action)
 
 
 REMOTE_DEBUG = False
