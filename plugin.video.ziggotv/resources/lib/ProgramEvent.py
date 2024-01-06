@@ -22,6 +22,9 @@ class ProgramEventGrid:
                  channels: ChannelList,
                  mediaFolder: str,
                  addon: xbmcaddon.Addon):
+        self.MINUTES_IN_GRID = 120
+        self.HALFHOUR_WIDTH = 350
+        self.MAXROWS = 15
         self.helper = ProxyHelper(addon)
         self.startWindow = None
         self.endWindow = None
@@ -30,7 +33,6 @@ class ProgramEventGrid:
         self.channelsInGrid: List[Channel] = []
         self.mediaFolder = mediaFolder
         self.window = window
-        self.__MAXROWS = 20
         self.__firstChannelIndex = 0
         self.__currentRow = 0
         self.__getFirstWindow()
@@ -95,22 +97,22 @@ class ProgramEventGrid:
         else:
             self.shiftEpgWindow(90)  # 90 minutes
         self.__updateEvents()
-        self.build()
+        self.build(stayOnRow=True)
         self.show()
 
     def __positionTime(self):
         timeBar: xbmcgui.ControlLabel = self.window.getControl(2100)
         leftGrid: xbmcgui.ControlImage = self.window.getControl(2106)
         rightGrid: xbmcgui.ControlImage = self.window.getControl(2107)
-        leftGrid.setHeight(len(self.rows) * self.rows[0].rowheight)
-        rightGrid.setHeight(len(self.rows) * self.rows[0].rowheight)
+        leftGrid.setHeight(len(self.rows) * self.rows[0].ROW_HEIGHT)
+        rightGrid.setHeight(len(self.rows) * self.rows[0].ROW_HEIGHT)
         leftGrid.setVisible(False)
         rightGrid.setVisible(False)
         timeBar.setVisible(False)
         currentTime = datetime.datetime.now()
-        pixelsForWindow = 4 * 300  # 4 times half an hour
+        pixelsForWindow = 4 * self.HALFHOUR_WIDTH  # 4 times half an hour
         if currentTime >= self.startWindow or currentTime < self.endWindow:
-            pixelsPerMinute = pixelsForWindow / 120
+            pixelsPerMinute = pixelsForWindow / self.MINUTES_IN_GRID
             delta = currentTime - self.startWindow
             deltaMinutes = int(delta.total_seconds() / 60)
             width = int(deltaMinutes * pixelsPerMinute)
@@ -208,8 +210,6 @@ class ProgramEventGrid:
             cnt += 1
         if cnt >= 10:
             xbmc.log("VIDEO IS NOT PLAYING AFTER 10 SECONDS !!!", xbmc.LOGDEBUG)
-        if player.isPlaying():
-            xbmc.log("VIDEO POSITIONED TO START OF EVENT", xbmc.LOGDEBUG)
         while player.isPlaying():
             xbmc.sleep(500)
 
@@ -257,18 +257,19 @@ class ProgramEventGrid:
             row.clear()
         self.rows.clear()
 
-    def build(self):
+    def build(self, stayOnRow=False):
         self.clear()
         row = 0
-        while row < self.__MAXROWS and self.__firstChannelIndex + row < len(self.channels):
+        while row < self.MAXROWS and self.__firstChannelIndex + row < len(self.channels):
             self.rows.append(ProgramEventRow(row, self.channels[self.__firstChannelIndex + row], self))
             row += 1
-        self.__currentRow = 0
+        if not stayOnRow:
+            self.__currentRow = 0
 
     def show(self):
         for row in self.rows:
             row.show()
-        row = self.rows[0]
+        row = self.rows[self.__currentRow]
         self.__positionTime()
         if len(row.programs) > 0:
             row.setFocusFirst()
@@ -327,12 +328,12 @@ class ProgramEventGrid:
         if controlId == 1016:  # Move back 1 Day
             self.shiftEpgWindow(-1440)
             self.__updateEvents()
-            self.build()
+            self.build(stayOnRow=True)
             self.show()
         elif controlId == 1017:  # move 1 day forward
             self.shiftEpgWindow(+1440)
             self.__updateEvents()
-            self.build()
+            self.build(stayOnRow=True)
             self.show()
         else:
             row, program = self.__findControl(controlId)
@@ -346,9 +347,9 @@ class ProgramEventGrid:
         pass
 
     def shiftDown(self):
-        if self.__firstChannelIndex + self.__MAXROWS >= len(self.channels):
+        if self.__firstChannelIndex + self.MAXROWS >= len(self.channels):
             return
-        self.__firstChannelIndex += self.__MAXROWS - 1
+        self.__firstChannelIndex += self.MAXROWS - 1
         self.clear()
         self.build()
         self.show()
@@ -356,7 +357,7 @@ class ProgramEventGrid:
     def shiftUp(self):
         if self.__firstChannelIndex <= 0:
             return
-        self.__firstChannelIndex -= self.__MAXROWS - 1
+        self.__firstChannelIndex -= self.MAXROWS - 1
         if self.__firstChannelIndex < 0:
             self.__firstChannelIndex = 0
         self.clear()
@@ -364,14 +365,21 @@ class ProgramEventGrid:
         self.show()
 
     def moveDown(self):
+        currentRow = self.rows[self.__currentRow]
+        currentEvent = currentRow.programs[currentRow.focusItem]
         self.__currentRow += 1
-        while self.__currentRow < self.__MAXROWS and len(self.rows[self.__currentRow].programs) == 0:
+        while self.__currentRow < self.MAXROWS and len(self.rows[self.__currentRow].programs) == 0:
             self.__currentRow += 1
-        if self.__currentRow >= self.__MAXROWS:
+        if self.__currentRow >= self.MAXROWS:
             self.shiftDown()
-        self.rows[self.__currentRow].setFocusFirst()
+        if currentRow is not None and currentEvent is not None:
+            self.rows[self.__currentRow].setFocusNearest(currentEvent)
+        else:
+            self.rows[self.__currentRow].setFocusFirst()
 
     def moveUp(self):
+        currentRow = self.rows[self.__currentRow]
+        currentEvent = currentRow.programs[currentRow.focusItem]
         self.__currentRow -= 1
         while self.__currentRow >= 0 and len(self.rows[self.__currentRow].programs) == 0:
             self.__currentRow -= 1
@@ -380,7 +388,10 @@ class ProgramEventGrid:
                 self.shiftUp()
             else:
                 self.__currentRow = 0
-        self.rows[self.__currentRow].setFocusFirst()
+        if currentRow is not None and currentEvent is not None:
+            self.rows[self.__currentRow].setFocusNearest(currentEvent)
+        else:
+            self.rows[self.__currentRow].setFocusFirst()
 
     def pageUp(self):
         self.shiftUp()
@@ -451,11 +462,11 @@ class ProgramEventRow:
         self.channelIcon = None
         self.focusItem = 0
         self.rownr = rownr
-        self.rowheight = 38
-        self.pixelsForWindow = 4 * 300  # 4 times half an hour
-        self.pixelsPerMinute = self.pixelsForWindow / 120
+        self.ROW_HEIGHT = 55
         self.channel = channel
         self.grid = grid
+        self.pixelsForWindow = 4 * grid.HALFHOUR_WIDTH  # 4 times half an hour
+        self.pixelsPerMinute = self.pixelsForWindow / grid.MINUTES_IN_GRID
         self.programs: List[ProgramEvent] = []
         self.addChannelInfo(channel)
         evts = channel.events.getEventsInWindow(grid.startWindow,
@@ -465,21 +476,22 @@ class ProgramEventRow:
 
     def addChannelInfo(self, channel):
         ctrlgroup = self.grid.window.getControl(2000)
+        self.ROW_HEIGHT = int(ctrlgroup.getHeight() / self.grid.MAXROWS)
         ctrl = self.grid.window.getControl(2001)
         width = ctrl.getWidth()
         offset_x = ctrlgroup.getX() + ctrl.getX()
-        offset_y = ctrlgroup.getY() + ctrl.getY() + self.rownr * self.rowheight
+        offset_y = ctrlgroup.getY() + ctrl.getY() + self.rownr * self.ROW_HEIGHT
         self.channelIcon = xbmcgui.ControlImage(x=offset_x,
                                                 y=offset_y,
                                                 width=width,
-                                                height=self.rowheight,
+                                                height=self.ROW_HEIGHT,
                                                 filename=channel.logo['focused'],
                                                 aspectRatio=2
                                                 )
         ctrl = self.grid.window.getControl(2002)
         width = ctrl.getWidth()
         offset_x = ctrlgroup.getX() + ctrl.getX()
-        offset_y = ctrlgroup.getY() + ctrl.getY() + self.rownr * self.rowheight
+        offset_y = ctrlgroup.getY() + ctrl.getY() + self.rownr * self.ROW_HEIGHT
         if self.grid.channels.isEntitled(channel):
             txtColor = 'white'
         else:
@@ -487,10 +499,11 @@ class ProgramEventRow:
         self.channelName = xbmcgui.ControlLabel(x=offset_x + 5,
                                                 y=offset_y,
                                                 width=width - 5,
-                                                height=self.rowheight,
+                                                height=self.ROW_HEIGHT,
                                                 label='{0}. {1}'.format(channel.logicalChannelNumber, channel.name),
-                                                font='font10',
-                                                textColor=txtColor
+                                                font='font12',
+                                                textColor=txtColor,
+                                                alignment=G.ALIGNMENT.XBFONT_CENTER_Y + G.ALIGNMENT.XBFONT_LEFT
                                                 )
         self.grid.window.addControls([self.channelIcon, self.channelName])
 
@@ -536,6 +549,19 @@ class ProgramEventRow:
         self.grid.window.setFocus(program.button)
         self.focusItem = 0
 
+    def setFocusNearest(self, currentEvent):
+        # Find the event that is nearest to current Event and set focus on it
+        buttonNr = 0
+        while buttonNr < len(self.programs):
+            if (self.programs[buttonNr].event.startTime < currentEvent.event.startTime <
+                    self.programs[buttonNr].event.endTime):
+                #  Found on
+                self.grid.window.setFocus(self.programs[buttonNr].button)
+                self.focusItem = buttonNr
+                return
+            buttonNr += 1
+        self.setFocusFirst()
+
     def setFocus(self, program):
         self.focusItem = program
 
@@ -555,7 +581,7 @@ class ProgramEvent:
                  event: Event):
 
         self.window = row.grid.window
-        self.rowheight = row.rowheight
+        self.rowheight = row.ROW_HEIGHT
         self.row = row
         self.grid = row.grid
         self.pixelsForWindow = row.pixelsForWindow
@@ -593,7 +619,7 @@ class ProgramEvent:
                                             label='',
                                             focusTexture=self.mediafolder + 'tvg-program-focus.png',
                                             noFocusTexture=self.mediafolder + 'tvg-program-nofocus.png',
-                                            font='font10',
+                                            font='font12',
                                             focusedColor=textColor,
                                             textColor=textColor,
                                             textOffsetY=5,
