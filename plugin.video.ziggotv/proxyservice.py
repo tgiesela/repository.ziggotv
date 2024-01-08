@@ -28,7 +28,7 @@ if __name__ == '__main__':
     proxy_service.startHttpServer()
     try:
         while not monitor_service.abortRequested():
-            # Sleep/wait for abort for 10 seconds
+            # Sleep/wait for abort for 5 seconds
             if monitor_service.waitForAbort(5):
                 # Abort was requested while waiting. We should exit
                 xbmc.log("MONITOR PROXYSERVICE WAITFORABORT timeout", xbmc.LOGINFO)

@@ -107,6 +107,18 @@ class ProxyHelper:
         self.host = 'http://{0}:{1}/'.format(self.ip, self.port)
 
     def dynamicCall(self, method, **kwargs) -> Any:
+        """
+        Helper function to call a function in the service which is running.
+        If successful, the response will be the response from the called function.
+        On failure, a WebException will be raised, which contains the response from
+        the server.
+
+        method: the function to be called e.g. LoginSession.login
+        kwargs: the named arguments of the function to be called.
+
+        example: helper.dynamicCall(LoginSession.login,username='a',password='b'
+        """
+        from resources.lib.webcalls import WebException
         try:
             if kwargs is None:
                 arguments = {}
@@ -117,7 +129,7 @@ class ProxyHelper:
                 params={'args': json.dumps(arguments)},
                 timeout=60)
             if response.status_code != 200:
-                raise Exception('Unexpected status-code in dynamic Call: {0}'.format(response.status_code))
+                raise WebException(response)
             contentType = response.headers.get('content-type')
             if contentType == 'text/html':
                 return response.content
@@ -126,6 +138,8 @@ class ProxyHelper:
                 return result
             else:
                 return None
+        except WebException as exc:
+            raise exc
         except Exception as exc:
             xbmc.log('Exception during dynamic Call: {0}'.format(exc), xbmc.LOGERROR)
 

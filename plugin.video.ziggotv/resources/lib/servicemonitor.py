@@ -11,6 +11,9 @@ import json
 import threading
 import http.server
 
+from xbmcgui import Action
+
+from resources.lib.events import ChannelGuide
 from resources.lib.proxyserver import ProxyServer
 from resources.lib.utils import Timer, SharedProperties, ServiceStatus
 from resources.lib.webcalls import LoginSession
@@ -59,7 +62,6 @@ class HttpProxyService:
     def stopHttpServer(self):
         if self.ProxyServer is not None:
             self.ProxyServer.shutdown()
-            # self.ProxyServer = None
             xbmc.log("PROXY SERVER STOPPPED", xbmc.LOGDEBUG)
         if self.HTTPServerThread is not None:
             self.HTTPServerThread.join()
@@ -88,6 +90,7 @@ class ServiceMonitor(xbmc.Monitor):
         self.refreshTimer = None
         self.licenseRefreshed = datetime.datetime.now() - datetime.timedelta(days=2)
         self.session = LoginSession(self.addon)
+        self.epg = None
         self.__initialize_session(self.session)
         xbmc.log("SERVICEMONITOR initialized: {0}".format(service), xbmc.LOGINFO)
         self.home.setServiceStatus(ServiceStatus.STARTED)
@@ -123,6 +126,10 @@ class ServiceMonitor(xbmc.Monitor):
                 self.session.refresh_widevine_license()
                 self.session.refresh_entitlements()
             self.session.refresh_channels()
+            if self.epg is None:
+                self.epg = ChannelGuide(self.addon)
+            self.epg.loadEvents()
+            self.epg.obtainEvents()
             self.session.close()
         except ConnectionResetError as exc:
             xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)
@@ -158,6 +165,7 @@ class ServiceMonitor(xbmc.Monitor):
                 proxy.set_streaming_token(streaming_token)
                 self.timer = Timer(60, self.update_token)
                 self.timer.start()
+
         elif sender == 'xbmc':
             if method == 'Player.OnStop':
                 if self.timer is not None:

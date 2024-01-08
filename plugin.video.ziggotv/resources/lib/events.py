@@ -1,11 +1,15 @@
 import datetime
+import json
+from pathlib import Path
 from typing import List
 
 import xbmc
 import xbmcaddon
+import xbmcvfs
 
 from resources.lib import utils
 from resources.lib.LinkedList import LinkedList, Node
+from resources.lib.globals import G
 from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
 
@@ -205,7 +209,9 @@ class EventList(LinkedList):
 
 class ChannelGuide:
     def __init__(self, addon: xbmcaddon.Addon):
+        self.eventsJson = None
         self.addon = addon
+        self.addon_path = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
         self.helper = ProxyHelper(self.addon)
         self.windows = []
         self.channels = []
@@ -263,9 +269,8 @@ class ChannelGuide:
                 firstdate = date
         return firstdate
 
-    def __processEvents(self, evtDate: datetime.datetime):
-        response = self.helper.dynamicCall(LoginSession.get_events, starttime=evtDate.strftime('%Y%m%d%H%M%S'))
-        for channel in response['entries']:
+    def __processEvents(self, entries):
+        for channel in entries:
             from resources.lib.Channel import Channel
             current_channel: Channel = None
             for c in self.channels:
@@ -282,31 +287,43 @@ class ChannelGuide:
             else:
                 xbmc.log('No events', xbmc.LOGDEBUG)
 
+    def __obtainEvents(self, evtDate: datetime.datetime):
+        """
+            Obtain events not yet stored in epg.json and append them
+            to the internal events. Update the channels with the new events
+
+            @param evtDate:
+                startDatetime for the events
+        """
+        response = self.helper.dynamicCall(LoginSession.get_events, starttime=evtDate.strftime('%Y%m%d%H%M%S'))
+        self.storeEvents(response, evtDate)
+        self.__processEvents(response['entries'])
+
     def obtainEvents(self):
         evtDate = self.__currentWindow()
         if self.__isWindowPresent(evtDate):
             pass
         else:
             self.windows.append(evtDate)
-            self.__processEvents(evtDate)
+            self.__obtainEvents(evtDate)
         evtDate = self.__nextWindow(evtDate)
         if self.__isWindowPresent(evtDate):
             pass
         else:
             self.windows.append(evtDate)
-            self.__processEvents(evtDate)
+            self.__obtainEvents(evtDate)
 
     def obtainNextEvents(self):
         evtDate = self.__findLastWindow()
         evtDate = self.__nextWindow(evtDate)
         self.windows.append(evtDate)
-        self.__processEvents(evtDate)
+        self.__obtainEvents(evtDate)
 
     def obtainPreviousEvents(self):
         evtDate = self.__findFirstWindow()
         evtDate = self.__previousWindow(evtDate)
         self.windows.append(evtDate)
-        self.__processEvents(evtDate)
+        self.__obtainEvents(evtDate)
 
     def obtainEventsInWindow(self, startDate: datetime, endDate: datetime):
         startEvtDate = self.__setWindow(startDate)
@@ -317,15 +334,15 @@ class ChannelGuide:
             else:
                 evtDate = self.__nextWindow(startEvtDate)
                 self.windows.append(evtDate)
-                self.__processEvents(evtDate)
+                self.__obtainEvents(evtDate)
         else:
             self.windows.append(startEvtDate)
-            self.__processEvents(startEvtDate)
+            self.__obtainEvents(startEvtDate)
             if self.__dateInWindow(endEvtDate):
                 pass
             else:
                 self.windows.append(endEvtDate)
-                self.__processEvents(endEvtDate)
+                self.__obtainEvents(endEvtDate)
 
     def getEvents(self, channelId):
         for channel in self.channels:
@@ -338,3 +355,38 @@ class ChannelGuide:
                 return True
         return False
 
+    def storeEvents(self, response, startTime):
+        self.cleanEvents()
+        for segment in self.eventsJson['segments']:
+            if segment['starttime'] == utils.DatetimeHelper.unixDatetime(startTime):
+                self.eventsJson['segments'].remove(segment)
+        self.eventsJson['segments'].append({'starttime': utils.DatetimeHelper.unixDatetime(startTime),
+                                            'events': response})
+        Path(self.pluginPath(G.GUIDE_INFO)).write_text(json.dumps(self.eventsJson))
+
+    def pluginPath(self, name):
+        return self.addon_path + name
+
+    def loadEvents(self):
+        self.windows = []
+        if Path(self.pluginPath(G.GUIDE_INFO)).exists():
+            epgStr = Path(self.pluginPath(G.GUIDE_INFO)).read_text()
+        else:
+            epgStr = ''
+        if epgStr is None or epgStr == '':
+            self.eventsJson = {'segments': []}
+        else:
+            self.eventsJson = json.loads(epgStr)
+            self.cleanEvents()
+            for segment in self.eventsJson['segments']:
+                dt = utils.DatetimeHelper.fromUnix(segment['starttime'])
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+                self.windows.append(dt)
+                self.__processEvents(segment['events']['entries'])
+
+    def cleanEvents(self):
+        for segment in self.eventsJson['segments']:
+            oldestTime = datetime.datetime.now() + datetime.timedelta(days=-5)
+            if segment['starttime'] < utils.DatetimeHelper.unixDatetime(oldestTime):
+                self.eventsJson['segments'].remove(segment)
+        Path(self.pluginPath(G.GUIDE_INFO)).write_text(json.dumps(self.eventsJson))

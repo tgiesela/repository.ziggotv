@@ -5,8 +5,10 @@ from pathlib import Path
 from urllib.parse import parse_qsl
 
 from resources.lib.Channel import Channel, ChannelList
+from resources.lib.ProgramEvent import ProgramEvent
 from resources.lib.UrlTools import UrlTools
 from resources.lib.ZiggoPlayer import VideoHelpers, ZiggoPlayer
+from resources.lib.events import Event, ChannelGuide
 from resources.lib.globals import G, S
 
 import xbmc
@@ -23,7 +25,7 @@ try:
 except:
     pass
 
-from resources.lib.webcalls import LoginSession
+from resources.lib.webcalls import LoginSession, WebException
 
 
 class ZiggoPlugin:
@@ -35,6 +37,7 @@ class ZiggoPlugin:
         self.addon_path = xbmcvfs.translatePath(my_addon.getAddonInfo('profile'))
         self.helper = ProxyHelper(my_addon)
         self.videoHelper = VideoHelpers(self.addon)
+        self.epg = ChannelGuide(my_addon)
         self.__initialization()
 
     @staticmethod
@@ -150,7 +153,7 @@ class ZiggoPlugin:
         # Create a playable item with a path to play.
         self.__stopPlayer()
         channels = self.helper.dynamicCall(LoginSession.get_channels)
-        channel = None
+        channel: Channel = None
         for c in channels:
             if c.id == path:
                 channel = c
@@ -159,28 +162,14 @@ class ZiggoPlugin:
         if channel is None:
             raise RuntimeError("Channel not found: " + path)
 
-        streamInfo = None
         try:
-            is_helper = Helper(G.PROTOCOL, drm=G.DRM)
-            if is_helper.check_inputstream():
-                xbmc.log('Inside play condition...')
-
-            locator, asset_type = channel.getLocator(self.addon)
-            streamInfo = self.helper.dynamicCall(LoginSession.obtain_tv_streaming_token,
-                                                 channelId=channel.id, asset_type=asset_type)
-
-            urlHelper = UrlTools(self.addon)
-            url = urlHelper.build_url(streamInfo.token, locator)
-            play_item = self.videoHelper.listitem_from_url(
-                requesturl=url,
-                streaming_token=streamInfo.token,
-                drmContentId=streamInfo.drmContentId)
-            xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
+            self.epg.loadEvents()
+            channel.events = self.epg.getEvents(channel.id)
+            play_item = self.videoHelper.play_channel(channel)
+            xbmcplugin.setResolvedUrl(__handle__, False, listitem=play_item)
 
         except Exception as exc:
             xbmc.log('Error in play_video: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
-            if streamInfo is not None and streamInfo.token is not None:
-                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
 
     def play_movie(self, path):
         """
@@ -188,28 +177,13 @@ class ZiggoPlugin:
         :param path: str
         :return: None
         """
-        # Create a playable item with a path to play.
         self.__stopPlayer()
-        streamInfo = None
         try:
-            is_helper = Helper(G.PROTOCOL, drm=G.DRM)
-            if is_helper.check_inputstream():
-                xbmc.log('Inside play condition...')
-
-            streamInfo = self.helper.dynamicCall(LoginSession.obtain_vod_streaming_token, id=path)
-            urlHelper = UrlTools(self.addon)
-            url = urlHelper.build_url(streamInfo.token, streamInfo.url)
-
-            play_item = self.videoHelper.listitem_from_url(
-                requesturl=url,
-                streaming_token=streamInfo.token,
-                drmContentId=streamInfo.drmContentId)
+            play_item = self.videoHelper.play_movie(path)
             xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
 
         except Exception as exc:
             xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
-            if streamInfo is not None and streamInfo.token is not None:
-                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
 
     @staticmethod
     def __getPricingFromOffer(instance):
@@ -789,4 +763,9 @@ if __name__ == '__main__':
     # Get the plugin handle as an integer number.
     __handle__ = int(sys.argv[1])
     # Call the router function and pass the plugin call parameters to it.
-    plugin.router(sys.argv[2], __url__)
+    try:
+        plugin.router(sys.argv[2], __url__)
+    except WebException as exc:
+        xbmcgui.Dialog().ok('Error', exc.getResponse())
+    except Exception as exc:
+        xbmcgui.Dialog().ok('Error', '{0}'.format(exc))

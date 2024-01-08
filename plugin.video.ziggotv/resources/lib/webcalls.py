@@ -1,6 +1,8 @@
+import sys
 import base64
 import datetime
 import json
+import inspect
 from typing import List
 
 import requests
@@ -10,6 +12,7 @@ from pathlib import Path
 import xbmc
 import xbmcaddon
 import xbmcvfs
+from requests import Response
 
 from resources.lib.Channel import Channel
 from resources.lib.globals import G
@@ -24,6 +27,20 @@ except:
 
 def b2ah(barr):
     return barr.hex()
+
+
+class WebException(Exception):
+    def __init__(self, response: Response):
+        funcName = inspect.stack()[1].function
+        message = 'Unexpected response status in {0}: {1}'.format(funcName, response.status_code)
+        super().__init__(message)
+        self.response = response
+
+    def getResponse(self):
+        return self.response.content
+
+    def getStatus(self):
+        return self.response.status_code
 
 
 class Web(requests.Session):
@@ -257,7 +274,7 @@ class LoginSession(Web):
         url = G.personalisation_URL.format(householdid=self.session_info['householdId'])
         response = super().do_get(url, params={'with': 'profiles,devices'})
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain customer info")
+            raise WebException(response)
         Path(self.pluginpath(G.CUSTOMER_INFO)).write_text(json.dumps(response.json()))
 
     def __login_valid(self):
@@ -289,7 +306,7 @@ class LoginSession(Web):
                                        json_data={"password": password,
                                                   "username": username})
             if not self.__status_code_ok(response):
-                raise RuntimeError("status code <> 200 during authentication")
+                raise WebException(response)
             Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()))
             self.session_info = self.get_session_info()
 
@@ -311,7 +328,7 @@ class LoginSession(Web):
                                            json_data={"refreshToken": self.session_info['refreshToken'],
                                                       "username": username})
                 if not self.__status_code_ok(response):
-                    raise RuntimeError("status code <> 200 during authentication")
+                    raise WebException(response)
                 Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()))
 
                 self.obtain_customer_info()
@@ -336,7 +353,7 @@ class LoginSession(Web):
                                           'productClass': 'Orion-DASH'},
                                   extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain channel info")
+            raise WebException(response)
         Path(self.pluginpath(G.CHANNEL_INFO)).write_text(json.dumps(response.json()))
 
     def refresh_entitlements(self):
@@ -345,14 +362,14 @@ class LoginSession(Web):
                                   params={'enableDayPass': 'true'},
                                   extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain entitlement info")
+            raise WebException(response)
         Path(self.pluginpath(G.ENTITLEMENTS_INFO)).write_text(json.dumps(response.json()))
 
     def refresh_widevine_license(self):
         response = super().do_get(G.widevine_URL,
                                   extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain widevine info")
+            raise WebException(response)
         encoded_content = base64.b64encode(response.content)
         Path(self.pluginpath(G.WIDEVINE_LICENSE)).write_text(encoded_content.decode("ascii"))
 
@@ -367,7 +384,7 @@ class LoginSession(Web):
                                    },
                                    extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain streaming info")
+            raise WebException(response)
         self.stream_info = StreamingInfo(json.loads(response.content))
         self.stream_info.token = response.headers["x-streaming-token"]
         return self.stream_info
@@ -382,7 +399,7 @@ class LoginSession(Web):
                                    },
                                    extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain replay streaming info")
+            raise WebException(response)
         self.replay_stream_info = ReplayStreamingInfo(json.loads(response.content))
         self.replay_stream_info.token = response.headers["x-streaming-token"]
         return self.replay_stream_info
@@ -397,7 +414,7 @@ class LoginSession(Web):
                                    },
                                    extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain vod streaming info")
+            raise WebException(response)
         self.vod_stream_info = VodStreamingInfo(json.loads(response.content))
         self.vod_stream_info.token = response.headers["x-streaming-token"]
         return self.vod_stream_info
@@ -434,7 +451,7 @@ class LoginSession(Web):
                                    params=None,
                                    extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during update token")
+            raise WebException(response)
         if 'x-streaming-token' in response.headers:
             self.streaming_token = response.headers['x-streaming-token']
             return response.headers["x-streaming-token"]
@@ -456,7 +473,7 @@ class LoginSession(Web):
                                      params=None,
                                      extra_headers=self.extra_headers)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during delete token")
+            raise WebException(response)
 
     def get_manifest(self, url):
         response = super().do_get(url, data=None, params=None)
@@ -498,7 +515,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain movies and series")
+            raise WebException(response)
         return response.content
 
     def obtain_home_collection(self, collection: []):
@@ -527,7 +544,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain movies and series")
+            raise WebException(response)
 
         return response.content
 
@@ -553,7 +570,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain obtain_grid_screen_details")
+            raise WebException(response)
         return json.loads(response.content)
 
     def obtain_vod_screen_details(self, collection_id):
@@ -576,7 +593,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain obtain_vod_screen_details")
+            raise WebException(response)
         return json.loads(response.content)
 
     def obtain_asset_details(self, id, brandingProviderId=None):
@@ -597,7 +614,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain obtain asset details")
+            raise WebException(response)
         return json.loads(response.content)
 
     def obtain_series_overview(self, id):
@@ -611,7 +628,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain obtain_series_overview")
+            raise WebException(response)
         return json.loads(response.content)
 
     def obtain_vod_screens(self):
@@ -629,7 +646,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain movies and series")
+            raise WebException(response)
 
         return json.loads(response.content)
 
@@ -649,7 +666,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during get_episode_list")
+            raise WebException(response)
         return json.loads(response.content)
 
     def get_episode(self, item):
@@ -674,7 +691,7 @@ class LoginSession(Web):
                 response = super().do_get(url=url,
                                           params=params)
                 if not self.__status_code_ok(response):
-                    raise RuntimeError("status code <> 200 during obtain episode")
+                    raise WebException(response)
                 mostrelevant_episode = response.content
             if item['subType'] in ['ASSET']:
                 url = G.linearservice_v2_URL + 'replayEvent/{item}'.format(item=item['id'])
@@ -684,7 +701,7 @@ class LoginSession(Web):
                 response = super().do_get(url=url,
                                           params=params)
                 if not self.__status_code_ok(response):
-                    raise RuntimeError("status code <> 200 during obtain episode")
+                    raise WebException(response)
                 asset = response.content
 
             return mostrelevant_episode, asset
@@ -699,7 +716,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during obtain mostwatched channels")
+            raise WebException(response)
         return response.content
 
     def get_events(self, starttime: str):
@@ -711,7 +728,7 @@ class LoginSession(Web):
         url = G.events_URL + starttime
         response = super().do_get(url=url)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during get_events")
+            raise WebException(response)
         return json.loads(response.content)
 
     def get_event_details(self, eventId):
@@ -723,7 +740,7 @@ class LoginSession(Web):
         response = super().do_get(url=url,
                                   params=params)
         if not self.__status_code_ok(response):
-            raise RuntimeError("status code <> 200 during get_event_details")
+            raise WebException(response)
         return json.loads(response.content)
 
     def get_extra_headers(self):

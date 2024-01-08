@@ -87,7 +87,7 @@ msgctxt "#40008"
 msgid "Cancel"
 msgstr ""
 
-mxgctxt "#40009"
+msgctxt "#40009"
 msgid "Cannot watch this channel. Not allowed."
 msgstr ""
 

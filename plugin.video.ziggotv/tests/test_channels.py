@@ -44,6 +44,5 @@ class TestChannels(TestBase):
                 print('Channel not entitled: {0}'.format(c.name))
 
 
-
 if __name__ == '__main__':
     unittest.main()

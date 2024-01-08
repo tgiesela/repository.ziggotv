@@ -5,9 +5,16 @@ import xbmcvfs
 
 import json
 
-from resources.lib.globals import G
+from resources.lib.Channel import Channel, ChannelList
+from resources.lib.UrlTools import UrlTools
+from resources.lib.events import Event
+from resources.lib.globals import G, S
 from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
+try:
+    from inputstreamhelper import Helper
+except:
+    pass
 
 
 class ZiggoPlayer(xbmc.Player):
@@ -44,7 +51,11 @@ class ZiggoPlayer(xbmc.Player):
 class VideoHelpers:
     def __init__(self, addon: xbmcaddon.Addon):
         self.addon = addon
-        self.customer_info = ProxyHelper(addon).dynamicCall(LoginSession.get_customer_info)
+        self.helper = ProxyHelper(addon)
+        self.player = ZiggoPlayer()
+        self.customer_info = self.helper.dynamicCall(LoginSession.get_customer_info)
+        self.entitlements = self.helper.dynamicCall(LoginSession.get_entitlements)
+        self.channels = ChannelList(self.helper.dynamicCall(LoginSession.get_channels), self.entitlements)
 
     def __get_widevine_license(self, addon_name):
         addon_path = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
@@ -154,3 +165,146 @@ class VideoHelpers:
         self.__send_notification(li, streaming_token, url)  # send the streaming-token to the Service
 
         return li
+
+    def userWantsSwitch(self):
+        choice = xbmcgui.Dialog().yesno('Play',
+                                        self.addon.getLocalizedString(S.MSG_SWITCH),
+                                        self.addon.getLocalizedString(S.BTN_CANCEL),
+                                        self.addon.getLocalizedString(S.BTN_SWITCH),
+                                        False,
+                                        xbmcgui.DLG_YESNO_NO_BTN)
+        return choice
+
+    def __addEventInfo(self, play_item, event):
+        if event is None:
+            return
+        if not event.hasDetails:
+            event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
+        tag: xbmc.InfoTagVideo = play_item.getVideoInfoTag()
+        play_item.setLabel(event.title)
+        tag.setPlot(event.details.description)
+        if event.details.isSeries:
+            tag.setEpisode(event.details.episode)
+            tag.setSeason(event.details.season)
+        tag.setArtists(event.details.actors)
+
+    def __addChannelInfo(self, play_item, channel):
+        tag: xbmc.InfoTagVideo = play_item.getVideoInfoTag()
+        play_item.setLabel('{0}. {1}'.format(channel.logicalChannelNumber, channel.name))
+        tag.setGenres([channel.genre])
+
+    def __play_channel(self, channel):
+        helper = VideoHelpers(self.addon)
+        urlHelper = UrlTools(self.addon)
+        locator, asset_type = channel.getLocator(self.addon)
+        if locator is None:
+            xbmcgui.Dialog().ok('Info', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
+            return
+        streamInfo = self.helper.dynamicCall(LoginSession.obtain_tv_streaming_token,
+                                             channelId=channel.id, asset_type=asset_type)
+        try:
+            url = urlHelper.build_url(streamInfo.token, locator)
+            play_item = helper.listitem_from_url(requesturl=url,
+                                                 streaming_token=streamInfo.token,
+                                                 drmContentId=streamInfo.drmContentId)
+            event = channel.events.getCurrentEvent()
+            if event is None:
+                self.__addChannelInfo(play_item, channel)
+            else:
+                self.__addEventInfo(play_item, event)
+            self.player.setReplay(False, 0)
+            self.player.play(item=url, listitem=play_item)
+            return play_item
+        except Exception as exc:
+            xbmc.log('Error in __play_channel: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+            if streamInfo is not None and streamInfo.token is not None:
+                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
+
+    def __replay_event(self, event: Event):
+        if not event.canReplay:
+            xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_REPLAY_NOT_AVAIALABLE))
+            return
+        helper = VideoHelpers(self.addon)
+        urlHelper = UrlTools(self.addon)
+        streamInfo = self.helper.dynamicCall(LoginSession.obtain_replay_streaming_token,
+                                             path=event.details.eventId)
+        try:
+            self.player.setReplay(True, streamInfo.prePaddingTime)
+            url = urlHelper.build_url(streamInfo.token, streamInfo.url)
+            play_item = helper.listitem_from_url(requesturl=url,
+                                                 streaming_token=streamInfo.token,
+                                                 drmContentId=streamInfo.drmContentId)
+            self.__addEventInfo(play_item, event)
+            self.player.play(item=url, listitem=play_item)
+        except Exception as exc:
+            xbmc.log('Error in __replay_event: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+            if streamInfo is not None and streamInfo.token is not None:
+                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
+
+    def __play_vod(self, path) -> xbmcgui.ListItem:
+        helper = VideoHelpers(self.addon)
+        urlHelper = UrlTools(self.addon)
+        streamInfo = self.helper.dynamicCall(LoginSession.obtain_vod_streaming_token, id=path)
+        try:
+            url = urlHelper.build_url(streamInfo.token, streamInfo.url)
+
+            play_item = helper.listitem_from_url(
+                requesturl=url,
+                streaming_token=streamInfo.token,
+                drmContentId=streamInfo.drmContentId)
+            self.player.play(item=url, listitem=play_item)
+            return play_item
+        except Exception as exc:
+            xbmc.log('Error in __play_vod: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+            if streamInfo is not None and streamInfo.token is not None:
+                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
+            return None
+
+    def play_epg(self, event: Event, channel: Channel):
+        if xbmc.Player().isPlaying():
+            xbmc.Player().stop()
+        is_helper = Helper(G.PROTOCOL, drm=G.DRM)
+        is_helper.check_inputstream()
+
+        if not self.channels.isEntitled(channel):
+            xbmcgui.Dialog().ok('Info', self.addon.getLocalizedString(S.MSG_NOT_ENTITLED))
+            return
+        if not event.hasDetails:
+            event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
+
+        if not self.channels.supportsReplay(channel):
+            if self.userWantsSwitch():
+                self.__play_channel(channel)
+            return
+
+        if event.canReplay:
+            if event.isPlaying:
+                choice = xbmcgui.Dialog().yesnocustom('Play',
+                                                      self.addon.getLocalizedString(S.MSG_SWITCH_OR_PLAY),
+                                                      self.addon.getLocalizedString(S.BTN_CANCEL),
+                                                      self.addon.getLocalizedString(S.BTN_PLAY),
+                                                      self.addon.getLocalizedString(S.BTN_SWITCH),
+                                                      False,
+                                                      xbmcgui.DLG_YESNO_CUSTOM_BTN)
+                if choice in [-1, 2]:
+                    return
+                else:
+                    if choice == 0:  # nobutton -> Play event
+                        self.__replay_event(event)
+                    elif choice == 1:  # yesbutton -> Switch to channel
+                        self.__play_channel(channel)
+            else: # event already finished
+                self.__replay_event(event)
+        else:
+            if self.userWantsSwitch():
+                self.__play_channel(channel)
+
+    def play_movie(self, path) -> xbmcgui.ListItem:
+        if xbmc.Player().isPlaying():
+            xbmc.Player().stop()
+        return self.__play_vod(path)
+
+    def play_channel(self, channel) -> xbmcgui.ListItem:
+        if xbmc.Player().isPlaying():
+            xbmc.Player().stop()
+        return self.__play_channel(channel)

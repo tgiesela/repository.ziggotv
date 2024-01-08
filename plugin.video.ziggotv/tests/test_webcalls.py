@@ -1,15 +1,11 @@
 import datetime
 import json
-import os
 import unittest
 
 import requests
 import xbmcaddon
 
-from resources.lib import utils
-from resources.lib.events import ChannelGuide, EventList
-from resources.lib.webcalls import LoginSession
-from resources.lib.globals import G
+from resources.lib.webcalls import LoginSession, WebException
 from tests.test_base import TestBase
 
 
@@ -20,11 +16,12 @@ class TestWebCalls(TestBase):
 
     def test_login(self):
         self.cleanup_all()
+        self.session = LoginSession(self.addon)
         try:
             self.session.login('baduser', 'badpassword')
-        except Exception as exc:
-            print(exc)
-            pass
+        except WebException as exc:
+            print(exc.getResponse())
+            print(exc.getStatus())
         self.do_login()
         cookies = self.session.load_cookies()
         cookies_dict = requests.utils.dict_from_cookiejar(cookies)
@@ -88,56 +85,6 @@ class TestWebCalls(TestBase):
         mpd = str(response.content, 'utf-8')
         self.assertFalse(mpd == '')
         self.assertTrue(mpd.find('<MPD') > 0)
-
-    def test_events(self):
-        self.session.refresh_channels()
-
-        guide = ChannelGuide(self.addon)
-
-        startDate = datetime.datetime.now()
-        endDate = startDate + datetime.timedelta(hours=2)
-        guide.obtainEventsInWindow(startDate.astimezone(datetime.timezone.utc),
-                                   endDate.astimezone(datetime.timezone.utc))
-
-        latestEndDate = endDate
-        startDate = startDate + datetime.timedelta(days=-1)
-        oldestStartDate = startDate
-        endDate = startDate + datetime.timedelta(hours=2)
-        guide.obtainEventsInWindow(startDate.astimezone(datetime.timezone.utc),
-                                   endDate.astimezone(datetime.timezone.utc))
-        startDate = startDate + datetime.timedelta(hours=6)
-        endDate = startDate + datetime.timedelta(hours=2)
-        guide.obtainEventsInWindow(startDate.astimezone(datetime.timezone.utc),
-                                   endDate.astimezone(datetime.timezone.utc))
-
-        #        guide.obtainEvents()
-        #        guide.obtainNextEvents()
-        #        guide.obtainPreviousEvents()
-        #        guide.obtainPreviousEvents()
-
-        channels = []
-        for channel in self.session.get_channels():
-            channel.events = guide.getEvents(channel.id)
-            events: EventList = channel.events
-            if events is not None and events.head is not None:
-                event = events.head.data
-                event.details = self.session.get_event_details(event.id)
-            channels.append(channel)
-
-        for channel in channels:
-            print('Channel id: {0}, name: {1}'.format(channel.id, channel.name))
-            evts = channel.events.getEventsInWindow(oldestStartDate, latestEndDate)
-            for evt in evts:
-                print('    Event: {0}, duration: {1}, start: {2}, end: {3}'.format(
-                    evt.title
-                    , evt.duration
-                    , utils.DatetimeHelper.fromUnix(evt.startTime).strftime('%y-%m-%d %H:%M')
-                    , utils.DatetimeHelper.fromUnix(evt.endTime).strftime('%y-%m-%d %H:%M')))
-            # evt = channel.events.__findEvent(datetime.datetime.now())
-            # if evt is not None:
-            #    print('    Current event: {0}: start: {1}, end: {2}'.format(evt.data.title
-            #                                                                , evt.data.startTime
-            #                                                               , evt.data.endTime))
 
     def test_voor_jou(self):
         profiles = self.session.get_profiles()

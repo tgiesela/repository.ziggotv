@@ -58,7 +58,8 @@ class TestBase(unittest.TestCase):
         self.svc.stopHttpServer()
         self.cleanup_all()
 
-    def remove(self, file):
+    @staticmethod
+    def remove(file):
         if os.path.exists(file):
             os.remove(file)
 

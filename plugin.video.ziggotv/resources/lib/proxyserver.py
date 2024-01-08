@@ -1,4 +1,5 @@
 import pickle
+from socket import socket
 from urllib.parse import urlparse, parse_qs, unquote
 
 import typing
@@ -6,7 +7,7 @@ import xbmc
 import xbmcaddon
 
 from resources.lib.UrlTools import UrlTools
-from resources.lib.webcalls import LoginSession
+from resources.lib.webcalls import LoginSession, WebException
 
 from http.server import BaseHTTPRequestHandler
 from http.client import HTTPConnection
@@ -18,7 +19,7 @@ import json
 
 class HTTPRequestHandler(BaseHTTPRequestHandler):
 
-    def __init__(self, request: bytes, client_address: typing.Tuple[str, int], server: socketserver.BaseServer):
+    def __init__(self, request: socket, client_address: typing.Tuple[str, int], server: socketserver.BaseServer):
         super().__init__(request, client_address, server)
 
     def log_request(self, code='-', size='-'):
@@ -277,20 +278,26 @@ class ProxyServer(http.server.HTTPServer):
         qs = parse_qs(parsed_url.query)
         if 'args' in qs:
             args = json.loads(qs['args'][0])
-            callableMethod = getattr(self.session, method)
-            retval = callableMethod(**args)
-            request.send_response(200)
-            if retval is None:
+            try:
+                callableMethod = getattr(self.session, method)
+                retval = callableMethod(**args)
+                request.send_response(200)
+                if retval is None:
+                    request.send_header('content-type', 'text/html')
+                    request.end_headers()
+                elif type(retval) is str:
+                    request.send_header('content-type', 'text/html')
+                    request.end_headers()
+                    request.wfile.write(retval)
+                else:
+                    request.send_header('content-type', 'application/octet-stream')
+                    request.end_headers()
+                    request.wfile.write(pickle.dumps(retval))
+            except WebException as exc:
+                request.send_response(exc.getStatus())
                 request.send_header('content-type', 'text/html')
                 request.end_headers()
-            elif type(retval) is str:
-                request.send_header('content-type', 'text/html')
-                request.end_headers()
-                request.wfile.write(retval)
-            else:
-                request.send_header('content-type', 'application/octet-stream')
-                request.end_headers()
-                request.wfile.write(pickle.dumps(retval))
+                request.wfile.write(exc.getResponse())
         else:
             request.send_response(400)
             request.end_headers()
@@ -298,6 +305,6 @@ class ProxyServer(http.server.HTTPServer):
     @staticmethod
     def handle_head(request):
         #  We should forward this to real server, but for now we will respond with code 501
-        xbmc.log('Received HEAD: {0}'.format(request.path))
+        xbmc.log('Received HEAD: {0}'.format(request.path), xbmc.LOGERROR)
         request.send_response(501)
         request.end_headers()

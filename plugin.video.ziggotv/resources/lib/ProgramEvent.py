@@ -13,7 +13,7 @@ from resources.lib.ZiggoPlayer import ZiggoPlayer, VideoHelpers
 from resources.lib.events import Event, ChannelGuide
 from resources.lib.globals import G, S
 from resources.lib.utils import ProxyHelper
-from resources.lib.webcalls import LoginSession
+from resources.lib.webcalls import LoginSession, WebException
 
 
 class ProgramEventGrid:
@@ -38,7 +38,10 @@ class ProgramEventGrid:
         self.__getFirstWindow()
         self.addon = addon
         self.guide = ChannelGuide(addon)
+        self.guide.loadEvents()
         self.guide.obtainEvents()
+        self.player = ZiggoPlayer()
+        self.videoHelper = VideoHelpers(self.addon)
         for channel in self.channels:
             channel.events = self.guide.getEvents(channel.id)
 
@@ -85,6 +88,7 @@ class ProgramEventGrid:
         self.__processDates()
 
     def __updateEvents(self):
+        self.guide.loadEvents()
         self.guide.obtainEventsInWindow(
             self.startWindow.astimezone(datetime.timezone.utc),
             self.endWindow.astimezone(datetime.timezone.utc))
@@ -145,109 +149,6 @@ class ProgramEventGrid:
                 return rownr, programnr
             rownr += 1
         return -1, -1
-
-    def __get_locator(self, channel: Channel) -> typing.Tuple[str, str]:
-        try:
-            # max_res = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.max')
-            max_res_drm = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.secure.max')
-            if max_res_drm in ['auto', '1080p', '2K', '4K', '1440p']:
-                hd_allowed = True
-            else:
-                hd_allowed = False
-        except:
-            hd_allowed = True
-        asset_type = 'Orion-DASH'
-        if 'Orion-DASH-HEVC' in channel.locators and hd_allowed:
-            avc = channel.locators['Orion-DASH-HEVC']
-            asset_type = 'Orion-DASH-HEVC'
-        elif 'Orion-DASH' in channel.locators:
-            avc = channel.locators['Orion-DASH']
-        else:
-            avc = channel.locators['Default']
-        return avc, asset_type
-
-    def __play_channel(self, channel):
-        helper = VideoHelpers(self.addon)
-        urlHelper = UrlTools(self.addon)
-        player = ZiggoPlayer()
-        locator, asset_type = channel.getLocator(self.addon)
-        if locator is None:
-            xbmcgui.Dialog().ok('Info', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
-            return
-        streamInfo = self.helper.dynamicCall(LoginSession.obtain_tv_streaming_token,
-                                             channelId=channel.id, asset_type=asset_type)
-        url = urlHelper.build_url(streamInfo.token, locator)
-        play_item = helper.listitem_from_url(requesturl=url,
-                                             streaming_token=streamInfo.token,
-                                             drmContentId=streamInfo.drmContentId)
-        event = channel.events.getCurrentEvent()
-        self.__addEventInfo(play_item, event)
-        player.setReplay(False, 0)
-        player.play(item=url, listitem=play_item)
-        while player.isPlaying():
-            xbmc.sleep(500)
-
-    def __replay_event(self, event: Event):
-        if not event.canReplay:
-            xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_REPLAY_NOT_AVAIALABLE))
-            return
-        helper = VideoHelpers(self.addon)
-        urlHelper = UrlTools(self.addon)
-        player = ZiggoPlayer()
-        streamInfo = self.helper.dynamicCall(LoginSession.obtain_replay_streaming_token,
-                                             path=event.details.eventId)
-        player.setReplay(True, streamInfo.prePaddingTime)
-        url = urlHelper.build_url(streamInfo.token, streamInfo.url)
-        play_item = helper.listitem_from_url(requesturl=url,
-                                             streaming_token=streamInfo.token,
-                                             drmContentId=streamInfo.drmContentId)
-        self.__addEventInfo(play_item, event)
-        player.play(item=url, listitem=play_item)
-        #  Wait max 10 seconds for the video to start playing
-        cnt = 0
-        while not player.isPlaying() and cnt < 10:
-            xbmc.sleep(1000)
-            cnt += 1
-        if cnt >= 10:
-            xbmc.log("VIDEO IS NOT PLAYING AFTER 10 SECONDS !!!", xbmc.LOGDEBUG)
-        while player.isPlaying():
-            xbmc.sleep(500)
-
-    def __play(self, event: Event, channel: Channel):
-        if xbmc.Player().isPlaying():
-            xbmc.Player().stop()
-        if not self.channels.isEntitled(channel):
-            xbmcgui.Dialog().ok('Info', self.addon.getLocalizedString(S.MSG_NOT_ENTITLED))
-            return
-        if not event.hasDetails:
-            event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
-
-        if not self.channels.supportsReplay(channel):
-            if self.userWantsSwitch():
-                self.__play_channel(channel)
-            return
-
-        if event.canReplay:
-            if event.isPlaying:
-                choice = xbmcgui.Dialog().yesnocustom('Play',
-                                                      self.addon.getLocalizedString(S.MSG_SWITCH_OR_PLAY),
-                                                      self.addon.getLocalizedString(S.BTN_CANCEL),
-                                                      self.addon.getLocalizedString(S.BTN_PLAY),
-                                                      self.addon.getLocalizedString(S.BTN_SWITCH),
-                                                      False,
-                                                      xbmcgui.DLG_YESNO_CUSTOM_BTN)
-                if choice in [-1, 2]:
-                    return
-                else:
-                    if choice == 0:  # nobutton -> Play event
-                        self.__replay_event(event)
-                    elif choice == 1:  # yesbutton -> Switch to channel
-                        self.__play_channel(channel)
-            else: # event already finished
-                self.__replay_event(event)
-        else:
-            if self.userWantsSwitch():
-                self.__play_channel(channel)
 
     def isAtFirstRow(self):
         return self.__firstChannelIndex <= 0 and self.__currentRow == 0
@@ -341,7 +242,13 @@ class ProgramEventGrid:
                 return
             else:
                 event = self.rows[row].programs[program]
-                self.__play(event.programEvent, self.rows[row].channel)
+                try:
+                    self.videoHelper = VideoHelpers(self.addon)
+                    self.videoHelper.play_epg(event.programEvent, self.rows[row].channel)
+                except WebException as exc:
+                    xbmcgui.Dialog().ok('Error', exc.getResponse())
+                except Exception as exc:
+                    xbmcgui.Dialog().ok('Error', '{0}'.format(exc))
 
     def onControl(self, control: xbmcgui.Control):
         pass
