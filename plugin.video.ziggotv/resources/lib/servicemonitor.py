@@ -104,37 +104,38 @@ class ServiceMonitor(xbmc.Monitor):
         self.session.close()
 
     def __refresh_session(self):
-        if self.addon.getSetting('username') == '':
-            xbmcaddon.Addon().openSettings()
-        if self.addon.getSetting('username') == '':
-            xbmcgui.Dialog().ok('Error', 'Login credentials not set, exiting')
-            raise RuntimeError('Login credentials not set')
-        else:
-            username = self.addon.getSetting('username')
-            password = self.addon.getSetting('password')
+        with self.lock:
+            if self.addon.getSetting('username') == '':
+                xbmcaddon.Addon().openSettings()
+            if self.addon.getSetting('username') == '':
+                xbmcgui.Dialog().ok('Error', 'Login credentials not set, exiting')
+                raise RuntimeError('Login credentials not set')
+            else:
+                username = self.addon.getSetting('username')
+                password = self.addon.getSetting('password')
 
-        self.session.load_cookies()
-        try:
-            session_info = self.session.login(username, password)
-            if len(session_info) == 0:
-                raise RuntimeError("Login failed, check your credentials")
             self.session.load_cookies()
-            # The Widevine license and entitlements will only be refreshed once per day, because they do not change
-            # If entitlements change or the license becomes invalid, a restart is required.
-            if (self.licenseRefreshed + datetime.timedelta(days=1)) <= datetime.datetime.now():
-                self.licenseRefreshed = datetime.datetime.now()
-                self.session.refresh_widevine_license()
-                self.session.refresh_entitlements()
-            self.session.refresh_channels()
-            if self.epg is None:
-                self.epg = ChannelGuide(self.addon)
-            self.epg.loadEvents()
-            self.epg.obtainEvents()
-            self.session.close()
-        except ConnectionResetError as exc:
-            xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)
-        except Exception as exc:
-            xbmc.log('Unexpected exception in __refresh_session: {0}'.format(exc),xbmc.LOGERROR)
+            try:
+                session_info = self.session.login(username, password)
+                if len(session_info) == 0:
+                    raise RuntimeError("Login failed, check your credentials")
+                self.session.load_cookies()
+                # The Widevine license and entitlements will only be refreshed once per day, because they do not change
+                # If entitlements change or the license becomes invalid, a restart is required.
+                if (self.licenseRefreshed + datetime.timedelta(days=1)) <= datetime.datetime.now():
+                    self.licenseRefreshed = datetime.datetime.now()
+                    self.session.refresh_widevine_license()
+                    self.session.refresh_entitlements()
+                self.session.refresh_channels()
+                if self.epg is None:
+                    self.epg = ChannelGuide(self.addon)
+                self.epg.loadEvents()
+                self.epg.obtainEvents()
+                self.session.close()
+            except ConnectionResetError as exc:
+                xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)
+            except Exception as exc:
+                xbmc.log('Unexpected exception in __refresh_session: {0}'.format(exc),xbmc.LOGERROR)
 
     def update_token(self):
         if self.service.ProxyServer is None:

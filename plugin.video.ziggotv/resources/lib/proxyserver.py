@@ -281,7 +281,8 @@ class ProxyServer(http.server.HTTPServer):
             args = json.loads(qs['args'][0])
             try:
                 callableMethod = getattr(self.session, method)
-                retval = callableMethod(**args)
+                with self.lock:
+                    retval = callableMethod(**args)
                 request.send_response(200)
                 if retval is None:
                     request.send_header('content-type', 'text/html')
