@@ -110,6 +110,12 @@ class ZiggoPlugin:
         else:
             self.series_overviews = []
 
+    def saveMovieOverviews(self):
+        Path(self.pluginPath(G.MOVIE_INFO)).write_text(json.dumps(self.movie_overviews))
+
+    def saveSeriesOverviews(self):
+        Path(self.pluginPath(G.SERIES_INFO)).write_text(json.dumps(self.series_overviews))
+
     @staticmethod
     def listItem_from_channel(video: Channel) -> xbmcgui.ListItem:
         li = xbmcgui.ListItem(label="{0}. {1}".format(video.logicalChannelNumber, video.name))
@@ -151,8 +157,14 @@ class ZiggoPlugin:
         :return: None
         """
         # Create a playable item with a path to play.
+        # If we do not use a script to play the video, a new instance of the video player is started, so the
+        # video callbacks do not work
         self.__stopPlayer()
-        channels = self.helper.dynamicCall(LoginSession.get_channels)
+
+        helper = ProxyHelper(addon)
+        videoHelper = VideoHelpers(addon)
+        epg = ChannelGuide(addon)
+        channels = helper.dynamicCall(LoginSession.get_channels)
         channel: Channel = None
         for c in channels:
             if c.id == path:
@@ -163,10 +175,22 @@ class ZiggoPlugin:
             raise RuntimeError("Channel not found: " + path)
 
         try:
-            self.epg.loadEvents()
-            channel.events = self.epg.getEvents(channel.id)
-            play_item = self.videoHelper.play_channel(channel)
-            xbmcplugin.setResolvedUrl(__handle__, False, listitem=play_item)
+            epg.loadEvents()
+            channel.events = epg.getEvents(channel.id)
+            xbmcplugin.endOfDirectory(__handle__, succeeded=False, updateListing=False, cacheToDisc=False)
+            videoHelper.play_channel(channel=channel)
+            event = channel.events.getCurrentEvent()
+            secondsElapsed = 0
+            while xbmc.Player().isPlaying():
+                currentEvent = channel.events.getCurrentEvent()
+                if secondsElapsed > 60:
+                    if currentEvent.id != event.id:
+                        videoHelper.updateEvent(currentEvent)
+                        event = currentEvent
+                        secondsElapsed = 0
+                xbmc.sleep(500)
+                secondsElapsed += 0.5
+            xbmc.log('CHANNEL STOPPED: {0}'.format(channel.name), xbmc.LOGDEBUG)
 
         except Exception as exc:
             xbmc.log('Error in play_video: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
@@ -178,9 +202,70 @@ class ZiggoPlugin:
         :return: None
         """
         self.__stopPlayer()
+        videoHelper = VideoHelpers(addon)
+
+        parts = path.split(',')
+
         try:
-            play_item = self.videoHelper.play_movie(path)
-            xbmcplugin.setResolvedUrl(__handle__, True, listitem=play_item)
+
+            self.load_movie_overviews()
+            movie_overview = None
+            for overview in self.movie_overviews:
+                if overview['id'] == parts[0]:
+                    movie_overview = overview
+                    break
+            if movie_overview is None:
+                raise Exception('Movie no longer found in stored movies!!')
+
+            videoHelper.play_movie(movie_overview)
+            xbmcplugin.endOfDirectory(__handle__, succeeded=False, updateListing=False, cacheToDisc=False)
+            while xbmc.Player().isPlaying():
+                xbmc.sleep(500)
+            xbmc.log('VOD STOPPED: {0}'.format(path), xbmc.LOGDEBUG)
+
+        except Exception as exc:
+            xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+
+    def play_episode(self, path, seriesId, seasonId):
+        """
+        Play a movie by the provided path.
+        @param path: str
+        @param seasonId:
+        @param seriesId:
+        :return: None
+        """
+        self.__stopPlayer()
+        videoHelper = VideoHelpers(addon)
+
+        parts = path.split(',')
+
+        try:
+
+            self.load_series_overviews()
+            _episode = None
+            _season = None
+            _overview = None
+            for overview in self.series_overviews:
+                if overview['id'] == seriesId:
+                    _overview = overview
+                    for season in overview['seasons']:
+                        if season['id'] == seasonId:
+                            for episode in season['episodes']:
+                                if episode['id'] == parts[0]:
+                                    _episode = episode
+                                    _season = season
+                                    break
+                    break
+            if _season is not None and _episode is not None:
+                overview = _episode['overview']
+                videoHelper.play_movie(overview)
+            else:
+                raise Exception('Movie/Series no longer found!!')
+
+            xbmcplugin.endOfDirectory(__handle__, succeeded=False, updateListing=False, cacheToDisc=False)
+            while xbmc.Player().isPlaying():
+                xbmc.sleep(500)
+            xbmc.log('VOD STOPPED: {0}'.format(path), xbmc.LOGDEBUG)
 
         except Exception as exc:
             xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
@@ -455,6 +540,7 @@ class ZiggoPlugin:
             else:
                 tag.setTitle(title[0:title.find('.') + 1] + '[COLOR red]' + title[title.find('.') + 1:] + '[/COLOR]')
                 callback_url = '{0}?action=cantplay&video={1}'.format(self.url, channel.id)
+            li.setProperty('IsPlayable', 'false')  # Turn off to avoid kodi complaining about item not playing
             listing.append((callback_url, li, False))
 
         # Add our listing to Kodi.
@@ -477,8 +563,10 @@ class ZiggoPlugin:
     def list_series_seasons(self, categoryId):
         listing = []
         self.load_series_overviews()
-        episodes = self.helper.dynamicCall(LoginSession.get_episode_list, item=self.__get_series_overview(categoryId))
-
+        overview = self.__get_series_overview(categoryId)
+        episodes = self.helper.dynamicCall(LoginSession.get_episode_list, item=overview)
+        if episodes is not None:
+            overview.update({'seasons': episodes['seasons']})
         for season in episodes['seasons']:
             li = self.listItem_from_season(season, episodes)
             callback_url = '{0}?action=listseason&seriesId={1}&seasonId={2}'.format(self.url,
@@ -492,34 +580,53 @@ class ZiggoPlugin:
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
         xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL)
 
+        self.saveSeriesOverviews()
+
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 
     def list_series_episodes(self, seriesId, seasonId):
         listing = []
         self.load_series_overviews()
-        episodes = self.helper.dynamicCall(LoginSession.get_episode_list, item=self.__get_series_overview(seriesId))
+        _serie = None
+        _season = None
+        for serie in self.series_overviews:
+            if serie['id'] == seriesId:
+                _serie = serie
+                for season in serie['seasons']:
+                    if season['id'] == seasonId:
+                        _season = season
+                        break
+                break
+        if _serie is None or _season is None:
+            xbmcgui.Dialog().ok('Error', 'Missing series/season')
+            return
 
-        for season in episodes['seasons']:
-            if season['id'] == seasonId:
-                for episode in season['episodes']:
-                    details = self.__get_details(episode)
-                    playable_instance = self.__get_playable_instance(details)
-                    li = self.listItem_from_episode(episode, season, details, playable_instance)
-                    if playable_instance is not None:
-                        callback_url = '{0}?action=playmovie&video={1}'.format(self.url,
-                                                                               playable_instance['id'])
-                    else:
-                        callback_url = '{0}?action=cantplay&video={1}'.format(self.url,
-                                                                              '')
-
-                    is_folder = False
-                    listing.append((callback_url, li, is_folder))
+        if _season['id'] == seasonId:
+            for episode in _season['episodes']:
+                details = self.__get_details(episode)
+                episode.update({'overview': details})
+                playable_instance = self.__get_playable_instance(details)
+                li = self.listItem_from_episode(episode, _season, details, playable_instance)
+                if playable_instance is not None:
+                    callback_url = ('{0}?action=playepisode&video={1}'
+                                    '&seasonId={2}&seriesId={3}').format(self.url,
+                                                                         playable_instance['id'],
+                                                                         seasonId,
+                                                                         seriesId)
+                else:
+                    callback_url = '{0}?action=cantplay&video={1}'.format(self.url,
+                                                                          '')
+                li.setProperty('IsPlayable', 'false')
+                is_folder = False
+                listing.append((callback_url, li, is_folder))
 
         # Add our listing to Kodi.
 
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
         xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL)
+
+        self.saveSeriesOverviews()
 
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
@@ -549,8 +656,8 @@ class ZiggoPlugin:
                 listing.append((callback_url, li, is_folder))
 
         # Save overviews
-        Path(self.pluginPath(G.MOVIE_INFO)).write_text(json.dumps(self.movie_overviews))
-        Path(self.pluginPath(G.SERIES_INFO)).write_text(json.dumps(self.series_overviews))
+        self.saveMovieOverviews()
+        self.saveSeriesOverviews()
         # Add our listing to Kodi.
 
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
@@ -642,6 +749,7 @@ class ZiggoPlugin:
                                                                                    playable_instance['id'])
                         else:
                             callback_url = '{0}?action=cantplay&video={1}'.format(self.url, playable_instance['id'])
+                        li.setProperty('IsPlayable', 'false')
                         listing.append((callback_url, li, False))
 
         # Save overviews
@@ -698,6 +806,9 @@ class ZiggoPlugin:
             elif params['action'] == 'playmovie':
                 # Play a video from a provided URL.
                 self.play_movie(params['video'])
+            elif params['action'] == 'playepisode':
+                # Play a video from a provided URL.
+                self.play_episode(params['video'], params['seriesId'], params['seasonId'])
             elif params['action'] == 'cantplay':
                 # Play a video from a provided URL.
                 xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))

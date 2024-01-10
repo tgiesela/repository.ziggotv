@@ -106,3 +106,7 @@ msgstr "Terugkijken niet mogelijk voor dit programma"
 msgctxt "#40013"
 msgid "You are not entitled to watch this channel/event"
 msgstr "U hebt geen toestemming voor deze zender of dit programma"
+
+msgctxt "#40014"
+msgid "Video did not start"
+msgstr "Video/zender start niet"

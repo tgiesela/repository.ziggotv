@@ -46,6 +46,7 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
         proxy: ProxyServer = self.server
         proxy.handle_head(self)
 
+
 class ProxyServer(http.server.HTTPServer):
     """
         Proxyserver for processing license and manifest request.

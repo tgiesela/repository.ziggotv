@@ -105,4 +105,8 @@ msgstr ""
 
 msgctxt "#40013"
 msgid "You are not entitled to watch this channel/event"
-msgstr "You are not entitled to watch this channel/event"
+msgstr ""
+
+msgctxt "#40014"
+msgid "Video did not start"
+msgstr ""
