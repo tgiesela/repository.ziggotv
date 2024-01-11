@@ -16,9 +16,8 @@ If you want to watch channels in full HD you need a powerful processor. I use a 
 You can also limit the maximal allowed resolution of the InputStream Adaptive Addon.
 
 ## Options
-By default, the plugin proxy will only process license requests. If you want, all requests sent by Input Stream Adaptive (ISA) can be sent to the proxy.
-This allows the plugin to insert the streaming token, which is required for streaming a channel. The streaming token will be refreshed every minute.
-If you do not use the proxy, the streaming token remains unchanged. Eventually the streaming may stop.
+By default, the plugin proxy will process all licensed requests. 
+If you do not use the proxy, the streaming token remains unchanged. Eventually the streaming will stop.
 
 ## development info
 The project title is `repository.ziggotv` which will be installed as a repository in Kodi.
