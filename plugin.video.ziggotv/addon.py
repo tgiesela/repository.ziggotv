@@ -1,3 +1,4 @@
+import traceback
 import json
 import os
 import sys
@@ -84,7 +85,7 @@ class ZiggoPlugin:
         if chosen_profile == '':  # still not set, use default
             for profile in custinfo['profiles']:
                 if profile['profileId'] == default_profile_id:
-                    self.helper.dynamicCall(LoginSession.set_active_profile(profile, profile=default_profile_id))
+                    self.helper.dynamicCall(LoginSession.set_active_profile(profile, profile=profile))
                     xbmc.log("ACTIVE PROFILE: {0}".format(default_profile_id), xbmc.LOGDEBUG)
         else:
             for profile in custinfo['profiles']:
@@ -394,8 +395,12 @@ class ZiggoPlugin:
         # set the list item to playable
         li.setProperty('IsPlayable', 'true')
         tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
-        tag.setTitle(episode['title'])
-        tag.setSortTitle(episode['title'])
+        if 'title' in episode:
+            tag.setTitle(episode['title'])
+            tag.setSortTitle(episode['title'])
+        elif 'episode' in episode:
+            tag.setTitle('Aflevering {0}'.format(episode['episode']))
+            tag.setSortTitle('Aflevering {0}'.format(episode['episode']))
         if 'synopsis' in season:
             tag.setPlot(season['synopsis'])
         else:
@@ -408,10 +413,11 @@ class ZiggoPlugin:
                 entitled = True
         if 'genres' in details:
             tag.setGenres(details['genres'])
-        cast = []
-        for person in details['castAndCrew']:
-            cast.append(xbmc.Actor(name=person['name'], role=person['role']))
-        tag.setCast(cast)
+        if 'castAndCrew' in details:
+            cast = []
+            for person in details['castAndCrew']:
+                cast.append(xbmc.Actor(name=person['name'], role=person['role']))
+            tag.setCast(cast)
 
         if not entitled:
             if instance is not None:
@@ -564,7 +570,7 @@ class ZiggoPlugin:
         listing = []
         self.load_series_overviews()
         overview = self.__get_series_overview(categoryId)
-        episodes = self.helper.dynamicCall(LoginSession.get_episode_list, item=overview)
+        episodes = self.helper.dynamicCall(LoginSession.get_episode_list, item=categoryId)
         if episodes is not None:
             overview.update({'seasons': episodes['seasons']})
         for season in episodes['seasons']:
@@ -877,6 +883,8 @@ if __name__ == '__main__':
     try:
         plugin.router(sys.argv[2], __url__)
     except WebException as exc:
-        xbmcgui.Dialog().ok('Error', exc.getResponse())
+        xbmcgui.Dialog().ok('Error', '{0}'.format(exc.getResponse()))
+        xbmc.log(traceback.format_exc(), xbmc.LOGERROR)
     except Exception as exc:
         xbmcgui.Dialog().ok('Error', '{0}'.format(exc))
+        xbmc.log(traceback.format_exc(), xbmc.LOGERROR)

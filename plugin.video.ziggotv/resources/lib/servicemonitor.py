@@ -1,4 +1,8 @@
 import datetime
+import http.server
+import json
+import os
+import threading
 from pathlib import Path
 
 import xbmc
@@ -6,16 +10,9 @@ import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
-import os
-import json
-import threading
-import http.server
-
-from xbmcgui import Action
-
 from resources.lib.events import ChannelGuide
 from resources.lib.proxyserver import ProxyServer
-from resources.lib.utils import Timer, SharedProperties, ServiceStatus
+from resources.lib.utils import Timer, SharedProperties, ServiceStatus, ProxyHelper
 from resources.lib.webcalls import LoginSession
 
 
@@ -79,83 +76,100 @@ class HttpProxyService:
 
 
 class ServiceMonitor(xbmc.Monitor):
-    def __init__(self, service: HttpProxyService, svc_lock):
+    """
+        Servicemonitor keeps data up to date.
+        Starts the HTTP Proxy which is the central process to maintain session data.
+        All methods of LoginSession are called via the dynamic procedure calls.
+
+    """
+    def __init__(self):
         super(ServiceMonitor, self).__init__()
+        self.lock = threading.Lock()
+
+        #  Start the HTTP Proxy server
+        port = xbmcaddon.Addon().getSettingNumber('proxy-port')
+        ip = xbmcaddon.Addon().getSetting('proxy-ip')
+        self.proxy_service = HttpProxyService(self.lock)
+        self.proxy_service.set_address((ip, int(port)))
+        self.proxy_service.startHttpServer()
+
+        #  Set the status of this service to STARTING
         self.addon = xbmcaddon.Addon()
         self.home = SharedProperties(addon=self.addon)
         self.home.setServiceStatus(ServiceStatus.STARTING)
-        self.lock = svc_lock
-        self.service: HttpProxyService = service
+
+        self.helper = ProxyHelper(self.addon)
         self.timer = None
         self.refreshTimer = None
         self.licenseRefreshed = datetime.datetime.now() - datetime.timedelta(days=2)
-        self.session = LoginSession(self.addon)
+#        self.session = LoginSession(self.addon)
         self.epg = None
-        self.__initialize_session(self.session)
-        xbmc.log("SERVICEMONITOR initialized: {0}".format(service), xbmc.LOGINFO)
-        self.home.setServiceStatus(ServiceStatus.STARTED)
+        self.__initialize_session()
 
-    def __initialize_session(self, session: LoginSession):
+        #  Set the status of this service to STARTED
+        self.home.setServiceStatus(ServiceStatus.STARTED)
+        xbmc.log('SERVICEMONITOR initialized: ', xbmc.LOGDEBUG)
+
+    def __initialize_session(self):
         addon_path = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
         Path(addon_path).mkdir(parents=True, exist_ok=True)
         self.__refresh_session()
         self.refreshTimer = Timer(600, self.__refresh_session)
         self.refreshTimer.start()
-        self.session.close()
+        self.helper.dynamicCall(LoginSession.close)
 
     def __refresh_session(self):
-        with self.lock:
-            if self.addon.getSetting('username') == '':
-                xbmcaddon.Addon().openSettings()
-            if self.addon.getSetting('username') == '':
-                xbmcgui.Dialog().ok('Error', 'Login credentials not set, exiting')
-                raise RuntimeError('Login credentials not set')
-            else:
-                username = self.addon.getSetting('username')
-                password = self.addon.getSetting('password')
+        if self.addon.getSetting('username') == '':
+            xbmcaddon.Addon().openSettings()
+        if self.addon.getSetting('username') == '':
+            xbmcgui.Dialog().ok('Error', 'Login credentials not set, exiting')
+            raise RuntimeError('Login credentials not set')
+        else:
+            username = self.addon.getSetting('username')
+            password = self.addon.getSetting('password')
 
-            self.session.load_cookies()
-            try:
-                session_info = self.session.login(username, password)
-                if len(session_info) == 0:
-                    raise RuntimeError("Login failed, check your credentials")
-                self.session.load_cookies()
-                # The Widevine license and entitlements will only be refreshed once per day, because they do not change
-                # If entitlements change or the license becomes invalid, a restart is required.
-                if (self.licenseRefreshed + datetime.timedelta(days=1)) <= datetime.datetime.now():
-                    self.licenseRefreshed = datetime.datetime.now()
-                    self.session.refresh_widevine_license()
-                    self.session.refresh_entitlements()
-                self.session.refresh_channels()
-                if self.epg is None:
-                    self.epg = ChannelGuide(self.addon)
-                self.epg.loadEvents()
-                self.epg.obtainEvents()
-                self.session.close()
-            except ConnectionResetError as exc:
-                xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)
-            except Exception as exc:
-                xbmc.log('Unexpected exception in __refresh_session: {0}'.format(exc),xbmc.LOGERROR)
+#        self.session.load_cookies()
+        try:
+            session_info = self.helper.dynamicCall(LoginSession.login, username=username, password=password)
+            if len(session_info) == 0:
+                raise RuntimeError("Login failed, check your credentials")
+#            self.session.load_cookies()
+            # The Widevine license and entitlements will only be refreshed once per day, because they do not change
+            # If entitlements change or the license becomes invalid, a restart is required.
+            if (self.licenseRefreshed + datetime.timedelta(days=1)) <= datetime.datetime.now():
+                self.licenseRefreshed = datetime.datetime.now()
+                self.helper.dynamicCall(LoginSession.refresh_widevine_license)
+                self.helper.dynamicCall(LoginSession.refresh_entitlements)
+            self.helper.dynamicCall(LoginSession.refresh_channels)
+            if self.epg is None:
+                self.epg = ChannelGuide(self.addon)
+            self.epg.loadEvents()
+            self.epg.obtainEvents()
+            self.helper.dynamicCall(LoginSession.close)
+        except ConnectionResetError as exc:
+            xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)
+        except Exception as exc:
+            xbmc.log('Unexpected exception in __refresh_session: {0}'.format(exc),xbmc.LOGERROR)
 
     def update_token(self):
-        if self.service.ProxyServer is None:
+        if self.proxy_service.ProxyServer is None:
             xbmc.log('SERVICEMONITOR ProxyServer not started yet', xbmc.LOGDEBUG)
             return
         # session = LoginSession(self.addon)
         # session.load_cookies()
-        proxy: ProxyServer = self.service.ProxyServer
+        proxy: ProxyServer = self.proxy_service.ProxyServer
         xbmc.log("Refresh token interval expired", xbmc.LOGDEBUG)
         token = proxy.get_streaming_token()
         if token is None or token == '':
             return
-        streaming_token = self.session.update_token(proxy.get_streaming_token())
+        streaming_token = self.helper.dynamicCall(LoginSession.update_token, streaming_token=token)
         proxy.set_streaming_token(streaming_token)
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
-        if self.service.ProxyServer is None:
+        if self.proxy_service.ProxyServer is None:
             xbmc.log('SERVICEMONITOR ProxyServer not started yet', xbmc.LOGERROR)
             return
-        proxy: ProxyServer = self.service.ProxyServer
+        proxy: ProxyServer = self.proxy_service.ProxyServer
         xbmc.log("SERVICEMONITOR Notification: {0},{1},{2}".format(sender, method, data), xbmc.LOGDEBUG)
         if sender == self.addon.getAddonInfo("id"):
             params = json.loads(data)
@@ -174,23 +188,12 @@ class ServiceMonitor(xbmc.Monitor):
                 # session = LoginSession(self.addon)
                 # session.load_cookies()
                 xbmc.log("Delete token after OnStop", xbmc.LOGDEBUG)
-                self.session.delete_token(proxy.get_streaming_token())
+                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=proxy.get_streaming_token())
                 proxy.session.streaming_token = None
                 proxy.set_streaming_token(None)
 
-        # xbmc,Playlist.OnAdd,{"item":{"title":"1. NPO 1","type":"video"},"playlistid":1,"position":0})
-        # xbmc, Info.OnChanged, null ????
-        # xbmc, Player.OnPlay, {"item": {"title": "", "type": "video"}, "player": {"playerid": 1, "speed": 1}}
-        # xbmc,Player.OnAVChange,{"item":{"title":"","type":"video"},"player":{"playerid":1,"speed":1}}
-        # xbmc,Player.OnAVChange,{"item":{"title":"","type":"video"},"player":{"playerid":1,"speed":1}}
-        # xbmc,Player.OnAVStart,{"item":{"title":"","type":"video"},"player":{"playerid":1,"speed":1}}
-        # xbmc,Playlist.OnClear,{"playlistid":1}
-        # xbmc,Player.OnStop,{"end":false,"item":{"title":"1. NPO 1","type":"video"}}
-        # xbmc,Player.OnPause,{"item":{"title":"2. NPO 2","type":"video"},"player":{"playerid":1,"speed":0}}
-        # xbmc,Player.OnResume,{"item":{"title":"2. NPO 2","type":"video"},"player":{"playerid":1,"speed":1}}
-        # xbmc,Player.OnSpeedChanged,{"item":{"title":"2. NPO 2","type":"video"},"player":{"playerid":1,"speed":2}}
-
     def shutdown(self):
+        self.proxy_service.stopHttpServer()
         self.home.setServiceStatus(ServiceStatus.STOPPING)
         if self.timer is not None:
             self.timer.stop()
@@ -198,4 +201,3 @@ class ServiceMonitor(xbmc.Monitor):
             self.refreshTimer.stop()
         xbmc.log("SERVICE-MONITOR Timers stopped", xbmc.LOGDEBUG)
         self.home.setServiceStatus(ServiceStatus.STOPPED)
-

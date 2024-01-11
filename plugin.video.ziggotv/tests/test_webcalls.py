@@ -163,7 +163,7 @@ class TestWebCalls(TestBase):
                                 overview = self.session.obtain_series_overview(item['id'])
                                 print('\t\t{0}'.format(','.join(overview['genres'])))
                                 print('\t\t{0}'.format(overview['synopsis']))
-                                episodes = self.session.get_episode_list(item)
+                                episodes = self.session.get_episode_list(item['id'])
                                 for season in episodes['seasons']:
                                     print('\t\t\tSeizoen {0}, afl: {1}'.format(
                                         season['season']

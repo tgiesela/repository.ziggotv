@@ -654,7 +654,7 @@ class LoginSession(Web):
         profile_id = self.active_profile["profileId"]
         city_id = self.customer_info["cityId"]
         url = G.ZIGGOPROD_URL + 'eng/web/picker-service/v2/episodePicker'
-        params = {'seriesCrid': item['id'],
+        params = {'seriesCrid': item,
                   'language': 'nl',
                   'country': 'nl',
                   'cityId': city_id,

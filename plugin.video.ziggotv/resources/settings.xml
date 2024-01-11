@@ -45,7 +45,7 @@
                     <control type="toggle"/>
                 </setting>
                 <setting id="use-proxy" type="boolean" label="41006">
-                    <default>false</default>
+                    <default>true</default>
                     <level>0</level>
                     <control type="toggle"/>
                 </setting>

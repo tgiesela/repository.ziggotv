@@ -1,9 +1,6 @@
-import threading
-from resources.lib.servicemonitor import ServiceMonitor, HttpProxyService
-
 import xbmc
-import xbmcaddon
 
+from resources.lib.servicemonitor import ServiceMonitor
 
 REMOTE_DEBUG = False
 if __name__ == '__main__':
@@ -18,14 +15,7 @@ if __name__ == '__main__':
     # else:
     #     import web_pdb
     #     web_pdb.set_trace()
-    lock = threading.Lock()
-    proxy_service = HttpProxyService(lock)
-    port = xbmcaddon.Addon().getSettingNumber('proxy-port')
-    ip = xbmcaddon.Addon().getSetting('proxy-ip')
-    proxy_service.set_address((ip, int(port)))
-    proxy_service.clearBrowserLock()
-    monitor_service = ServiceMonitor(proxy_service, lock)
-    proxy_service.startHttpServer()
+    monitor_service = ServiceMonitor()
     try:
         while not monitor_service.abortRequested():
             # Sleep/wait for abort for 5 seconds
@@ -37,4 +27,4 @@ if __name__ == '__main__':
     except:
         pass
     xbmc.log("STOPPING PROXYSERVICE", xbmc.LOGINFO)
-    proxy_service.stopHttpServer()
+    monitor_service.shutdown()

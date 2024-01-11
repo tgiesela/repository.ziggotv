@@ -34,8 +34,6 @@ class EpgWindowXml(xbmcgui.WindowXML):
 
     # Private methods
     def __initialize_session(self):
-        self.helper.dynamicCall(LoginSession.refresh_channels)
-        self.helper.dynamicCall(LoginSession.refresh_entitlements)
         self.channels = self.helper.dynamicCall(LoginSession.get_channels)
         self.entitlements = self.helper.dynamicCall(LoginSession.get_entitlements)
 

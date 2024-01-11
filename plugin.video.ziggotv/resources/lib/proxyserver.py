@@ -1,4 +1,5 @@
 import pickle
+import traceback
 from socket import socket
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -164,10 +165,13 @@ class ProxyServer(http.server.HTTPServer):
             xbmc.log('HTTP GET Request processed: {0}'.format(unquote(path)), xbmc.LOGDEBUG)
         except ConnectionResetError as exc:
             xbmc.log('Connection reset during processing: {0}'.format(exc), xbmc.LOGERROR)
+            xbmc.log(traceback.format_exc(), xbmc.LOGERROR)
         except ConnectionAbortedError as exc:
             xbmc.log('Connection aborted during processing: {0}'.format(exc), xbmc.LOGERROR)
+            xbmc.log(traceback.format_exc(), xbmc.LOGERROR)
         except Exception as exc:
-            xbmc.log('Exception in do_get(): {0}'.format(exc), xbmc.LOGERROR)
+            xbmc.log('Exception in handle_get(): {0}'.format(exc), xbmc.LOGERROR)
+            xbmc.log(traceback.format_exc(), xbmc.LOGERROR)
             request.send_response(500)
             request.end_headers()
 

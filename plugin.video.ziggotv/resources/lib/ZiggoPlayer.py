@@ -208,9 +208,9 @@ class VideoHelpers:
         tag.setPlot(overview['synopsis'])
         tag.setGenres(overview['genres'])
         if 'episode' in overview:
-            tag.setEpisode(overview['episode'])
+            tag.setEpisode(int(overview['episode']))
         if 'season' in overview:
-            tag.setSeason(overview['season'])
+            tag.setSeason(int(overview['season']))
 
     def __play_channel(self, channel):
         urlHelper = UrlTools(self.addon)
