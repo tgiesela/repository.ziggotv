@@ -291,10 +291,6 @@ class ProxyServer(http.server.HTTPServer):
                 if retval is None:
                     request.send_header('content-type', 'text/html')
                     request.end_headers()
-                elif type(retval) is str:
-                    request.send_header('content-type', 'text/html')
-                    request.end_headers()
-                    request.wfile.write(retval)
                 else:
                     request.send_header('content-type', 'application/octet-stream')
                     request.end_headers()
