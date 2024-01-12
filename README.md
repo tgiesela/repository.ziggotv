@@ -19,6 +19,11 @@ You can also limit the maximal allowed resolution of the InputStream Adaptive Ad
 By default, the plugin proxy will process all licensed requests. 
 If you do not use the proxy, the streaming token remains unchanged. Eventually the streaming will stop.
 
+## Download and installation
+Download repository [here](https://ziggotv.github.io/ziggotv/repository.ziggotv/repository.ziggotv-1.0.0.zip)
+
+Instructions [here](https://ziggotv.github.io)
+
 ## development info
 The project title is `repository.ziggotv` which will be installed as a repository in Kodi.
 The folder `plugin.video.ziggotv` contains the actual plugin. In Pycharm I set this as the source folder for development.
