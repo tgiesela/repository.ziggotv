@@ -192,7 +192,7 @@ class ProgramEventGrid:
             #    xbmc.Player().stop()
             return
 
-        if action.getId() == xbmcgui.ACTION_PREVIOUS_MENU:
+        if action.getId() == xbmcgui.ACTION_PREVIOUS_MENU or action.getId() == xbmcgui.ACTION_NAV_BACK:
             # if xbmc.Player().isPlaying():
             #    xbmc.Player().stop()
             return

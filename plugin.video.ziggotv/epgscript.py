@@ -68,7 +68,7 @@ class EpgWindowXml(xbmcgui.WindowXML):
             self.close()
             return
 
-        if action.getId() == xbmcgui.ACTION_PREVIOUS_MENU:  # Esc
+        if action.getId() == xbmcgui.ACTION_PREVIOUS_MENU or action.getId() == xbmcgui.ACTION_NAV_BACK:  # Esc
             self.grid.onAction(action)
             self.close()
             return
