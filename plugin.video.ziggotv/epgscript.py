@@ -78,10 +78,10 @@ class EpgWindowXml(xbmcgui.WindowXML):
             if action.getId() == xbmcgui.ACTION_MOVE_UP:
                 self.setFocusId(1010)
             elif (action.getId() == xbmcgui.ACTION_MOVE_DOWN and
-                  self.getFocusId() in [1016, 1017]):
+                  self.getFocusId() in [1016, 1017, 1018, 1020]):
                 self.grid.setFocus()
             elif (action.getId() in [xbmcgui.ACTION_MOVE_LEFT, xbmcgui.ACTION_MOVE_RIGHT] and
-                  self.getFocusId() in [1016, 1017]):
+                  self.getFocusId() in [1016, 1017, 1018, 1020]):
                 pass  # Action handled via .xml <onleft> <onright>
             else:
                 self.grid.onAction(action)
