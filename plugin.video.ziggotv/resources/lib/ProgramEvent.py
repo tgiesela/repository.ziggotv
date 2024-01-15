@@ -53,6 +53,11 @@ class ProgramEventGrid:
     def __setEpgTime(self, date: datetime.datetime):
         # 1012-1015 half hour time
         windowDate = date
+
+        # 1019 EPG Start time
+        lbl: xbmcgui.ControlLabel = self.__getControl(1019)
+        lbl.setLabel(date.strftime('%H:%M'))
+
         lbl: xbmcgui.ControlLabel = self.__getControl(1012)
         lbl.setLabel(windowDate.strftime('%H:%M'))
         windowDate = windowDate + datetime.timedelta(minutes=30)
@@ -115,7 +120,7 @@ class ProgramEventGrid:
         timeBar.setVisible(False)
         currentTime = datetime.datetime.now()
         pixelsForWindow = 4 * self.HALFHOUR_WIDTH  # 4 times half an hour
-        if currentTime >= self.startWindow or currentTime < self.endWindow:
+        if self.startWindow <= currentTime < self.endWindow:
             pixelsPerMinute = pixelsForWindow / self.MINUTES_IN_GRID
             delta = currentTime - self.startWindow
             deltaMinutes = int(delta.total_seconds() / 60)
@@ -226,13 +231,19 @@ class ProgramEventGrid:
             return
 
     def onClick(self, controlId: int) -> None:
-        if controlId == 1016:  # Move back 1 Day
-            self.shiftEpgWindow(-1440)
+        if controlId in [1016, 1017]:  # Move  1 Day
+            if controlId == 1016:
+                self.shiftEpgWindow(-1440)
+            else:
+                self.shiftEpgWindow(+1440)
             self.__updateEvents()
             self.build(stayOnRow=True)
             self.show()
-        elif controlId == 1017:  # move 1 day forward
-            self.shiftEpgWindow(+1440)
+        elif controlId in [1018, 1020]:  # move 6 hours
+            if controlId == 1018:
+                self.shiftEpgWindow(-360)
+            else:
+                self.shiftEpgWindow(+360)
             self.__updateEvents()
             self.build(stayOnRow=True)
             self.show()
@@ -324,7 +335,7 @@ class ProgramEventGrid:
 
         seasoninfo: xbmcgui.ControlLabel = self.__getControl(1204)
         if event.details.isSeries:
-            if event.details.season > 1000:
+            if event.details.season > 1000 or event.details.episode > 1000:
                 seasoninfo.setVisible(False)
             else:
                 seasoninfo.setLabel('(S{0}:E{1})'.format(event.details.season, event.details.episode))
