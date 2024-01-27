@@ -9,7 +9,7 @@ from resources.lib.Channel import Channel, ChannelList
 from resources.lib.UrlTools import UrlTools
 from resources.lib.events import Event
 from resources.lib.globals import G, S
-from resources.lib.utils import ProxyHelper
+from resources.lib.utils import ProxyHelper, SharedProperties
 from resources.lib.webcalls import LoginSession
 
 try:
@@ -30,7 +30,7 @@ class ZiggoPlayer(xbmc.Player):
         xbmc.log("ZIGGOPLAYER DELETED", xbmc.LOGDEBUG)
 
     def onPlayBackStopped(self) -> None:
-        xbmc.log("ZIGGOPLAYER STOPPED", xbmc.LOGDEBUG)
+        xbmc.log("ZIGGOPLAYER STOPPED at {0}".format(self.getTime()), xbmc.LOGDEBUG)
 
     def onPlayBackPaused(self) -> None:
         xbmc.log("ZIGGOPLAYER PAUSED", xbmc.LOGDEBUG)
@@ -60,6 +60,7 @@ class VideoHelpers:
         self.customer_info = self.helper.dynamicCall(LoginSession.get_customer_info)
         self.entitlements = self.helper.dynamicCall(LoginSession.get_entitlements)
         self.channels = ChannelList(self.helper.dynamicCall(LoginSession.get_channels), self.entitlements)
+        self.UUID = SharedProperties(addon=self.addon).getUUID()
 
     def __get_widevine_license(self, addon_name):
         addon_path = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
@@ -111,7 +112,7 @@ class VideoHelpers:
             'Host': 'prod.spark.ziggogo.tv',
             'x-streaming-token': streaming_token,
             'X-cus': self.customer_info['customerId'],
-            'x-go-dev': '214572a3-2033-4327-b8b3-01a9a674f1e0',  # Dummy? TBD: Generate one
+            'x-go-dev': self.UUID,
             'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
             'deviceName': 'Firefox'
         })
@@ -212,6 +213,17 @@ class VideoHelpers:
         if 'season' in overview:
             tag.setSeason(int(overview['season']))
 
+    @staticmethod
+    def __addRecordingInfo(play_item, overview):
+        tag: xbmc.InfoTagVideo = play_item.getVideoInfoTag()
+        play_item.setLabel(overview['title'])
+        tag.setPlot(overview['synopsis'])
+        tag.setGenres(overview['genres'])
+        if 'episode' in overview:
+            tag.setEpisode(int(overview['episodeNumber']))
+        if 'season' in overview:
+            tag.setSeason(int(overview['seasonNumber']))
+
     def __play_channel(self, channel):
         urlHelper = UrlTools(self.addon)
         locator, asset_type = channel.getLocator(self.addon)
@@ -294,6 +306,38 @@ class VideoHelpers:
                 self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
             return None
 
+    def __play_recording(self, id, resumePoint) -> xbmcgui.ListItem:
+        helper = VideoHelpers(self.addon)
+        urlHelper = UrlTools(self.addon)
+        streamInfo = self.helper.dynamicCall(LoginSession.obtain_recording_streaming_token, id=id)
+        try:
+            url = urlHelper.build_url(streamInfo.token, streamInfo.url)
+
+            play_item = helper.listitem_from_url(
+                requesturl=url,
+                streaming_token=streamInfo.token,
+                drmContentId=streamInfo.drmContentId)
+            details = self.helper.dynamicCall(LoginSession.getRecordingDetails, id=id)
+            self.__addRecordingInfo(play_item, details)
+            if resumePoint > 0:
+                self.player.setReplay(True, resumePoint * 1000)
+            else:
+                self.player.setReplay(True, streamInfo.prePaddingTime)
+            self.player.play(item=url, listitem=play_item)
+            self.__waitForPlayer()
+            return play_item
+        except Exception as exc:
+            xbmc.log('Error in __play_vod: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+            if streamInfo is not None and streamInfo.token is not None:
+                self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
+            return None
+
+    def __record_event(self, event):
+        self.helper.dynamicCall(LoginSession.recordEvent, eventId=event.id)
+
+    def __record_show(self, event, channel):
+        self.helper.dynamicCall(LoginSession.recordShow, eventId=event.id, channelId=channel.channelId)
+
     def updateEvent(self, event):
         if event is None:
             return
@@ -327,32 +371,55 @@ class VideoHelpers:
                 self.__play_channel(channel)
             return
 
+        choices = {self.addon.getLocalizedString(S.MSG_SWITCH_CHANNEL): 'switch'}
         if event.canReplay:
-            if event.isPlaying:
-                choice = xbmcgui.Dialog().yesnocustom('Play',
-                                                      self.addon.getLocalizedString(S.MSG_SWITCH_OR_PLAY),
-                                                      self.addon.getLocalizedString(S.BTN_CANCEL),
-                                                      self.addon.getLocalizedString(S.BTN_PLAY),
-                                                      self.addon.getLocalizedString(S.BTN_SWITCH),
-                                                      False,
-                                                      xbmcgui.DLG_YESNO_CUSTOM_BTN)
-                if choice in [-1, 2]:
-                    return
-                else:
-                    if choice == 0:  # nobutton -> Play event
-                        self.__replay_event(event)
-                    elif choice == 1:  # yesbutton -> Switch to channel
-                        self.__play_channel(channel)
-            else:  # event already finished
-                self.__replay_event(event)
-        else:
-            if self.userWantsSwitch():
-                self.__play_channel(channel)
+            choices.update({self.addon.getLocalizedString(S.MSG_REPLAY_EVENT): 'replay'})
+        if event.canRecord:
+            choices.update({self.addon.getLocalizedString(S.MSG_RECORD_EVENT): 'record'})
+            if event.details.isSeries:
+                choices.update({self.addon.getLocalizedString(S.MSG_RECORD_SHOW): 'recordshow'})
+        choicesList = list(choices.keys())
+        selected = xbmcgui.Dialog().contextmenu(choicesList)
+        action = choices[choicesList[selected]]
+        if action == 'switch':
+            self.__play_channel(channel)
+        elif action == 'replay':
+            self.__replay_event(event)
+        elif action == 'record':
+            self.__record_event(event)
+        elif action == 'recordshow':
+            self.__record_show(event, channel)
+        #     if event.isPlaying:
+        #
+        #         choice = xbmcgui.Dialog().yesnocustom('Play',
+        #                                               self.addon.getLocalizedString(S.MSG_SWITCH_OR_PLAY),
+        #                                               self.addon.getLocalizedString(S.BTN_CANCEL),
+        #                                               self.addon.getLocalizedString(S.BTN_PLAY),
+        #                                               self.addon.getLocalizedString(S.BTN_SWITCH),
+        #                                               False,
+        #                                               xbmcgui.DLG_YESNO_CUSTOM_BTN)
+        #         if choice in [-1, 2]:
+        #             return
+        #         else:
+        #             if choice == 0:  # nobutton -> Play event
+        #                 self.__replay_event(event)
+        #             elif choice == 1:  # yesbutton -> Switch to channel
+        #                 self.__play_channel(channel)
+        #     else:  # event already finished
+        #         self.__replay_event(event)
+        # else:
+        #     if self.userWantsSwitch():
+        #         self.__play_channel(channel)
 
     def play_movie(self, movie_overview) -> xbmcgui.ListItem:
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
         return self.__play_vod(movie_overview)
+
+    def play_recording(self, details, resumePoint):
+        if xbmc.Player().isPlaying():
+            xbmc.Player().stop()
+        return self.__play_recording(details, resumePoint)
 
     def play_channel(self, channel: Channel) -> xbmcgui.ListItem:
         if xbmc.Player().isPlaying():

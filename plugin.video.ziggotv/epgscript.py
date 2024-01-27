@@ -95,7 +95,6 @@ if __name__ == '__main__':
     #     try:
     #         sys.path.append('E:\Eclipse IDE\eclipse\plugins\org.python.pydev.core_10.2.1.202307021217\pysrc')
     #         import pydevd
-    #
     #         pydevd.settrace('localhost', stdoutToServer=True, stderrToServer=True)
     #     except:
     #         sys.stderr.write("Error: " + "You must add org.python.pydev.debug.pysrc to your PYTHONPATH")

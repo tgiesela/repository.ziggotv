@@ -2,6 +2,8 @@ import unittest
 from time import sleep
 
 from resources.lib import utils
+from resources.lib.recording import SavedStateList
+from tests.test_base import TestBase
 
 tmr: utils.Timer
 tmr_runs = False
@@ -41,6 +43,27 @@ class TestVideoPlayer(unittest.TestCase):
         while tmr_runs:
             sleep(1)
         stop_tmr.stop()
+
+
+class TestSavedStates(TestBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.do_login()
+
+    def test_states(self):
+        list = SavedStateList(self.addon)
+        list.add('crid:~~2F~~2Fgn.tv~~2F817615~~2FSH010806510000~~2F237133469,'
+                 'imi:517366be71fa5106c9215d9f1367cbacef4a4772', 350.000)
+        list.add('crid:~~2F~~2Fgn.tv~~2F817615~~2FSH010806510000~~2F237133469,'
+                 'imi:517366be71fa5106c9215d9f1367cbacef4a4772', 400.000)
+        list.add('crid:~~2F~~2Fgn.tv~~3F817615~~2FSH010806510000~~2F237133469,'
+                 'imi:517366be71fa5106c9215d9f1367cbacef4a4772', 350.000)
+        list.delete('unknown')
+        list.delete('crid:~~2F~~2Fgn.tv~~2F817615~~2FSH010806510000~~2F237133469,'
+                 'imi:517366be71fa5106c9215d9f1367cbacef4a4772')
+        list.cleanup(0)
+        list = SavedStateList(self.addon)
+        list.cleanup()
 
 
 if __name__ == '__main__':

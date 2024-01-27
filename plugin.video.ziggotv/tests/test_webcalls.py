@@ -1,10 +1,15 @@
 import datetime
 import json
 import unittest
+import urllib.parse
+import uuid
+from collections import namedtuple
+from urllib.parse import urlparse
 
 import requests
 import xbmcaddon
 
+from resources.lib.UrlTools import UrlTools
 from resources.lib.webcalls import LoginSession, WebException
 from tests.test_base import TestBase
 
@@ -30,6 +35,18 @@ class TestWebCalls(TestBase):
         else:
             self.fail('Expected cookies not found')
         self.session.dump_cookies()
+        self.session.session_info['accessToken'] = \
+            ('eyJ0eXAiOiJKV1QiLCJraWQiOiJvZXNwX3Rva2VuX3Byb2RfMjAyMDA4MTkiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3ZWItYXBpLXBy'
+             'b2Qtb2JvLmhvcml6b24udHYiLCJzaWQiOiJlYzYxNDE5NWE0NjdkNWM5ZGZkM2Q0MGQ2MzVmYTdhZjA4NmU4MzEzZDZhOGUyODQ5NDQ3Z'
+             'Dk3ZTg4NGIzMzkzIiwiaWF0IjoxNzA1NzM2Mjc0LCJleHAiOjE3MDU3NDM0NzQsInN1YiI6Ijg2NTQ4MDdfbmwifQ.SAD1RuDYX60_tq7'
+             'Zt0v-Zh3iKKS2hU6nv34-zAEKl2w')
+        self.do_login()
+        self.session.cookies.pop('ACCESSTOKEN')
+        self.session.session_info['accessToken'] = \
+            ('eyJ0eXAiOiJKV1QiLCJraWQiOiJvZXNwX3Rva2VuX3Byb2RfMjAyMDA4MTkiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3ZWItYXBpLXBy'
+             'b2Qtb2JvLmhvcml6b24udHYiLCJzaWQiOiJlYzYxNDE5NWE0NjdkNWM5ZGZkM2Q0MGQ2MzVmYTdhZjA4NmU4MzEzZDZhOGUyODQ5NDQ3Z'
+             'Dk3ZTg4NGIzMzkzIiwiaWF0IjoxNzA1NzM2Mjc0LCJleHAiOjE3MDU3NDM0NzQsInN1YiI6Ijg2NTQ4MDdfbmwifQ.SAD1RuDYX60_tq7'
+             'Zt0v-Zh3iKKS2hU6nv34-zAEKl2w')
         self.do_login()
 
     def test_channels(self):
@@ -60,12 +77,13 @@ class TestWebCalls(TestBase):
         streamInfo = self.session.obtain_tv_streaming_token(channel.id, asset_type='Orion-DASH')
         self.session.streaming_token = streamInfo.token
         headers = {}
+        hw_uuid = str(uuid.UUID(hex=hex(uuid.getnode())[2:]*2+'00000000'))
         headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
             'Host': 'prod.spark.ziggogo.tv',
             'x-streaming-token': streamInfo.token,
             'X-cus': self.session.customer_info['customerId'],
-            'x-go-dev': '214572a3-2033-4327-b8b3-01a9a674f1e0',
+            'x-go-dev': hw_uuid,  # '214572a3-2033-4327-b8b3-01a9a674f1e0',
             'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
             'deviceName': 'Firefox'
         })
@@ -77,14 +95,95 @@ class TestWebCalls(TestBase):
         self.assertFalse(new_streaming_token == streamInfo.token)
         self.session.delete_token(new_streaming_token)
 
+    def baseURL_from_manifest(self, manifest):
+        from xml.dom import minidom
+        document = minidom.parseString(manifest)
+        for parent in document.getElementsByTagName('MPD'):
+            periods = parent.getElementsByTagName('Period')
+            for period in periods:
+                baseURL = period.getElementsByTagName('BaseURL')
+                if baseURL.length == 0:
+                    return None
+                else:
+                    return baseURL[0].childNodes[0].data
+        return None
+
     def test_manifest(self):
+        tools = UrlTools(self.addon)
+        self.do_login()
         self.session.refresh_channels()
+        self.session.print_network_traffic = True
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        response = self.session.get_manifest(channel.locators['Default'])
+        locator, asset_type = channel.getLocator(self.addon)
+        tkn = self.session.obtain_tv_streaming_token(channel.id, asset_type)
+        locator = channel.locators['Default'].replace('http://', 'https://')
+        if '/dash' in locator:
+            locator = locator.replace("/dash", "/dash,vxttoken=" + tkn.token).replace("http://", "https://")
+        elif 'sdash' in locator:
+            locator = locator.replace("/sdash", "/sdash,vxttoken=" + tkn.token).replace("http://", "https://")
+        elif '/live' in locator:
+            locator = locator.replace("/live", "/live,vxttoken=" + tkn.token).replace("http://", "https://")
+        response = self.session.get_manifest(locator)
+        self.session.delete_token(tkn.token)
         mpd = str(response.content, 'utf-8')
         self.assertFalse(mpd == '')
         self.assertTrue(mpd.find('<MPD') > 0)
+        baseURL = self.baseURL_from_manifest(response.content)
+        if baseURL is None:
+            print('BaseURL not found')
+        tools.update_redirection(locator, 'https://da-d436304520010b88000108000000000000000005.id.cdn.upcbroadband'
+                                          '.com/wp/wp4-vxtoken-anp-g05060506-hzn-nl.t1.prd.dyncdn.dmdsdp.com/live,'
+                                          'vxttoken'
+                                          '=YXNzVHlwPU9yaW9uLURBU0gmYy1pcC11bmxvY2tlZD0xJmNvbklkPU5MXzAwMDAxMV8wMTk1Nj'
+                                          'MmY29uVHlwZT00JmN1c0lkPTg2NTQ4MDdfbmwmZGV2RmFtPXdlYi1kZXNrdG9wJmRyPTAmZHJtQ'
+                                          '29uSWQ9bmxfdHZfc3RhbmRhYXJkX2NlbmMmZHJtRGV2SWQ9YTZjOTBlZTZjMGYxYzczMjEyNTAy'
+                                          'Yjc2ODA0ZTc2MGQ2MTQwY2ZlMmNhYzZiNDQ4MjI5MGNhZWZlNTQ0MDc3OCZleHBpcnk9MTcwNjI'
+                                          '2ODA3NCZmbj1zaGEyNTYmcGF0aFVSST0lMkZsaXZlJTJGZGlzazElMkZOTF8wMDAwMTFfMDE5NT'
+                                          'YzJTJGZ28tZGFzaC1oZHJlYWR5LWF2YyUyRiUyQSZwcm9maWxlPTA5OGFjYzBmLTFlNGItNDNhZ'
+                                          'i04ODk3LWI2ZWJkOGVhNWRjYiZyZXVzZT0tMSZzTGltPTMmc2VzSWQ9LTFJa0pSNVJpTUR2M3lG'
+                                          'dGRCcVVLM29TYmkyV2o2STlKUEZ6JnNlc1RpbWU9MTcwNjI2NzkyMyZzdHJMaW09Myw4NWYxZjU'
+                                          '1OTY0NTQxYTlhNGJhYTQyODhhYjFlNzI3YzU1Y2Q1MzAyNWUxYmRjZmQ2N2UzMjg5NGVjYTg3Nz'
+                                          'A4/disk1/NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd', baseURL)
+        print('REDIRECTED URL: {0}'.format(tools.redirected_url))
+
+        for c in channels:
+            if c.name == 'STAR Channel':
+                channel = c
+                break
+        locator, asset_type = channel.getLocator(self.addon)
+        tkn = self.session.obtain_tv_streaming_token(channel.id, asset_type)
+        locator = channel.locators['Default'].replace('http://', 'https://')
+        if '/dash' in locator:
+            locator = locator.replace("/dash", "/dash,vxttoken=" + tkn.token).replace("http://", "https://")
+        elif 'sdash' in locator:
+            locator = locator.replace("/sdash", "/sdash,vxttoken=" + tkn.token).replace("http://", "https://")
+        elif '/live' in locator:
+            locator = locator.replace("/live", "/live,vxttoken=" + tkn.token).replace("http://", "https://")
+        response = self.session.get_manifest(locator)
+        self.session.delete_token(tkn.token)
+        mpd = str(response.content, 'utf-8')
+        self.assertFalse(mpd == '')
+        self.assertTrue(mpd.find('<MPD') > 0)
+
+        baseURL = self.baseURL_from_manifest(response.content)
+        if baseURL is None:
+            print('BaseURL not found')
+            return
+        tools.update_redirection(locator, 'https://da-d436304520010b88000108000000000000000005.id.cdn.upcbroadband'
+                                          '.com/wp/wp4-vxtoken-anp-g05060506-hzn-nl.t1.prd.dyncdn.dmdsdp.com/live,'
+                                          'vxttoken'
+                                          '=YXNzVHlwPU9yaW9uLURBU0gmYy1pcC11bmxvY2tlZD0xJmNvbklkPU5MXzAwMDAxMV8wMTk1Nj'
+                                          'MmY29uVHlwZT00JmN1c0lkPTg2NTQ4MDdfbmwmZGV2RmFtPXdlYi1kZXNrdG9wJmRyPTAmZHJtQ'
+                                          '29uSWQ9bmxfdHZfc3RhbmRhYXJkX2NlbmMmZHJtRGV2SWQ9YTZjOTBlZTZjMGYxYzczMjEyNTAy'
+                                          'Yjc2ODA0ZTc2MGQ2MTQwY2ZlMmNhYzZiNDQ4MjI5MGNhZWZlNTQ0MDc3OCZleHBpcnk9MTcwNjI'
+                                          '2ODA3NCZmbj1zaGEyNTYmcGF0aFVSST0lMkZsaXZlJTJGZGlzazElMkZOTF8wMDAwMTFfMDE5NT'
+                                          'YzJTJGZ28tZGFzaC1oZHJlYWR5LWF2YyUyRiUyQSZwcm9maWxlPTA5OGFjYzBmLTFlNGItNDNhZ'
+                                          'i04ODk3LWI2ZWJkOGVhNWRjYiZyZXVzZT0tMSZzTGltPTMmc2VzSWQ9LTFJa0pSNVJpTUR2M3lG'
+                                          'dGRCcVVLM29TYmkyV2o2STlKUEZ6JnNlc1RpbWU9MTcwNjI2NzkyMyZzdHJMaW09Myw4NWYxZjU'
+                                          '1OTY0NTQxYTlhNGJhYTQyODhhYjFlNzI3YzU1Y2Q1MzAyNWUxYmRjZmQ2N2UzMjg5NGVjYTg3Nz'
+                                          'A4/disk1/NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd', baseURL)
+        print('REDIRECTED URL: {0}'.format(tools.redirected_url))
 
     def test_voor_jou(self):
         profiles = self.session.get_profiles()

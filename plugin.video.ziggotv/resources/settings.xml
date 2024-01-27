@@ -31,7 +31,7 @@
 	                </constraints>
                     <level>0</level>
 					<control type="button" format="action">
-						<data>RunScript(plugin.video.ziggotv,selectProfile)</data>
+						<data>RunScript(plugin.video.ziggotv,-1,?action=selectProfile)</data>
 						<heading>Select</heading>
 					</control>
                 </setting>

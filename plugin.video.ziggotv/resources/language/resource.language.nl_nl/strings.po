@@ -110,3 +110,47 @@ msgstr "U hebt geen toestemming voor deze zender of dit programma"
 msgctxt "#40014"
 msgid "Video did not start"
 msgstr "Video/zender start niet"
+
+msgctxt "#40015"
+msgid "Recordings"
+msgstr "Opnamen"
+
+msgctxt "#40016"
+msgid "{0} Episodes"
+msgstr "{0} Afleveringen"
+
+msgctxt "#40017"
+msgid "Planned recordings"
+msgstr "Ingeplande opnamen"
+
+msgctxt "#40018"
+msgid "Cannot watch this yet, recording still planned"
+msgstr "U kunt nog niet kijken, opname is gepland"
+
+msgctxt "#40019"
+msgid "Delete"
+msgstr "Verwijder"
+
+msgctxt "#40020"
+msgid "Resume from {0}"
+msgstr "Hervat vanaf {0}"
+
+msgctxt "#40021"
+msgid "Play from start"
+msgstr "Afspelen van begin"
+
+msgctxt "#40022"
+msgid "Record"
+msgstr "Opnemen"
+
+msgctxt "#40023"
+msgid "Record show"
+msgstr "Serie opnemen"
+
+msgctxt "#40024"
+msgid "Replay"
+msgstr "Terugkijken"
+
+msgctxt "#40025"
+msgid "Switch to channel"
+msgstr "Naar zender"

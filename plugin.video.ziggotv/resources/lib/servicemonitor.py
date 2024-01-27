@@ -96,13 +96,13 @@ class ServiceMonitor(xbmc.Monitor):
         #  Set the status of this service to STARTING
         self.addon = xbmcaddon.Addon()
         self.home = SharedProperties(addon=self.addon)
+        self.home.setUUID()
         self.home.setServiceStatus(ServiceStatus.STARTING)
 
         self.helper = ProxyHelper(self.addon)
         self.timer = None
         self.refreshTimer = None
         self.licenseRefreshed = datetime.datetime.now() - datetime.timedelta(days=2)
-#        self.session = LoginSession(self.addon)
         self.epg = None
         self.__initialize_session()
 
@@ -128,12 +128,10 @@ class ServiceMonitor(xbmc.Monitor):
             username = self.addon.getSetting('username')
             password = self.addon.getSetting('password')
 
-#        self.session.load_cookies()
         try:
             session_info = self.helper.dynamicCall(LoginSession.login, username=username, password=password)
             if len(session_info) == 0:
                 raise RuntimeError("Login failed, check your credentials")
-#            self.session.load_cookies()
             # The Widevine license and entitlements will only be refreshed once per day, because they do not change
             # If entitlements change or the license becomes invalid, a restart is required.
             if (self.licenseRefreshed + datetime.timedelta(days=1)) <= datetime.datetime.now():
@@ -143,13 +141,14 @@ class ServiceMonitor(xbmc.Monitor):
             self.helper.dynamicCall(LoginSession.refresh_channels)
             if self.epg is None:
                 self.epg = ChannelGuide(self.addon)
-            self.epg.loadEvents()
+            self.epg.loadStoredEvents()
             self.epg.obtainEvents()
+            self.epg.storeEvents()
             self.helper.dynamicCall(LoginSession.close)
         except ConnectionResetError as exc:
             xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)
         except Exception as exc:
-            xbmc.log('Unexpected exception in __refresh_session: {0}'.format(exc),xbmc.LOGERROR)
+            xbmc.log('Unexpected exception in __refresh_session: {0}'.format(exc), xbmc.LOGERROR)
 
     def update_token(self):
         if self.proxy_service.ProxyServer is None:

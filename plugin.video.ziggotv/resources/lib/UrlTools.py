@@ -7,6 +7,7 @@ import xbmcaddon
 
 class UrlTools:
     def __init__(self, addon: xbmcaddon.Addon):
+        self.base_url = None
         self.redirected_url = None
         self.proxy_url = None
         self.addon = addon
@@ -49,6 +50,10 @@ class UrlTools:
                 return locator.replace("/dash", "/dash,vxttoken=" + streaming_token).replace("http://", "https://")
             elif 'sdash' in locator:
                 return locator.replace("/sdash", "/sdash,vxttoken=" + streaming_token).replace("http://", "https://")
+            elif '/live' in locator:
+                return locator.replace("/live", "/live,vxttoken=" + streaming_token).replace("http://", "https://")
+            else:
+                return locator
 
     @staticmethod
     def __insert_token(url, streaming_token: str):
@@ -56,14 +61,61 @@ class UrlTools:
             return url.replace("/dash", "/dash,vxttoken=" + streaming_token)
         elif '/sdash' in url:
             return url.replace("/sdash", "/sdash,vxttoken=" + streaming_token)
+        elif '/live' in url:
+            return url.replace("/live", "/live,vxttoken=" + streaming_token)
+        else:
+            xbmc.log('token not inserted in url: {0}'.format(url))
+            return url
 
-    def update_redirection(self, proxy_url: str, actual_url: str):
+    def update_redirection(self, proxy_url: str, actual_url: str, baseURL: str = None):
+        """
+        Results in setting:
+            self.redirected_url to be used for manifests
+            self.base_url to be used for video/audio requests
+
+        @param proxy_url:  URL send to the proxy
+        @param actual_url: URL after redirection
+        @param baseURL: extracted from the manifest.mpd file
+        @return:
+        """
         if self.proxy_url != proxy_url:
             self.proxy_url = proxy_url
-        o = urlparse(actual_url)
+            self.base_url = None
+
         s = actual_url.find(',vxttoken=')
         e = actual_url.find('/', s)
         actual_url = actual_url[0:s] + actual_url[e:]
+
+        o = urlparse(actual_url)
+        if baseURL is not None:
+            if baseURL.startswith('../'):  # it is a baseURL which strips some levels of the original url
+                levels = o.path.split('/')
+                levels.pop(len(levels)-1)  # Always remove last level, because it contains a filename (manifest.mpd)
+                cntToRemove = baseURL.count('../')
+                for i in range(cntToRemove):
+                    levels.pop(len(levels)-1)
+                # Reconstruct the actual_url to be used as baseUrl
+                path = '/'.join(levels)
+                Components = namedtuple(
+                    typename='Components',
+                    field_names=['scheme', 'netloc', 'path', 'url', 'query', 'fragment']
+                )
+                updated_url = urlunparse(
+                    Components(
+                        scheme=o.scheme,
+                        netloc=o.netloc,
+                        path=path + '/',
+                        url='',
+                        query='',
+                        fragment=''
+                    )
+                )
+                self.base_url = updated_url
+            else:
+                self.base_url = baseURL
+        else:
+            self.base_url = actual_url
+
         self.redirected_url = actual_url
 
     def get_manifest_url(self, proxy_url: str, streaming_token: str):
@@ -112,12 +164,16 @@ class UrlTools:
             return self.__insert_token(url, initial_token)
 
     def replace_baseurl(self, url, streaming_token):
-        #  Here we build the url which has to be set in the manifest as <BaseURL>
-        #  We use the original locator and replace the part before /dash with
-        #  the new host_and_path
-        #  Finally we insert the vxttoken
+        """
+        The url is updated with the name of the redirected host, if a token is still present, it will be
+        removed.
+        @param url:
+        @param streaming_token:
+        @return:
+        """
+        xbmc.log('REPLACE BASEURL {0}'.format(url), xbmc.LOGDEBUG)
         o = urlparse(url)
-        redir = urlparse(self.redirected_url)
+        redir = urlparse(self.base_url)
         actual_path = redir.path
         s = actual_path.find(',vxttoken=')
         e = actual_path.find('/', s)
@@ -125,4 +181,5 @@ class UrlTools:
             actual_path = actual_path[0:s] + actual_path[e:]
         path_dir = actual_path.rsplit('/', 1)[0]
         host_and_path = redir.hostname + path_dir + o.path
+        xbmc.log('REPLACE BASEURL RESULT {0}'.format(redir.scheme + '://' + self.__insert_token(host_and_path, streaming_token)), xbmc.LOGDEBUG)
         return redir.scheme + '://' + self.__insert_token(host_and_path, streaming_token)

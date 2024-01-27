@@ -43,9 +43,10 @@ class TestBase(unittest.TestCase):
         self.addon.setSetting('proxy-ip', '127.0.0.1')
         self.addon.setSetting('proxy-port', '6868')
         self.addon.setSetting('use-proxy', 'true')
+        self.addon.setSetting('full-hd', 'true')
         self.cleanup_all()
         self.session = LoginSession(xbmcaddon.Addon())
-        self.session.print_network_traffic = 'false'
+        self.session.print_network_traffic = False
         self.svc = HttpProxyService(threading.Lock())
         self.svc.set_address((self.addon.getSetting('proxy-ip'), self.addon.getSettingInt('proxy-port')))
         self.svc.startHttpServer()
