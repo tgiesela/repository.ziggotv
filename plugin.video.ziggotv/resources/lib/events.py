@@ -221,6 +221,8 @@ class EventList(LinkedList):
 class ChannelGuide:
     class GuideWindow:
         def __init__(self, date=None):
+            self.isProcessed = False
+            self.data = None
             self.startDate = None
             self.endDate = None
             if date is None:
@@ -242,6 +244,20 @@ class ChannelGuide:
 
         def previousWindow(self):
             return self.startDate - datetime.timedelta(hours=6)
+
+        def setData(self, data):
+            self.data = data
+
+        def getData(self):
+            return self.data
+
+        @property
+        def processed(self):
+            return self.isProcessed
+
+        @processed.setter
+        def processed(self, value):
+            self.isProcessed = value
 
     def __init__(self, addon: xbmcaddon.Addon):
         self.eventsJson = {}
@@ -273,7 +289,7 @@ class ChannelGuide:
                 return True
         return False
 
-    def __findWindow(self, evtDate: datetime.datetime):
+    def __findWindow(self, evtDate: datetime.datetime) -> GuideWindow:
         for w in self.windows:
             window: ChannelGuide.GuideWindow = w
             if window.dateInWindow(evtDate):
@@ -304,9 +320,9 @@ class ChannelGuide:
                 window = w
         return window
 
-    def __processEvents(self, entries):
+    def __processEvents(self, window):
         from resources.lib.Channel import Channel
-        for channel in entries:
+        for channel in window.getData():
             current_channel: Channel = None
             for c in self.channels:
                 if c.id == channel['channelId']:
@@ -321,6 +337,7 @@ class ChannelGuide:
                     current_channel.events.insertEvent(evt)
             else:
                 xbmc.log('No events', xbmc.LOGDEBUG)
+        window.processed = True
 
     def __obtainEvents(self, window: GuideWindow):
         """
@@ -332,13 +349,16 @@ class ChannelGuide:
         """
         response = self.helper.dynamicCall(LoginSession.get_events, starttime=window.startDate.strftime('%Y%m%d%H%M%S'))
         self.windows.append(window)
+        window.setData(response['entries'])
         self.appendEvents(response, window.startDate)
-        self.__processEvents(response['entries'])
+        self.__processEvents(window)
 
     def obtainEvents(self):
         window = self.__currentWindow()
         if self.__isWindowPresent(window.startDate):
-            pass
+            window = self.__findWindow(window.startDate)
+            if not window.processed:
+                self.__processEvents(window)
         else:
             self.__obtainEvents(window)
 
@@ -352,12 +372,16 @@ class ChannelGuide:
         """
         if self.__isWindowPresent(startDate):
             startWindow = self.__findWindow(startDate)
+            if not startWindow.processed:
+                self.__processEvents(startWindow)
         else:
             startWindow = ChannelGuide.GuideWindow(startDate)
             self.__obtainEvents(startWindow)
 
         if self.__isWindowPresent(endDate):
             endWindow = self.__findWindow(endDate)
+            if not endWindow.processed:
+                self.__processEvents(endWindow)
         else:
             endWindow = ChannelGuide.GuideWindow(endDate)
             self.__obtainEvents(endWindow)
@@ -400,8 +424,9 @@ class ChannelGuide:
                 dt = utils.DatetimeHelper.fromUnix(segment['starttime'])
                 dt = dt.replace(tzinfo=datetime.timezone.utc)
                 window = ChannelGuide.GuideWindow(dt)
+                window.setData(segment['events']['entries'])
                 self.windows.append(window)
-                self.__processEvents(segment['events']['entries'])
+                # self.__processEvents(window)
 
     def cleanEvents(self):
         for segment in self.eventsJson['segments']:

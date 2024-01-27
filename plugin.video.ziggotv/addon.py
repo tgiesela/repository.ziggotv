@@ -260,8 +260,8 @@ class ZiggoPlugin:
             raise RuntimeError("Channel not found: " + path)
 
         try:
-            # epg.loadStoredEvents()
-            self.epg.obtainEvents()  # Does some additional work, might be more efficient to request this via ServiceMonitor
+            self.epg.loadStoredEvents()
+            self.epg.obtainEvents()
             channel.events = self.epg.getEvents(channel.id)
             xbmcplugin.endOfDirectory(__handle__, succeeded=False, updateListing=False, cacheToDisc=False)
             videoHelper.play_channel(channel=channel)

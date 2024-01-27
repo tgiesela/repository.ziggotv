@@ -37,11 +37,9 @@ class ProgramEventGrid:
         self.__getFirstWindow()
         self.addon = addon
         self.guide = ChannelGuide(addon)
-        self.guide.loadStoredEvents()
+        self.__updateEvents()
         self.player = ZiggoPlayer()
         self.videoHelper = VideoHelpers(self.addon)
-        for channel in self.channels:
-            channel.events = self.guide.getEvents(channel.id)
         self.plannedRecordings: RecordingList = self.helper.dynamicCall(LoginSession.getRecordingsPlanned)
 
     def __setEPGDate(self, date: datetime.datetime):
