@@ -9,3 +9,4 @@ html/
 *.so
 package-lock.json
 
+/plugin.video.ziggotv/tests/epg.json
