@@ -180,18 +180,30 @@ class VideoHelpers:
                                         xbmcgui.DLG_YESNO_NO_BTN)
         return choice
 
-    def __addEventInfo(self, play_item, event):
-        if event is None:
-            return
-        if not event.hasDetails:
-            event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
+    def __addEventInfo(self, play_item, channel: Channel, event):
+        title = ''
+        if event is not None:
+            title = '{0}. {1}: {2}'.format(channel.logicalChannelNumber, channel.name, event.title)
+            if not event.hasDetails:
+                event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
+        else:
+            title = '{0}. {1}'.format(channel.logicalChannelNumber, channel.name)
         tag: xbmc.InfoTagVideo = play_item.getVideoInfoTag()
-        play_item.setLabel(event.title)
-        tag.setPlot(event.details.description)
-        if event.details.isSeries:
-            tag.setEpisode(event.details.episode)
-            tag.setSeason(event.details.season)
-        tag.setArtists(event.details.actors)
+        play_item.setLabel(title)
+        if event is not None:
+            tag.setPlot(event.details.description)
+            if event.details.isSeries:
+                tag.setEpisode(event.details.episode)
+                tag.setSeason(event.details.season)
+            tag.setArtists(event.details.actors)
+            genres = []
+            for genre in event.details.genres:
+                genres.append(genre)
+        else:
+            genres = []
+        for genre in channel.genre:
+            genres.append(genre)
+        tag.setGenres(genres)
 
     @staticmethod
     def __addChannelInfo(play_item, channel):
@@ -238,10 +250,7 @@ class VideoHelpers:
                                                streaming_token=streamInfo.token,
                                                drmContentId=streamInfo.drmContentId)
             event = channel.events.getCurrentEvent()
-            if event is None:
-                self.__addChannelInfo(play_item, channel)
-            else:
-                self.__addEventInfo(play_item, event)
+            self.__addEventInfo(play_item, channel, event)
             self.player.setReplay(False, 0)
             self.player.play(item=url, listitem=play_item)
             self.__waitForPlayer()
@@ -251,7 +260,7 @@ class VideoHelpers:
             if streamInfo is not None and streamInfo.token is not None:
                 self.helper.dynamicCall(LoginSession.delete_token, streaming_id=streamInfo.token)
 
-    def __replay_event(self, event: Event):
+    def __replay_event(self, event: Event, channel: Channel):
         if not event.canReplay:
             xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_REPLAY_NOT_AVAIALABLE))
             return
@@ -263,7 +272,7 @@ class VideoHelpers:
             play_item = self.listitem_from_url(requesturl=url,
                                                streaming_token=streamInfo.token,
                                                drmContentId=streamInfo.drmContentId)
-            self.__addEventInfo(play_item, event)
+            self.__addEventInfo(play_item, channel, event)
             self.player.setReplay(True, streamInfo.prePaddingTime)
             self.player.play(item=url, listitem=play_item)
         except Exception as exc:
@@ -338,16 +347,17 @@ class VideoHelpers:
     def __record_show(self, event, channel):
         self.helper.dynamicCall(LoginSession.recordShow, eventId=event.id, channelId=channel.channelId)
 
-    def updateEvent(self, event):
+    def updateEvent(self, channel: Channel, event):
         if event is None:
             return
         if not event.hasDetails:
             event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
 
         item = self.player.getPlayingItem()
-        item.setLabel(event.title)
+        item.setLabel('{0}. {1}: {2}'.format(channel.logicalChannelNumber, channel.name, event.title))
         tag = item.getVideoInfoTag()
         tag.setPlot(event.details.description)
+        tag.setTitle(event.title)
         if event.details.isSeries:
             tag.setEpisode(event.details.episode)
             tag.setSeason(event.details.season)
@@ -384,7 +394,7 @@ class VideoHelpers:
         if action == 'switch':
             self.__play_channel(channel)
         elif action == 'replay':
-            self.__replay_event(event)
+            self.__replay_event(event, channel)
         elif action == 'record':
             self.__record_event(event)
         elif action == 'recordshow':

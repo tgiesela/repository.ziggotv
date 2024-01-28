@@ -37,6 +37,10 @@ class EventDetails:
             self.actors = eventJson['actors']
         else:
             self.actors = []
+        if 'genres' in eventJson:
+            self.genres = eventJson['genres']
+        else:
+            self.genres = []
 
     @property
     def isSeries(self):
