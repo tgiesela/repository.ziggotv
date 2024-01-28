@@ -267,14 +267,14 @@ class ZiggoPlugin:
             event = channel.events.getCurrentEvent()
             secondsElapsed = 0
             while xbmc.Player().isPlaying():
-                currentEvent = channel.events.getCurrentEvent()
-                if secondsElapsed > 60:
-                    if currentEvent.id != event.id:
-                        videoHelper.updateEvent(currentEvent)
-                        event = currentEvent
-                        secondsElapsed = 0
                 xbmc.sleep(500)
                 secondsElapsed += 0.5
+                if secondsElapsed > 60:
+                    currentEvent = channel.events.getCurrentEvent()
+                    if currentEvent.id != event.id:
+                        videoHelper.updateEvent(channel, currentEvent)
+                        event = currentEvent
+                    secondsElapsed = 0
             xbmc.log('CHANNEL STOPPED: {0}'.format(channel.name), xbmc.LOGDEBUG)
 
         except Exception as exc:
