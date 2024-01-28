@@ -428,12 +428,20 @@ class ChannelGuide:
                 self.windows.append(window)
                 # self.__processEvents(window)
 
+    def __reprocess(self):
+        for channel in self.channels:
+            channel.events = EventList()
+        for w in self.windows:
+            window: ChannelGuide.GuideWindow = w
+            if window.processed:
+                self.__processEvents(window)
+
     def cleanEvents(self):
         for segment in self.eventsJson['segments']:
             oldestTime = datetime.datetime.now() + datetime.timedelta(days=-5)
             if segment['starttime'] < utils.DatetimeHelper.unixDatetime(oldestTime):
                 self.eventsJson['segments'].remove(segment)
-
+        self.__reprocess()
     #        Path(self.pluginPath(G.GUIDE_INFO)).write_text(json.dumps(self.eventsJson))
 
     def storeEvents(self):
