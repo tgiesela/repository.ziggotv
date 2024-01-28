@@ -110,3 +110,47 @@ msgstr ""
 msgctxt "#40014"
 msgid "Video did not start"
 msgstr ""
+
+msgctxt "#40015"
+msgid "Recordings"
+msgstr ""
+
+msgctxt "#40016"
+msgid "{0} Episodes"
+msgstr ""
+
+msgctxt "#40017"
+msgid "Planned recordings"
+msgstr ""
+
+msgctxt "#40018"
+msgid "Cannot watch this yet, recording still planned"
+msgstr ""
+
+msgctxt "#40019"
+msgid "Delete"
+msgstr ""
+
+msgctxt "#40020"
+msgid "Resume from {0}"
+msgstr ""
+
+msgctxt "#40021"
+msgid "Play from start"
+msgstr ""
+
+msgctxt "#40022"
+msgid "Record"
+msgstr ""
+
+msgctxt "#40023"
+msgid "Record show"
+msgstr ""
+
+msgctxt "#40024"
+msgid "Replay"
+msgstr ""
+
+msgctxt "#40025"
+msgid "Switch to channel"
+msgstr ""

@@ -15,7 +15,7 @@ class TestEvents(TestBase):
         self.session.refresh_channels()
 
         guide = ChannelGuide(self.addon)
-        guide.loadEvents()
+        guide.loadStoredEvents()
 
         startDate = datetime.datetime.now()
         endDate = startDate + datetime.timedelta(hours=2)
@@ -32,7 +32,7 @@ class TestEvents(TestBase):
         endDate = startDate + datetime.timedelta(hours=2)
         guide.obtainEventsInWindow(startDate.astimezone(datetime.timezone.utc),
                                    endDate.astimezone(datetime.timezone.utc))
-
+        guide.storeEvents()
         channels = []
         for channel in self.session.get_channels():
             channel.events = guide.getEvents(channel.id)
@@ -47,10 +47,10 @@ class TestEvents(TestBase):
             evts = channel.events.getEventsInWindow(oldestStartDate, latestEndDate)
             for evt in evts:
                 print('    Event: {0}, duration: {1}, start: {2}, end: {3}'.format(
-                    evt.title
-                    , evt.duration
-                    , utils.DatetimeHelper.fromUnix(evt.startTime).strftime('%y-%m-%d %H:%M')
-                    , utils.DatetimeHelper.fromUnix(evt.endTime).strftime('%y-%m-%d %H:%M')))
+                    evt.title,
+                    evt.duration,
+                    utils.DatetimeHelper.fromUnix(evt.startTime).strftime('%y-%m-%d %H:%M'),
+                    utils.DatetimeHelper.fromUnix(evt.endTime).strftime('%y-%m-%d %H:%M')))
             # evt = channel.events.__findEvent(datetime.datetime.now())
             # if evt is not None:
             #    print('    Current event: {0}: start: {1}, end: {2}'.format(evt.data.title

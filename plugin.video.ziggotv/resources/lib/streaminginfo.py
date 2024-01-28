@@ -49,3 +49,20 @@ class VodStreamingInfo:
         else:
             self.licenseDurationSeconds = -1
         self.token = None
+
+
+class RecordingStreamingInfo:
+    def __init__(self, streamingJson):
+        self.registrationRequired = streamingJson['deviceRegistrationRequired']
+        self.trickPlayControl = streamingJson['trickPlayControl']
+        self.thumbnailUrl = streamingJson['thumbnailServiceUrl']
+        self.eventSessionStartTime = streamingJson['eventSessionStartTime']
+        self.eventSessionEndTime = streamingJson['eventSessionEndTime']
+        self.prePaddingTime = streamingJson['prePaddingTime']
+        self.postPaddingTime = streamingJson['postPaddingTime']
+        self.drmContentId = streamingJson['drmContentId']
+        self.isAvad = streamingJson['isAvad']
+        self.actualProgramStartOffset = streamingJson['actualProgramStartOffset']
+        self.url = streamingJson['url']
+        self.fallbackUrl = streamingJson['fallbackUrl']
+        self.token = None

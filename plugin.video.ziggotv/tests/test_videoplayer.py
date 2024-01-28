@@ -1,6 +1,7 @@
 import json
 import os
 import unittest
+from urllib.parse import unquote
 
 import xbmcaddon
 
@@ -15,6 +16,7 @@ class TestVideoPlayer(TestBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.do_login()
+        self.session.refresh_entitlements()
 
     #        self.cleanup_all()
     #        self.session = LoginSession(xbmcaddon.Addon())
@@ -129,8 +131,38 @@ class TestVideoPlayer(TestBase):
         manifest_url = urlHelper.get_manifest_url(created_url[s:], '0123456789ABCDEF')
         self.assertEqual(manifest_url, redirected_url, 'URL not as expected')
 
-        li = helpers.listitem_from_url(url, '0123456789ABCDEF', 'content')
-
+        url = ('http://wp4-vxtoken-anp-g05060506-hzn-nl.t1.prd.dyncdn.dmdsdp.com/live/disk1/'
+               'NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd')
+        expected_url = ('http://127.0.0.1:6868/manifest?path=/live/disk1/NL_000011_019563/go-dash-hdready-avc/'
+                        'NL_000011_019563.mpd&token=0123456789ABCDEF&'
+                        'hostname=wp4-vxtoken-anp-g05060506-hzn-nl.t1.prd.dyncdn.dmdsdp.com')
+        expected_manifest_url = (
+            'https://wp4-vxtoken-anp-g05060506-hzn-nl.t1.prd.dyncdn.dmdsdp.com/live,vxttoken=0123456789ABCDEF/disk1/'
+            'NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd')
+        redirected_url = (
+            'https://da-d436304520010b88000108000000000000000005.id.cdn.upcbroadband.com/wp/'
+            'wp4-vxtoken-anp-g05060506-hzn-nl.t1.prd.dyncdn.dmdsdp.com/live,vxttoken=0123456789ABCDEF/disk1/'
+            'NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd'
+        )
+        created_url = urlHelper.build_url('0123456789ABCDEF', url)
+        self.assertEqual(unquote(created_url), expected_url, 'URL not as expected')
+        s = created_url.find('/manifest')
+        manifest_url = urlHelper.get_manifest_url(created_url[s:], '0123456789ABCDEF')
+        self.assertEqual(manifest_url, expected_manifest_url, 'URL not as expected')
+        print(manifest_url)
+        # Now update redirection and then create the manifest URL again. it should be identical to the redirected URL
+        urlHelper.update_redirection(created_url[s:], redirected_url, '../_shared_a997aca19aa594f6aba2bcbd76c87946/')
+        manifest_url = urlHelper.get_manifest_url(created_url[s:], '0123456789ABCDEF')
+        self.assertEqual(manifest_url, redirected_url, 'URL not as expected')
+        video_url = ('http://127.0.0.1:6868/_shared_a997aca19aa594f6aba2bcbd76c87946/NL_000011_019563-mp4a_128000_nld'
+                     '=20000-init.mp4')
+        expected_url = (
+            'https://da-d436304520010b88000108000000000000000005.id.cdn.upcbroadband.com/wp/'
+            'wp4-vxtoken-anp-g05060506-hzn-nl.t1.prd.dyncdn.dmdsdp.com/live,vxttoken=0123456789ABCDEF/disk1/'
+            'NL_000011_019563/_shared_a997aca19aa594f6aba2bcbd76c87946/NL_000011_019563-mp4a_128000_nld=20000-init.mp4')
+        default_url = urlHelper.replace_baseurl(video_url, '0123456789ABCDEF')
+        self.assertEqual(expected_url, default_url, 'URL not as expected')
+        print(default_url)
 
 if __name__ == '__main__':
     unittest.main()

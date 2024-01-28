@@ -14,9 +14,11 @@ import xbmcaddon
 import xbmcvfs
 from requests import Response
 
+from resources.lib import utils
 from resources.lib.Channel import Channel
 from resources.lib.globals import G
-from resources.lib.streaminginfo import StreamingInfo, ReplayStreamingInfo, VodStreamingInfo
+from resources.lib.recording import SeasonRecording, RecordingList
+from resources.lib.streaminginfo import StreamingInfo, ReplayStreamingInfo, VodStreamingInfo, RecordingStreamingInfo
 from resources.lib.utils import DatetimeHelper
 
 try:
@@ -56,8 +58,10 @@ class Web(requests.Session):
         return self.addon_path + name
 
     def dump_cookies(self):
-        print(len(self.cookies))
-        print(self.cookies)
+        from http.cookiejar import Cookie
+        for _cookie in self.cookies:
+            c: Cookie = _cookie
+            xbmc.log('Cookie: {0}, domain: {1}, value: {2}, path: {3}'.format(c.name, c.domain, c.value, c.path))
 
     def save_cookies(self, response):
         new_cookies = requests.utils.dict_from_cookiejar(response.cookies)
@@ -202,6 +206,7 @@ class LoginSession(Web):
 
     def __init__(self, addon):
         super().__init__(addon)
+        self.rec_stream_info: RecordingStreamingInfo = None
         self.vod_stream_info: VodStreamingInfo = None
         self.replay_stream_info: ReplayStreamingInfo = None
         self.active_profile = None
@@ -323,7 +328,14 @@ class LoginSession(Web):
             if exp > now:
                 xbmc.log("Accesstoken still valid", xbmc.LOGDEBUG)
             else:
-                self.cookies.pop("ACCESSTOKEN")
+                # from urllib.parse import urlparse
+                # domain = urlparse(G.authentication_URL).netloc
+                try:
+                    self.cookies.clear(domain='', path='/', name='ACCESSTOKEN')
+                except Exception as exc:
+                    xbmc.log("ACCESSTOKEN cannot be removed: {0}".format(exc), xbmc.LOGERROR)
+                    xbmc.log("COOKIES: {0}".format(self.cookies.keys()), xbmc.LOGERROR)
+                #  self.cookies.pop("ACCESSTOKEN") # Causes duplicate error in some cases
                 response = super().do_post(G.authentication_URL + "/refresh",
                                            json_data={"refreshToken": self.session_info['refreshToken'],
                                                       "username": username})
@@ -418,6 +430,21 @@ class LoginSession(Web):
         self.vod_stream_info = VodStreamingInfo(json.loads(response.content))
         self.vod_stream_info.token = response.headers["x-streaming-token"]
         return self.vod_stream_info
+
+    def obtain_recording_streaming_token(self, id):
+        url = G.streaming_URL.format(householdid=self.session_info['householdId']) + '/recording'
+        response = super().do_post(url,
+                                   params={
+                                       'recordingId': id,
+                                       'abrType': 'BR-AVC-DASH',
+                                       'profileId': self.active_profile['profileId']
+                                   },
+                                   extra_headers=self.extra_headers)
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        self.rec_stream_info = RecordingStreamingInfo(json.loads(response.content))
+        self.rec_stream_info.token = response.headers["x-streaming-token"]
+        return self.rec_stream_info
 
     def get_license(self, content_id, request_data, license_headers):
         url = G.license_URL
@@ -730,6 +757,176 @@ class LoginSession(Web):
         if not self.__status_code_ok(response):
             raise WebException(response)
         return json.loads(response.content)
+
+    def __getRecordingsPlanned(self, isAdult: bool):
+        """
+        Obtain list of planned recordings
+        @param isAdult:
+        @return:
+        """
+        url = G.recordings_URL.format(householdid=self.session_info['householdId']) + 'bookings'
+        response = super().do_get(url, params={'with': 'profiles,devices',
+                                               'isAdult': isAdult,
+                                               'offset': 0,
+                                               'limit': 100,
+                                               # 'sort': 'time',
+                                               # 'sortOrder': 'desc',
+                                               'profileId': self.active_profile['profileId'],
+                                               'language': 'nl'})
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        return json.loads(response.content)
+
+    def __getRecordings(self, isAdult: bool):
+        """
+        Obtain list of planned recordings
+        @param isAdult:
+        @return:
+        """
+        url = G.recordings_URL.format(householdid=self.session_info['householdId']) + 'recordings'
+        response = super().do_get(url, params={'with': 'profiles,devices',
+                                               'isAdult': isAdult,
+                                               'offset': 0,
+                                               'limit': 100,
+                                               # 'sort': 'time',
+                                               # 'sortOrder': 'desc',
+                                               'profileId': self.active_profile['profileId'],
+                                               'language': 'nl'})
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        return json.loads(response.content)
+
+    def __getRecordingsSeason(self, channelId, showId):
+        url = G.recordings_URL.format(householdid=self.session_info['householdId']) + 'episodes/shows/' + showId
+        response = super().do_get(url, params={'source': 'recording',
+                                               'isAdult': 'false',
+                                               'offset': 0,
+                                               'limit': 100,
+                                               # 'sort': 'time',
+                                               # 'sortOrder': 'desc',
+                                               'profileId': self.active_profile['profileId'],
+                                               'language': 'nl',
+                                               'channelId': channelId
+                                               })
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        return json.loads(response.content)
+
+    def getRecordingDetails(self, id):
+        url = G.recordings_URL.format(householdid=self.session_info['householdId']) + 'details/single/' + id
+        response = super().do_get(url, params={'profileId': self.active_profile['profileId'],
+                                               'language': 'nl'
+                                               })
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        return json.loads(response.content)
+
+    def deleteRecordingsPlanned(self, events: [], shows: [], channelId=None):
+        eventList = []
+        showList = []
+        for event in events:
+            eventList.append({'eventId': event})
+        for show in shows:
+            if channelId is not None:
+                showList.append({'showId': show, 'channelId': channelId})
+            else:
+                showList.append({'showId': show})
+        request = {'events': eventList, 'shows': showList}
+        url = G.recordings_URL.format(householdid=self.session_info['householdId']) + 'bookings'
+        response = super().do_delete(url=url, json_data=request)
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        return json.loads(response.content)
+
+    def deleteRecordings(self, events: [], shows: [], channelId=None):
+        eventList = []
+        showList = []
+        for event in events:
+            eventList.append({'eventId': event})
+        for show in shows:
+            if channelId is not None:
+                showList.append({'showId': show, 'channelId': channelId})
+            else:
+                showList.append({'showId': show})
+        request = {'events': eventList, 'shows': showList}
+        url = G.recordings_URL.format(householdid=self.session_info['householdId']) + 'recordings'
+        response = super().do_delete(url=url, json_data=request)
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        return json.loads(response.content)
+
+    def recordEvent(self, eventId):
+        url = G.recordings_URL.format(householdid=self.session_info['householdId']) + 'bookings/single'
+        request = {'eventId': eventId,
+                   'retentionLimit': 365}
+        response = super().do_post(url=url, json_data=request)
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        return json.loads(response.content)
+
+    def recordShow(self, eventId, channelId):
+        url = G.recordings_URL.format(householdid=self.session_info['householdId']) + 'bookings/show'
+        request = {'eventId': eventId,
+                   'channelId': channelId,
+                   'retentionLimit': 365}
+        response = super().do_post(url=url, json_data=request)
+        if not self.__status_code_ok(response):
+            raise WebException(response)
+        return json.loads(response.content)
+
+    def refreshRecordings(self, includeAdult=False):
+        """
+        Routine to (re)load the recordings.
+        They will be stored in recordings.json
+        @param includeAdult:
+        @return: nothing
+        """
+        recJson = {'planned': [], 'recorded': []}
+        recordingsPlanned = self.__getRecordingsPlanned(isAdult=False)
+        for recording in recordingsPlanned['data']:
+            if recording['type'] == 'season':
+                seasonRecordings = self.__getRecordingsSeason(recording['channelId'], recording['showId'])
+                recording.update({'episodes': seasonRecordings})
+        if includeAdult:
+            adultRecordingsPlanned = self.__getRecordingsPlanned(isAdult=True)
+            for recording in adultRecordingsPlanned['data']:
+                if recording['type'] == 'season':
+                    seasonRecordings = self.__getRecordingsSeason(recording['channelId'], recording['showId'])
+                    recording.update({'episodes': seasonRecordings})
+        recJson.update({'planned': recordingsPlanned})
+        recordings = self.__getRecordings(isAdult=False)
+        for recording in recordings['data']:
+            if recording['type'] == 'season':
+                seasonRecordings = self.__getRecordingsSeason(recording['channelId'], recording['showId'])
+                recording.update({'episodes': seasonRecordings})
+        if includeAdult:
+            adultRecordings = self.__getRecordings(isAdult=True)
+            for recording in adultRecordings['data']:
+                if recording['type'] == 'season':
+                    seasonRecordings = self.__getRecordingsSeason(recording['channelId'], recording['showId'])
+                    recording.update({'episodes': seasonRecordings})
+        recJson.update({'recorded': recordings})
+        Path(self.pluginpath(G.RECORDINGS_INFO)).write_text(json.dumps(recJson))
+
+    def getRecordingsPlanned(self) -> RecordingList:
+        """
+        @return: list of planned recordings
+        """
+        if Path(self.pluginpath(G.RECORDINGS_INFO)).exists():
+            recordings_info = json.loads(Path(self.pluginpath(G.RECORDINGS_INFO)).read_text())
+            return RecordingList(recordings_info['planned'])
+        else:
+            return None
+
+    def getRecordings(self) -> RecordingList:
+        """
+        @return: list of planned recordings
+        """
+        if Path(self.pluginpath(G.RECORDINGS_INFO)).exists():
+            recordings_info = json.loads(Path(self.pluginpath(G.RECORDINGS_INFO)).read_text())
+            return RecordingList(recordings_info['recorded'])
+        else:
+            return None
 
     def get_event_details(self, eventId):
         url = G.replayEvent_URL + eventId

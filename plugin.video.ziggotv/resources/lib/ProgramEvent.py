@@ -1,6 +1,5 @@
 import datetime
 from typing import List
-import typing
 
 import xbmc
 import xbmcaddon
@@ -8,10 +7,10 @@ import xbmcgui
 
 from resources.lib import utils
 from resources.lib.Channel import Channel, ChannelList
-from resources.lib.UrlTools import UrlTools
 from resources.lib.ZiggoPlayer import ZiggoPlayer, VideoHelpers
 from resources.lib.events import Event, ChannelGuide
 from resources.lib.globals import G, S
+from resources.lib.recording import RecordingList
 from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession, WebException
 
@@ -38,12 +37,10 @@ class ProgramEventGrid:
         self.__getFirstWindow()
         self.addon = addon
         self.guide = ChannelGuide(addon)
-        self.guide.loadEvents()
-        self.guide.obtainEvents()
+        self.__updateEvents()
         self.player = ZiggoPlayer()
         self.videoHelper = VideoHelpers(self.addon)
-        for channel in self.channels:
-            channel.events = self.guide.getEvents(channel.id)
+        self.plannedRecordings: RecordingList = self.helper.dynamicCall(LoginSession.getRecordingsPlanned)
 
     def __setEPGDate(self, date: datetime.datetime):
         # 1011 EPG Date
@@ -93,7 +90,7 @@ class ProgramEventGrid:
         self.__processDates()
 
     def __updateEvents(self):
-        self.guide.loadEvents()
+        self.guide.loadStoredEvents()
         self.guide.obtainEventsInWindow(
             self.startWindow.astimezone(datetime.timezone.utc),
             self.endWindow.astimezone(datetime.timezone.utc))
@@ -530,6 +527,11 @@ class ProgramEvent:
             #  then we can switch to the channel if it is selected
             if event.endTime > utils.DatetimeHelper.unixDatetime(datetime.datetime.now()):
                 textColor = 'white'
+        plannedRec = self.grid.plannedRecordings.find(event.id)
+        if plannedRec is not None:
+            shadowColor = 'FFFF0000'
+        else:
+            shadowColor = 'white'
         self.button = xbmcgui.ControlButton(x=offset_x,
                                             y=offset_y,
                                             width=width - 1,
@@ -541,7 +543,8 @@ class ProgramEvent:
                                             focusedColor=textColor,
                                             textColor=textColor,
                                             textOffsetY=5,
-                                            alignment=G.ALIGNMENT.XBFONT_CENTER_Y + G.ALIGNMENT.XBFONT_TRUNCATED
+                                            alignment=G.ALIGNMENT.XBFONT_CENTER_Y + G.ALIGNMENT.XBFONT_TRUNCATED,
+                                            shadowColor=shadowColor
                                             )
         if width > 30:
             self.button.setLabel(event.title)

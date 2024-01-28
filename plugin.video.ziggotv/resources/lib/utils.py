@@ -7,6 +7,7 @@ from typing import Any
 import requests
 import json
 import pickle
+import uuid
 
 import xbmc
 import xbmcaddon
@@ -49,6 +50,13 @@ class SharedProperties:
             return True
         else:
             return False
+
+    def setUUID(self):
+        self.window.setProperty(self.addon.getAddonInfo('id') + 'UUID',
+                                str(uuid.UUID(hex=hex(uuid.getnode())[2:]*2+'00000000')))
+
+    def getUUID(self):
+        self.window.getProperty(self.addon.getAddonInfo('id') + 'UUID')
 
 
 class Timer(threading.Thread):

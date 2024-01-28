@@ -141,6 +141,9 @@ class ChannelList(UserList):
                     return True
         return False
 
+    def supportsRecord(self):
+        return 'PVR' in self.entitlements
+
     def channelsByLCN(self):
         return sorted(self.channels, key=lambda x: x.logicalChannelNumber, reverse=False)
 

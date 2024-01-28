@@ -5,7 +5,8 @@ Developed for educational purposes.
 ## Features
 First of all a subscription to Ziggo-NL is required. Without that the plugin will not work.
 You can watch the channels available in your subscription. Channels are sorted by logical channel number.
-An EPG is presented from which you can select an event in the past or simply switch to a channel.
+An EPG is presented from which you can select an event in the past or simply switch to a channel. Also a future event can be scheduled for recording.
+Recorded programs/shows can be watched/deleted (context menu).
 Also, some folders with Series and Movies are created. Items which are not available to you or required a payment will be marked red.
 
 Channels and other items which cannot be played due to missing entitlements will be marked red.

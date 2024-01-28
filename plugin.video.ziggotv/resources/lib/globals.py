@@ -13,7 +13,17 @@ class StringIds:
     BTN_CANCEL = 40008
     MENU_CHANNELS = 40010
     MENU_GUIDE = 40011
-
+    MENU_RECORDINGS = 40015
+    MSG_EPISODES = 40016
+    MENU_PLANNED_RECORDINGS = 40017
+    MSG_STILL_PLANNED = 40018
+    MSG_DELETE = 40019
+    MSG_RESUME_FROM = 40020
+    MSG_PLAY_FROM_BEGINNING = 40021
+    MSG_RECORD_EVENT = 40022
+    MSG_RECORD_SHOW = 40023
+    MSG_REPLAY_EVENT = 40024
+    MSG_SWITCH_CHANNEL = 40025
 
 class GlobalVariables:
     VIDEO_PLAYING = 'VIDEO_PLAYING'
@@ -30,7 +40,6 @@ class GlobalVariables:
     license_URL = ZIGGOPROD_URL + 'eng/web/session-manager/license'
     channels_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/channels'
     streaming_URL = ZIGGOPROD_URL + 'eng/web/session-service/session/v2/web-desktop/customers/{householdid}'
-    # /8654807_nl/vod?contentId='
     homeservice_URL = ZIGGOPROD_URL + 'eng/web/personal-home-service/'
     vod_service_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/'
     linearservice_v2_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/'
@@ -39,6 +48,8 @@ class GlobalVariables:
     gridservice_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/grid-screen/'
     events_URL = STATICPROD_URL + 'eng/web/epg-service-lite/nl/nl/events/segments/'
     replayEvent_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/replayEvent/'
+    recordings_URL = ZIGGOPROD_URL + 'eng/web/recording-service/customers/{householdid}/'
+    discovery_URL = ZIGGOPROD_URL + 'eng/web/discovery-service/v2/learn-actions/'
 
     SESSION_INFO = 'session.json'
     CUSTOMER_INFO = 'customer.json'
@@ -49,6 +60,7 @@ class GlobalVariables:
     MOVIE_INFO = 'movies.json'
     SERIES_INFO = 'series.json'
     GUIDE_INFO = 'epg.json'
+    RECORDINGS_INFO = 'recordings.json'
 
     CONST_BASE_HEADERS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',

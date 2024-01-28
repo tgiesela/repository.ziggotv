@@ -75,8 +75,8 @@ class ProxyServer(http.server.HTTPServer):
     def get_manifest_url(self, url: str, streaming_token: str):
         return self.urlTools.get_manifest_url(proxy_url=url, streaming_token=streaming_token)
 
-    def update_redirection(self, proxy_url, actual_url):
-        self.urlTools.update_redirection(proxy_url, actual_url)
+    def update_redirection(self, proxy_url, actual_url, baseURL):
+        self.urlTools.update_redirection(proxy_url, actual_url, baseURL)
 
     def replace_baseurl(self, url, streaming_token):
         return self.urlTools.replace_baseurl(url, streaming_token)
@@ -96,7 +96,8 @@ class ProxyServer(http.server.HTTPServer):
             manifest_url = self.get_manifest_url(request.path, streaming_token)
             with self.lock:
                 response = self.session.get_manifest(manifest_url)
-            self.update_redirection(request.path, response.url)
+            manifest_baseurl = self.baseURL_from_manifest(response.content)
+            self.update_redirection(request.path, response.url, manifest_baseurl)
             request.send_response(response.status_code)
             request.end_headers()
             request.wfile.write(response.content)
@@ -165,13 +166,13 @@ class ProxyServer(http.server.HTTPServer):
             xbmc.log('HTTP GET Request processed: {0}'.format(unquote(path)), xbmc.LOGDEBUG)
         except ConnectionResetError as exc:
             xbmc.log('Connection reset during processing: {0}'.format(exc), xbmc.LOGERROR)
-            xbmc.log(traceback.format_exc(), xbmc.LOGERROR)
+            xbmc.log(traceback.format_exc(), xbmc.LOGDEBUG)
         except ConnectionAbortedError as exc:
             xbmc.log('Connection aborted during processing: {0}'.format(exc), xbmc.LOGERROR)
-            xbmc.log(traceback.format_exc(), xbmc.LOGERROR)
+            xbmc.log(traceback.format_exc(), xbmc.LOGDEBUG)
         except Exception as exc:
             xbmc.log('Exception in handle_get(): {0}'.format(exc), xbmc.LOGERROR)
-            xbmc.log(traceback.format_exc(), xbmc.LOGERROR)
+            xbmc.log(traceback.format_exc(), xbmc.LOGDEBUG)
             request.send_response(500)
             request.end_headers()
 
@@ -310,3 +311,17 @@ class ProxyServer(http.server.HTTPServer):
         xbmc.log('Received HEAD: {0}'.format(request.path), xbmc.LOGERROR)
         request.send_response(501)
         request.end_headers()
+
+    @staticmethod
+    def baseURL_from_manifest(manifest):
+        from xml.dom import minidom
+        document = minidom.parseString(manifest)
+        for parent in document.getElementsByTagName('MPD'):
+            periods = parent.getElementsByTagName('Period')
+            for period in periods:
+                baseURL = period.getElementsByTagName('BaseURL')
+                if baseURL.length == 0:
+                    return None
+                else:
+                    return baseURL[0].childNodes[0].data
+        return None
