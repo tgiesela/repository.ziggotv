@@ -1,7 +1,7 @@
 import threading
 import unittest
 
-from resources.lib.Channel import ChannelList, Channel
+from resources.lib.channel import ChannelList, Channel
 from resources.lib.servicemonitor import HttpProxyService
 from tests.test_base import TestBase
 

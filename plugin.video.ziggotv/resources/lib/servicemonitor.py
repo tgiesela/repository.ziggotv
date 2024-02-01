@@ -10,7 +10,7 @@ import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
-from resources.lib.events import ChannelGuide
+from resources.lib.channel import ChannelGuide
 from resources.lib.proxyserver import ProxyServer
 from resources.lib.utils import Timer, SharedProperties, ServiceStatus, ProxyHelper
 from resources.lib.webcalls import LoginSession

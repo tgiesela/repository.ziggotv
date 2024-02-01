@@ -1,23 +1,27 @@
+"""
+Attempt to play a video file from a script
+"""
+import sys
 import xbmc
 import xbmcaddon
-import sys
 
-from resources.lib.Channel import Channel
+from resources.lib.channel import Channel
 from resources.lib.ZiggoPlayer import VideoHelpers
 from resources.lib.events import ChannelGuide
 from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
 
 
-def play(playType, path):
+def play(playType, path, addon):
     """
     Routine to play a channel or a video on demand (vod)
     The routine will stay active as long as the video is playing. This avoids
     that our ZiggoPlayer is replaced by the standard VideoPlayer. Probable cause
     is that the instance of ZiggoPlayer is destroyed when the script ends
 
+    @param addon: the xbmcaddon.Addon()
     @param playType: one of 'channel', 'vod'
-    @param path: for channel: channel.id for vod the id of the movie
+    @param path: for channel: 'channel.id' for vod the id of the movie
     @return:
     """
     helper = ProxyHelper(addon)
@@ -45,7 +49,7 @@ def play(playType, path):
         while xbmc.Player().isPlaying():
             xbmc.sleep(500)
     except Exception as exc:
-        xbmc.log('Error in play script: {0}'.format(exc))
+        xbmc.log(f'Error in play script: {exc}')
 
 
 REMOTE_DEBUG = False
@@ -60,7 +64,6 @@ if __name__ == '__main__':
     #         sys.stderr.write("Error: " + "You must add org.python.pydev.debug.pysrc to your PYTHONPATH")
     #         sys.stderr.write("Error: " + "Debug not available")
     addonid = sys.argv[1]
-    addon = xbmcaddon.Addon(addonid)
     xbmc.executebuiltin('Dialog.Close(busydialog)', True)
-    play(sys.argv[2], sys.argv[3])
+    play(sys.argv[2], sys.argv[3], xbmcaddon.Addon(addonid))
     xbmc.log('Play script terminated')

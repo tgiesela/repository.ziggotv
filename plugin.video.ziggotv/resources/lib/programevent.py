@@ -6,9 +6,9 @@ import xbmcaddon
 import xbmcgui
 
 from resources.lib import utils
-from resources.lib.Channel import Channel, ChannelList
+from resources.lib.channel import Channel, ChannelList, ChannelGuide
 from resources.lib.ZiggoPlayer import ZiggoPlayer, VideoHelpers
-from resources.lib.events import Event, ChannelGuide
+from resources.lib.events import Event
 from resources.lib.globals import G, S
 from resources.lib.recording import RecordingList
 from resources.lib.utils import ProxyHelper
@@ -27,6 +27,9 @@ class ProgramEventGrid:
         self.helper = ProxyHelper(addon)
         self.startWindow = None
         self.endWindow = None
+        self.epgEndDatetime = None
+        self.unixstarttime = None
+        self.unixendtime = None
         self.rows: List[ProgramEventRow] = []
         self.channels: ChannelList = channels
         self.channelsInGrid: List[Channel] = []
@@ -36,7 +39,7 @@ class ProgramEventGrid:
         self.__currentRow = 0
         self.__getFirstWindow()
         self.addon = addon
-        self.guide = ChannelGuide(addon)
+        self.guide = ChannelGuide(addon, channels.channels)
         self.__updateEvents()
         self.player = ZiggoPlayer()
         self.videoHelper = VideoHelpers(self.addon)
@@ -339,19 +342,6 @@ class ProgramEventGrid:
                 seasoninfo.setVisible(True)
         else:
             seasoninfo.setVisible(False)
-
-    def __addEventInfo(self, play_item, event):
-        if event is None:
-            return
-        if not event.hasDetails:
-            event.details = self.helper.dynamicCall(LoginSession.get_event_details, eventId=event.id)
-        tag: xbmc.InfoTagVideo = play_item.getVideoInfoTag()
-        play_item.setLabel(event.title)
-        tag.setPlot(event.details.description)
-        if event.details.isSeries:
-            tag.setEpisode(event.details.episode)
-            tag.setSeason(event.details.season)
-        tag.setArtists(event.details.actors)
 
     def userWantsSwitch(self):
         choice = xbmcgui.Dialog().yesno('Play',

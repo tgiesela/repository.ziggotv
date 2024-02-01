@@ -1,5 +1,12 @@
+"""
+Contains classes to hold streaming info, including token, for different types
+"""
+
+
 class StreamingInfo:
-    '"deviceRegistrationRequired": false, "drmContentId": "nl_tv_standaard_cenc", "isAdult": false'
+    """
+    Base Class containing streaming info
+    """
 
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
