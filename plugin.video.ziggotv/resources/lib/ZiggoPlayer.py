@@ -5,7 +5,7 @@ import xbmcvfs
 
 import json
 
-from resources.lib.Channel import Channel, ChannelList
+from resources.lib.channel import Channel, ChannelList
 from resources.lib.UrlTools import UrlTools
 from resources.lib.events import Event
 from resources.lib.globals import G, S

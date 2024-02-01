@@ -5,8 +5,8 @@ import xbmcaddon
 import xbmcgui
 from xbmcgui import Action, Control
 
-from resources.lib.Channel import ChannelList
-from resources.lib.ProgramEvent import ProgramEventGrid
+from resources.lib.channel import ChannelList
+from resources.lib.programevent import ProgramEventGrid
 from resources.lib.globals import G
 from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession

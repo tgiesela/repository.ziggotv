@@ -1,15 +1,23 @@
+"""
+The actual addon implementation. From here the ziggo plugin menus are constructed.
+"""
+
 import traceback
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, quote
 
-from resources.lib.Channel import Channel, ChannelList
+from resources.lib.channel import Channel, ChannelList
 from resources.lib.ZiggoPlayer import VideoHelpers
-from resources.lib.events import ChannelGuide
+from resources.lib.channel import ChannelGuide
 from resources.lib.globals import G, S
+from resources.lib.recording import RecordingList, SingleRecording, PlannedRecording, SeasonRecording, \
+    SavedStateList
+from resources.lib.utils import SharedProperties, ProxyHelper
+from resources.lib.webcalls import LoginSession, WebException
 
 import xbmc
 import xbmcaddon
@@ -18,141 +26,114 @@ import xbmcplugin
 import xbmcvfs
 from xbmcaddon import Addon
 
-from resources.lib.recording import RecordingList, SingleRecording, PlannedRecording, SeasonRecording, \
-     SavedStateList
-from resources.lib.utils import SharedProperties, ProxyHelper
-
-try:
-    from inputstreamhelper import Helper
-except:
-    pass
-
-from resources.lib.webcalls import LoginSession, WebException
-
 
 class ZiggoPlugin:
-    def __init__(self, my_addon):
-        self.series_overviews = []
-        self.movie_overviews = []
+    """
+    Implementation class of the Ziggo plugin
+    """
+
+    def __init__(self, myAddon):
+        self.replicationToken = None
+        self.seriesOverviews = []
+        self.movieOverviews = []
         self.url = None
-        self.addon: xbmcaddon.Addon = my_addon
-        self.addon_path = xbmcvfs.translatePath(my_addon.getAddonInfo('profile'))
-        self.helper = ProxyHelper(my_addon)
+        self.addon: xbmcaddon.Addon = myAddon
+        self.addonPath = xbmcvfs.translatePath(myAddon.getAddonInfo('profile'))
+        self.helper = ProxyHelper(myAddon)
         self.videoHelper = VideoHelpers(self.addon)
-        self.epg = ChannelGuide(my_addon)
+        self.epg = None
         self.__initialization()
 
     @staticmethod
-    def __stopPlayer():
+    def __stop_player():
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
 
-    def pluginPath(self, name):
-        return self.addon_path + name
+    def plugin_path(self, name):
+        """
+        Function returns the full filename of the userdata folder of the addon
+        @param name:
+        @return:
+        """
+        return self.addonPath + name
 
-    def selectProfile(self):
+    def select_profile(self):
+        """
+        Function to select the profile from the addon settings menu.
+        @return:
+        """
         custinfo: {} = self.helper.dynamicCall(LoginSession.get_customer_info)
-        profile_id = self.addon.getSettingString('profile')
+        profileId = self.addon.getSettingString('profile')
         if 'assignedDevices' in custinfo:
-            default_profile_id = custinfo['assignedDevices'][0]['defaultProfileId']
+            defaultProfileId = custinfo['assignedDevices'][0]['defaultProfileId']
         else:
-            default_profile_id = None
-        if profile_id == '':
-            profile_id = default_profile_id
+            defaultProfileId = None
+        if profileId == '':
+            profileId = defaultProfileId
         profiles = {}
-        profile_list = []
-        preselect_index = 0
+        profileList = []
+        preselectIndex = 0
         for profile in custinfo['profiles']:
             profiles.update({profile['name']: profile['profileId']})
-            profile_list.append(profile['name'])
-            if profile['profileId'] == profile_id:
-                preselect_index = len(profile_list) - 1
+            profileList.append(profile['name'])
+            if profile['profileId'] == profileId:
+                preselectIndex = len(profileList) - 1
 
         title = xbmc.getLocalizedString(41003)
-        selected_profile = xbmcgui.Dialog().select(heading=title, list=profile_list, preselect=preselect_index)
-        profile_id = profiles[profile_list[selected_profile]]
-        self.addon.setSetting('profile', profile_id)
+        selectedProfile = xbmcgui.Dialog().select(heading=title, list=profileList, preselect=preselectIndex)
+        profileId = profiles[profileList[selectedProfile]]
+        self.addon.setSetting('profile', profileId)
 
-    def setActiveProfile(self):
-        custinfo: {} = self.helper.dynamicCall(LoginSession.get_customer_info)
+    def set_active_profile(self):
+        """
+        Function to set the active profile based on the Addon settings
+        @return: nothing
+        """
+        custInfo: {} = self.helper.dynamicCall(LoginSession.get_customer_info)
         profile = self.addon.getSettingString('profile')
-        if 'assignedDevices' in custinfo:
-            default_profile_id = custinfo['assignedDevices'][0]['defaultProfileId']
+        if 'assignedDevices' in custInfo:
+            defaultProfileId = custInfo['assignedDevices'][0]['defaultProfileId']
         else:
-            default_profile_id = None
+            defaultProfileId = None
         if profile == '':  # not yet set: ask for the profile to use
-            self.selectProfile()
-        chosen_profile = self.addon.getSetting('profile')
-        if chosen_profile == '':  # still not set, use default
-            for profile in custinfo['profiles']:
-                if profile['profileId'] == default_profile_id:
+            self.select_profile()
+        chosenProfile = self.addon.getSetting('profile')
+        if chosenProfile == '':  # still not set, use default
+            for profile in custInfo['profiles']:
+                if profile['profileId'] == defaultProfileId:
                     self.helper.dynamicCall(LoginSession.set_active_profile(profile, profile=profile))
-                    xbmc.log("ACTIVE PROFILE: {0}".format(default_profile_id), xbmc.LOGDEBUG)
+                    xbmc.log(f"ACTIVE PROFILE: {defaultProfileId}", xbmc.LOGDEBUG)
         else:
-            for profile in custinfo['profiles']:
-                if profile['profileId'] == chosen_profile:
+            for profile in custInfo['profiles']:
+                if profile['profileId'] == chosenProfile:
                     self.helper.dynamicCall(LoginSession.set_active_profile, profile=profile)
-                    xbmc.log("ACTIVE PROFILE: {0}".format(profile), xbmc.LOGDEBUG)
+                    xbmc.log(f"ACTIVE PROFILE: {profile}", xbmc.LOGDEBUG)
 
     def __initialization(self):
-        self.checkService()
-        self.setActiveProfile()
+        self.check_service()
+        self.set_active_profile()
 
     def load_movie_overviews(self):
-        file = self.pluginPath(G.MOVIE_INFO)
+        file = self.plugin_path(G.MOVIE_INFO)
         if Path(file).exists():
-            self.movie_overviews = json.loads(Path(file).read_text())
+            self.movieOverviews = json.loads(Path(file).read_text())
         else:
-            self.movie_overviews = []
+            self.movieOverviews = []
 
     def load_series_overviews(self):
-        file = self.pluginPath(G.SERIES_INFO)
+        file = self.plugin_path(G.SERIES_INFO)
         if Path(file).exists():
-            self.series_overviews = json.loads(Path(file).read_text())
+            self.seriesOverviews = json.loads(Path(file).read_text())
         else:
-            self.series_overviews = []
+            self.seriesOverviews = []
 
-    def saveMovieOverviews(self):
-        Path(self.pluginPath(G.MOVIE_INFO)).write_text(json.dumps(self.movie_overviews))
+    def save_movie_overviews(self):
+        Path(self.plugin_path(G.MOVIE_INFO)).write_text(json.dumps(self.movieOverviews))
 
-    def saveSeriesOverviews(self):
-        Path(self.pluginPath(G.SERIES_INFO)).write_text(json.dumps(self.series_overviews))
+    def save_series_overviews(self):
+        Path(self.plugin_path(G.SERIES_INFO)).write_text(json.dumps(self.seriesOverviews))
 
-    @staticmethod
-    def listItem_from_channel(video: Channel) -> xbmcgui.ListItem:
-        li = xbmcgui.ListItem(label="{0}. {1}".format(video.logicalChannelNumber, video.name))
-        thumbname = xbmc.getCacheThumbName(video.logo['focused'])
-        thumbfile = xbmcvfs.translatePath('special://thumbnails/' + thumbname[0:1] + '/' + thumbname)
-        if os.path.exists(thumbfile):
-            os.remove(thumbfile)
-        if len(video.imageStream) > 0:
-            thumbname = xbmc.getCacheThumbName(video.imageStream['full'])
-            thumbfile = (
-                xbmcvfs.translatePath(
-                    'special://thumbnails/' + thumbname[0:1] + '/' + thumbname.split('.')[0] + '.jpg'))
-            if os.path.exists(thumbfile):
-                os.remove(thumbfile)
-            li.setArt({'icon': video.logo['focused'],
-                       'thumb': video.logo['focused'],
-                       'poster': video.imageStream['full']})
-        else:
-            li.setArt({'icon': video.logo['focused'],
-                       'thumb': video.logo['focused']})
-        # set the list item to playable
-        li.setProperty('IsPlayable', 'true')
-        tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
-        tag.setTitle("{0}. {1}".format(video.logicalChannelNumber, video.name))
-        tag.setGenres(video.genre)
-        tag.setSetId(video.logicalChannelNumber)
-        tag.setMediaType('video')
-        tag.setUniqueIDs({'ziggochannelid': video.id})
-        li.setProperty('IsPlayable', 'true')
-        li.setMimeType('application/dash+xml')
-        li.setContentLookup(False)
-
-        return li
-
-    def listItem_from_recording(self, recording: SingleRecording, recType) -> xbmcgui.ListItem:
+    def listitem_from_recording(self, recording: SingleRecording, recType) -> xbmcgui.ListItem:
         try:
             start = datetime.strptime(recording.startTime,
                                       '%Y-%m-%dT%H:%M:%S.%fZ').astimezone()
@@ -202,7 +183,7 @@ class ZiggoPlugin:
 
         return li
 
-    def listItem_from_recordingSeason(self, recording: SeasonRecording, recType) -> xbmcgui.ListItem:
+    def listitem_from_recording_season(self, recording: SeasonRecording, recType) -> xbmcgui.ListItem:
         description = self.addon.getLocalizedString(S.MSG_EPISODES).format(len(recording.episodes))
         title = "{0} ({1})".format(recording.title, description)
         li = xbmcgui.ListItem(label=title)
@@ -244,10 +225,10 @@ class ZiggoPlugin:
         # Create a playable item with a path to play.
         # If we do not use a script to play the video, a new instance of the video player is started, so the
         # video callbacks do not work
-        self.__stopPlayer()
+        self.__stop_player()
 
-        helper = ProxyHelper(addon)
-        videoHelper = VideoHelpers(addon)
+        helper = ProxyHelper(self.addon)
+        videoHelper = VideoHelpers(self.addon)
         channels = helper.dynamicCall(LoginSession.get_channels)
         channel: Channel = None
         for c in channels:
@@ -259,6 +240,7 @@ class ZiggoPlugin:
             raise RuntimeError("Channel not found: " + path)
 
         try:
+            self.epg = ChannelGuide(self.addon, channels)
             self.epg.loadStoredEvents()
             self.epg.obtainEvents()
             channel.events = self.epg.getEvents(channel.id)
@@ -277,8 +259,8 @@ class ZiggoPlugin:
                     secondsElapsed = 0
             xbmc.log('CHANNEL STOPPED: {0}'.format(channel.name), xbmc.LOGDEBUG)
 
-        except Exception as exc:
-            xbmc.log('Error in play_video: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+        except Exception as excpt:
+            xbmc.log('Error in play_video: type {0}, args {1}'.format(type(excpt), excpt.args), xbmc.LOGERROR)
 
     def play_movie(self, path):
         """
@@ -286,30 +268,30 @@ class ZiggoPlugin:
         :param path: str
         :return: None
         """
-        self.__stopPlayer()
-        videoHelper = VideoHelpers(addon)
+        self.__stop_player()
+        videoHelper = VideoHelpers(self.addon)
 
         parts = path.split(',')
 
         try:
 
             self.load_movie_overviews()
-            movie_overview = None
-            for overview in self.movie_overviews:
+            movieOverview = None
+            for overview in self.movieOverviews:
                 if overview['id'] == parts[0]:
-                    movie_overview = overview
+                    movieOverview = overview
                     break
-            if movie_overview is None:
-                raise Exception('Movie no longer found in stored movies!!')
+            if movieOverview is None:
+                raise RuntimeError('Movie no longer found in stored movies!!')
 
-            videoHelper.play_movie(movie_overview)
+            videoHelper.play_movie(movieOverview)
             xbmcplugin.endOfDirectory(__handle__, succeeded=False, updateListing=False, cacheToDisc=False)
             while xbmc.Player().isPlaying():
                 xbmc.sleep(500)
             xbmc.log('VOD STOPPED: {0}'.format(path), xbmc.LOGDEBUG)
 
-        except Exception as exc:
-            xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+        except Exception as excpt:
+            xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(excpt), excpt.args), xbmc.LOGERROR)
 
     def play_recording(self, path, recType):
         """
@@ -319,7 +301,7 @@ class ZiggoPlugin:
         @param path: The id of the item to play
         @param recType: The type of recording (planned/recorded)
         """
-        self.__stopPlayer()
+        self.__stop_player()
         videoHelper = VideoHelpers(self.addon)
         if recType == 'planned':
             xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_STILL_PLANNED))
@@ -332,8 +314,9 @@ class ZiggoPlugin:
             resumePoint = 0
         else:
             t = datetime.now().replace(hour=0, minute=0, second=0) + timedelta(seconds=resumePoint)
-            selected = xbmcgui.Dialog().contextmenu([self.addon.getLocalizedString(S.MSG_PLAY_FROM_BEGINNING),
-                                                     self.addon.getLocalizedString(S.MSG_RESUME_FROM).format(t.strftime('%H:%M:%S'))])
+            selected = xbmcgui.Dialog().contextmenu(
+                [self.addon.getLocalizedString(S.MSG_PLAY_FROM_BEGINNING),
+                 self.addon.getLocalizedString(S.MSG_RESUME_FROM).format(t.strftime('%H:%M:%S'))])
             if selected == 0:
                 resumePoint = 0
 
@@ -352,8 +335,8 @@ class ZiggoPlugin:
             recList.add(path, savedTime)
             xbmc.log('RECORDING STOPPED: {0} at {1}'.format(path, savedTime), xbmc.LOGDEBUG)
 
-        except Exception as exc:
-            xbmc.log('Error in play_recording: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+        except Exception as excpt:
+            xbmc.log('Error in play_recording: type {0}, args {1}'.format(type(excpt), excpt.args), xbmc.LOGERROR)
 
     def play_episode(self, path, seriesId, seasonId):
         """
@@ -363,8 +346,8 @@ class ZiggoPlugin:
         @param seriesId:
         :return: None
         """
-        self.__stopPlayer()
-        videoHelper = VideoHelpers(addon)
+        self.__stop_player()
+        videoHelper = VideoHelpers(self.addon)
 
         parts = path.split(',')
 
@@ -374,7 +357,7 @@ class ZiggoPlugin:
             _episode = None
             _season = None
             _overview = None
-            for overview in self.series_overviews:
+            for overview in self.seriesOverviews:
                 if overview['id'] == seriesId:
                     _overview = overview
                     for season in overview['seasons']:
@@ -389,25 +372,59 @@ class ZiggoPlugin:
                 overview = _episode['overview']
                 videoHelper.play_movie(overview)
             else:
-                raise Exception('Movie/Series no longer found!!')
+                raise RuntimeError('Movie/Series no longer found!!')
 
             xbmcplugin.endOfDirectory(__handle__, succeeded=False, updateListing=False, cacheToDisc=False)
             while xbmc.Player().isPlaying():
                 xbmc.sleep(500)
             xbmc.log('VOD STOPPED: {0}'.format(path), xbmc.LOGDEBUG)
 
-        except Exception as exc:
-            xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
+        except Exception as excpt:
+            xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(excpt), excpt.args), xbmc.LOGERROR)
 
     @staticmethod
-    def __getPricingFromOffer(instance):
+    def __get_pricing_from_offer(instance):
         if 'offers' in instance:
             offer = instance['offers'][0]
             price = '({0} {1})'.format(offer['priceDisplay'], offer['currency'])
             return price
         return '(???)'
 
-    def listItem_from_movie(self, item, details, instance):
+    @staticmethod
+    def listitem_from_channel(video: Channel) -> xbmcgui.ListItem:
+        li = xbmcgui.ListItem(label="{0}. {1}".format(video.logicalChannelNumber, video.name))
+        thumbname = xbmc.getCacheThumbName(video.logo['focused'])
+        thumbfile = xbmcvfs.translatePath('special://thumbnails/' + thumbname[0:1] + '/' + thumbname)
+        if os.path.exists(thumbfile):
+            os.remove(thumbfile)
+        if len(video.imageStream) > 0:
+            thumbname = xbmc.getCacheThumbName(video.imageStream['full'])
+            thumbfile = (
+                xbmcvfs.translatePath(
+                    'special://thumbnails/' + thumbname[0:1] + '/' + thumbname.split('.', maxsplit=1)[0] + '.jpg'))
+            if os.path.exists(thumbfile):
+                os.remove(thumbfile)
+            li.setArt({'icon': video.logo['focused'],
+                       'thumb': video.logo['focused'],
+                       'poster': video.imageStream['full']})
+        else:
+            li.setArt({'icon': video.logo['focused'],
+                       'thumb': video.logo['focused']})
+        # set the list item to playable
+        li.setProperty('IsPlayable', 'true')
+        tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
+        tag.setTitle("{0}. {1}".format(video.logicalChannelNumber, video.name))
+        tag.setGenres(video.genre)
+        tag.setSetId(video.logicalChannelNumber)
+        tag.setMediaType('video')
+        tag.setUniqueIDs({'ziggochannelid': video.id})
+        li.setProperty('IsPlayable', 'true')
+        li.setMimeType('application/dash+xml')
+        li.setContentLookup(False)
+
+        return li
+
+    def listitem_from_movie(self, item, details, instance):
         li = xbmcgui.ListItem(label=item['id'])
         if 'image' in item:
             li.setArt({'poster': item['image']})
@@ -437,7 +454,7 @@ class ZiggoPlugin:
             tag.setUniqueIDs({'ziggochannelid': instance['offers'][0]['id']})
         if not entitled:
             title = tag.getTitle()
-            tag.setTitle('[COLOR red]' + title + self.__getPricingFromOffer(instance) + '[/COLOR]')
+            tag.setTitle('[COLOR red]' + title + self.__get_pricing_from_offer(instance) + '[/COLOR]')
             li.setProperty('IsPlayable', 'false')
 
         li.setContentLookup(False)
@@ -457,7 +474,7 @@ class ZiggoPlugin:
         return li
 
     @staticmethod
-    def listItem_from_seriesItem(item, overview):
+    def listitem_from_seriesitem(item, overview):
         li = xbmcgui.ListItem(label=item['id'])
         if 'image' in item:
             li.setArt({'poster': item['image']})
@@ -476,7 +493,7 @@ class ZiggoPlugin:
         return li
 
     @staticmethod
-    def listItem_from_genre(genre):
+    def listitem_from_genre(genre):
         li = xbmcgui.ListItem(label=genre['id'])
         if 'image' in genre:
             li.setArt({'poster': genre['image']})
@@ -493,7 +510,7 @@ class ZiggoPlugin:
         return li
 
     @staticmethod
-    def listItem_from_season(season, episodes):
+    def listitem_from_season(season, episodes):
         li = xbmcgui.ListItem(label=season['id'])
         if 'image' in season:
             li.setArt({'poster': season['image']})
@@ -514,7 +531,7 @@ class ZiggoPlugin:
 
         return li
 
-    def listItem_from_episode(self, episode, season, details, instance):
+    def listitem_from_episode(self, episode, season, details, instance):
         li = xbmcgui.ListItem(label=episode['id'])
         if 'image' in episode:
             li.setArt({'poster': episode['image']})
@@ -552,7 +569,7 @@ class ZiggoPlugin:
                 if instance['offers'][0]['entitled']:
                     entitled = True
                 else:
-                    tag.setTitle('[COLOR red]' + tag.getTitle() + self.__getPricingFromOffer(instance) + '[/COLOR]')
+                    tag.setTitle('[COLOR red]' + tag.getTitle() + self.__get_pricing_from_offer(instance) + '[/COLOR]')
             else:
                 tag.setTitle('[COLOR red]' + tag.getTitle() + '[/COLOR]')
         if not entitled:
@@ -581,7 +598,7 @@ class ZiggoPlugin:
 
         return li
 
-    def list_subcategories(self, screen_id):
+    def list_subcategories(self, screenId):
         """
         Create the list of sub categories in the Kodi interface.
         :return: None
@@ -589,19 +606,19 @@ class ZiggoPlugin:
         categories = [G.SERIES, G.MOVIES, G.GENRES]
         listing = []
         for categoryname in categories:
-            list_item = xbmcgui.ListItem(label=categoryname)
-            tag: xbmc.InfoTagVideo = list_item.getVideoInfoTag()
+            listItem = xbmcgui.ListItem(label=categoryname)
+            tag: xbmc.InfoTagVideo = listItem.getVideoInfoTag()
             tag.setTitle(categoryname)
             tag.setMediaType('video')
             tag.setGenres([categoryname])
-            url = '{0}?action=listing&category={2}&categoryId={1}'.format(self.url, categoryname, screen_id)
-            is_folder = True
-            listing.append((url, list_item, is_folder))
+            url = '{0}?action=listing&category={2}&categoryId={1}'.format(self.url, categoryname, screenId)
+            isFolder = True
+            listing.append((url, listItem, isFolder))
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
         xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL_IGNORE_FOLDERS)
         xbmcplugin.endOfDirectory(__handle__)
 
-    def listCategories(self):
+    def list_categories(self):
         """
         Create the list of video categories in the Kodi interface.
         :return: None
@@ -623,9 +640,9 @@ class ZiggoPlugin:
         # Iterate through categories
         for categoryId, categoryName in categories.items():
             # Create a list item with a text label and a thumbnail image.
-            list_item = xbmcgui.ListItem(label=categoryName)
+            listItem = xbmcgui.ListItem(label=categoryName)
             # Set additional info for the list item.
-            tag: xbmc.InfoTagVideo = list_item.getVideoInfoTag()
+            tag: xbmc.InfoTagVideo = listItem.getVideoInfoTag()
             tag.setTitle(categoryName)
             tag.setMediaType('video')
             tag.setGenres([categoryName])
@@ -640,9 +657,9 @@ class ZiggoPlugin:
             else:
                 url = '{0}?action=subcategory&category={1}&categoryId={2}'.format(self.url, categoryName, categoryId)
             # is_folder = True means that this item opens a sub-list of lower level items.
-            is_folder = True
+            isFolder = True
             # Add our item to the listing as a 3-element tuple.
-            listing.append((url, list_item, is_folder))
+            listing.append((url, listItem, isFolder))
         # Add our listing to Kodi.
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
         # Add a sort method for the virtual folder items (alphabetically, ignore articles)
@@ -650,7 +667,7 @@ class ZiggoPlugin:
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 
-    def listRecordings(self, recType):
+    def list_recordings(self, recType):
         listing = []
         self.helper.dynamicCall(LoginSession.refreshRecordings, includeAdult=self.addon.getSettingBool('adult-allowed'))
         if recType == 'planned':
@@ -659,25 +676,25 @@ class ZiggoPlugin:
             recordings = self.helper.dynamicCall(LoginSession.getRecordings)
 
         for rec in recordings.recs:
-            if type(rec) is SingleRecording:
-                li = self.listItem_from_recording(rec, recType)
-                callback_url = (
+            if isinstance(rec, SingleRecording):
+                li = self.listitem_from_recording(rec, recType)
+                callbackUrl = (
                     '{0}?action=play&type=recording&id={1}&rectype={2}'.format(self.url, rec.id, recType))
-                is_folder = False
-            elif type(rec) is PlannedRecording:
-                li = self.listItem_from_recording(rec, recType)
-                callback_url = (
+                isFolder = False
+            elif isinstance(rec, PlannedRecording):
+                li = self.listitem_from_recording(rec, recType)
+                callbackUrl = (
                     '{0}?action=play&type=recording&id={1}&rectype={2}'.format(self.url, rec.id, rec.recordingState))
-                is_folder = False
-            elif type(rec) is SeasonRecording:
+                isFolder = False
+            elif isinstance(rec, SeasonRecording):
                 season: SeasonRecording = rec
-                li = self.listItem_from_recordingSeason(season, recType)
-                callback_url = '{0}?action=listshowrecording&recording={1}&type={2}'.format(self.url, rec.id, recType)
-                is_folder = True
+                li = self.listitem_from_recording_season(season, recType)
+                callbackUrl = '{0}?action=listshowrecording&recording={1}&type={2}'.format(self.url, rec.id, recType)
+                isFolder = True
             else:
                 continue
             li.setProperty('IsPlayable', 'false')  # Turn off to avoid kodi complaining about item not playing
-            listing.append((callback_url, li, is_folder))
+            listing.append((callbackUrl, li, isFolder))
 
         # Add our listing to Kodi.
 
@@ -687,22 +704,24 @@ class ZiggoPlugin:
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 
-    def deleteRecording(self, id, recType):
-        events = [id]
+    def delete_recording(self, recordingId, recType):
+        events = [recordingId]
         shows = []
         if recType == 'planned':
             rslt = self.helper.dynamicCall(LoginSession.deleteRecordingsPlanned, events=events, shows=shows)
+            self.replicationToken = rslt['replicationToken']
         else:
             rslt = self.helper.dynamicCall(LoginSession.deleteRecordings, events=events, shows=shows)
+            self.replicationToken = rslt['replicationToken']
         xbmc.executebuiltin('Container.Update')
         xbmc.executebuiltin('Action(Back)')
         xbmcplugin.endOfDirectory(__handle__, succeeded=True, updateListing=False, cacheToDisc=False)
 
     @staticmethod
-    def __findSeason(recordingId, recordings: RecordingList):
+    def __find_season(recordingId, recordings: RecordingList):
         season: SeasonRecording = None
         for rec in recordings.recs:
-            if type(rec) is SeasonRecording:
+            if isinstance(rec, SeasonRecording):
                 if rec.id == recordingId:
                     season: SeasonRecording = rec
                     break
@@ -710,12 +729,12 @@ class ZiggoPlugin:
             raise Exception('Cannot find series of recordings with id: {0}'.format(recordingId))
         return season
 
-    def deleteShowRecording(self, recordingId, recType):
+    def delete_show_recording(self, recordingId, recType):
         if recType == 'planned':
             recordings = self.helper.dynamicCall(LoginSession.getRecordingsPlanned)
         else:
             recordings = self.helper.dynamicCall(LoginSession.getRecordings)
-        season = self.__findSeason(recordingId, recordings)
+        season = self.__find_season(recordingId, recordings)
         events = []
         shows = [season.showId]
         if recType == 'planned':
@@ -732,21 +751,21 @@ class ZiggoPlugin:
         xbmc.executebuiltin('Action(Back)')
         xbmcplugin.endOfDirectory(__handle__, succeeded=True, updateListing=False, cacheToDisc=False)
 
-    def listShowRecording(self, recordingId, recType):
+    def list_show_recording(self, recordingId, recType):
         listing = []
         if recType == 'planned':
             recordings = self.helper.dynamicCall(LoginSession.getRecordingsPlanned)
         else:
             recordings = self.helper.dynamicCall(LoginSession.getRecordings)
-        season: SeasonRecording = self.__findSeason(recordingId, recordings)
+        season: SeasonRecording = self.__find_season(recordingId, recordings)
         for rec in season.getEpisodes(recType):
             rec.title = season.title
-            li = self.listItem_from_recording(rec, recType)
-            callback_url = '{0}?action=play&type=recording&id={1}&rectype={2}'.format(self.url,
-                                                                                      rec.id, rec.recordingState)
-            is_folder = True
+            li = self.listitem_from_recording(rec, recType)
+            callbackUrl = '{0}?action=play&type=recording&id={1}&rectype={2}'.format(self.url,
+                                                                                     rec.id, rec.recordingState)
+            isFolder = True
             li.setProperty('IsPlayable', 'false')  # Turn off to avoid kodi complaining about item not playing
-            listing.append((callback_url, li, is_folder))
+            listing.append((callbackUrl, li, isFolder))
 
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
         xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL)
@@ -754,7 +773,7 @@ class ZiggoPlugin:
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 
-    def listChannels(self):
+    def list_channels(self):
         # Create a list for our items.
         listing = []
         channels = self.helper.dynamicCall(LoginSession.get_channels)
@@ -766,7 +785,7 @@ class ZiggoPlugin:
         # Iterate through channels
         for channel in channelList:  # create a list item using the song filename for the label
             subscribed = channelList.isEntitled(channel)
-            li = self.listItem_from_channel(channel)
+            li = self.listitem_from_channel(channel)
             tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
             title = tag.getTitle()
             tag.setSortTitle(title)
@@ -780,12 +799,12 @@ class ZiggoPlugin:
             if channel.locators['Default'] is None:
                 li.setProperty('IsPlayable', 'false')
             if li.getProperty('IsPlayable') == 'true':
-                callback_url = '{0}?action=play&type=channel&id={1}'.format(self.url, channel.id)
+                callbackUrl = '{0}?action=play&type=channel&id={1}'.format(self.url, channel.id)
             else:
                 tag.setTitle(title[0:title.find('.') + 1] + '[COLOR red]' + title[title.find('.') + 1:] + '[/COLOR]')
-                callback_url = '{0}?action=cantplay&video={1}'.format(self.url, channel.id)
+                callbackUrl = '{0}?action=cantplay&video={1}'.format(self.url, channel.id)
             li.setProperty('IsPlayable', 'false')  # Turn off to avoid kodi complaining about item not playing
-            listing.append((callback_url, li, False))
+            listing.append((callbackUrl, li, False))
 
         # Add our listing to Kodi.
 
@@ -795,13 +814,13 @@ class ZiggoPlugin:
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 
-    def __get_series_overview(self, item_id):
-        for overview in self.series_overviews:
-            if overview['id'] == item_id:
+    def __get_series_overview(self, itemId):
+        for overview in self.seriesOverviews:
+            if overview['id'] == itemId:
                 return overview
 
-        overview = self.helper.dynamicCall(LoginSession.obtain_series_overview, id=item_id)
-        self.series_overviews.append(overview)
+        overview = self.helper.dynamicCall(LoginSession.obtain_series_overview, id=itemId)
+        self.seriesOverviews.append(overview)
         return overview
 
     def list_series_seasons(self, categoryId):
@@ -812,19 +831,19 @@ class ZiggoPlugin:
         if episodes is not None:
             overview.update({'seasons': episodes['seasons']})
         for season in episodes['seasons']:
-            li = self.listItem_from_season(season, episodes)
-            callback_url = '{0}?action=listseason&seriesId={1}&seasonId={2}'.format(self.url,
-                                                                                    categoryId,
-                                                                                    season['id'])
-            is_folder = True
-            listing.append((callback_url, li, is_folder))
+            li = self.listitem_from_season(season, episodes)
+            callbackUrl = '{0}?action=listseason&seriesId={1}&seasonId={2}'.format(self.url,
+                                                                                   categoryId,
+                                                                                   season['id'])
+            isFolder = True
+            listing.append((callbackUrl, li, isFolder))
 
         # Add our listing to Kodi.
 
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
         xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL)
 
-        self.saveSeriesOverviews()
+        self.save_series_overviews()
 
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
@@ -834,7 +853,7 @@ class ZiggoPlugin:
         self.load_series_overviews()
         _serie = None
         _season = None
-        for serie in self.series_overviews:
+        for serie in self.seriesOverviews:
             if serie['id'] == seriesId:
                 _serie = serie
                 for season in serie['seasons']:
@@ -850,27 +869,27 @@ class ZiggoPlugin:
             for episode in _season['episodes']:
                 details = self.__get_details(episode)
                 episode.update({'overview': details})
-                playable_instance = self.__get_playable_instance(details)
-                li = self.listItem_from_episode(episode, _season, details, playable_instance)
-                if playable_instance is not None:
-                    callback_url = ('{0}?action=play&type=episode&id={1}'
-                                    '&seasonId={2}&seriesId={3}').format(self.url,
-                                                                         playable_instance['id'],
-                                                                         seasonId,
-                                                                         seriesId)
+                playableInstance = self.__get_playable_instance(details)
+                li = self.listitem_from_episode(episode, _season, details, playableInstance)
+                if playableInstance is not None:
+                    callbackUrl = ('{0}?action=play&type=episode&id={1}'
+                                   '&seasonId={2}&seriesId={3}').format(self.url,
+                                                                        playableInstance['id'],
+                                                                        seasonId,
+                                                                        seriesId)
                 else:
-                    callback_url = '{0}?action=cantplay&video={1}'.format(self.url,
-                                                                          '')
+                    callbackUrl = '{0}?action=cantplay&video={1}'.format(self.url,
+                                                                         '')
                 li.setProperty('IsPlayable', 'false')
-                is_folder = False
-                listing.append((callback_url, li, is_folder))
+                isFolder = False
+                listing.append((callbackUrl, li, isFolder))
 
         # Add our listing to Kodi.
 
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
         xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_LABEL)
 
-        self.saveSeriesOverviews()
+        self.save_series_overviews()
 
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
@@ -879,29 +898,29 @@ class ZiggoPlugin:
         listing = []
         self.load_series_overviews()
         self.load_movie_overviews()
-        grid_content = self.helper.dynamicCall(LoginSession.obtain_grid_screen_details, collection_id=genreId)
+        gridContent = self.helper.dynamicCall(LoginSession.obtain_grid_screen_details, collection_id=genreId)
 
-        for item in grid_content['items']:
+        for item in gridContent['items']:
             if item['type'] == 'ASSET':
                 details = self.__get_details(item)
-                playable_instance = self.__get_playable_instance(details)
-                li = self.listItem_from_movie(item, details, playable_instance)
+                playableInstance = self.__get_playable_instance(details)
+                li = self.listitem_from_movie(item, details, playableInstance)
                 if li.getProperty('IsPlayable') == 'true':
-                    callback_url = '{0}?action=play&type=movie&id={1}'.format(self.url,
-                                                                              playable_instance['id'])
+                    callbackUrl = '{0}?action=play&type=movie&id={1}'.format(self.url,
+                                                                             playableInstance['id'])
                 else:
-                    callback_url = '{0}?action=cantplay&video={1}'.format(self.url, playable_instance['id'])
-                listing.append((callback_url, li, False))
+                    callbackUrl = '{0}?action=cantplay&video={1}'.format(self.url, playableInstance['id'])
+                listing.append((callbackUrl, li, False))
             elif item['type'] == 'SERIES':
                 overview = self.__get_series_overview(item['id'])
-                li = self.listItem_from_seriesItem(item, overview)
-                callback_url = '{0}?action=listseries&seriesId={1}'.format(self.url, item['id'])
-                is_folder = True
-                listing.append((callback_url, li, is_folder))
+                li = self.listitem_from_seriesitem(item, overview)
+                callbackUrl = '{0}?action=listseries&seriesId={1}'.format(self.url, item['id'])
+                isFolder = True
+                listing.append((callbackUrl, li, isFolder))
 
         # Save overviews
-        self.saveMovieOverviews()
-        self.saveSeriesOverviews()
+        self.save_movie_overviews()
+        self.save_series_overviews()
         # Add our listing to Kodi.
 
         xbmcplugin.addDirectoryItems(__handle__, listing, len(listing))
@@ -917,10 +936,10 @@ class ZiggoPlugin:
             if screen['collectionLayout'] == 'TileCollection':
                 for genre in screen['items']:
                     if genre['type'] == 'LINK':
-                        li = self.listItem_from_genre(genre)
-                        callback_url = '{0}?action=listgenre&genreId={1}'.format(self.url, genre['gridLink']['id'])
-                        is_folder = True
-                        listing.append((callback_url, li, is_folder))
+                        li = self.listitem_from_genre(genre)
+                        callbackUrl = '{0}?action=listgenre&genreId={1}'.format(self.url, genre['gridLink']['id'])
+                        isFolder = True
+                        listing.append((callbackUrl, li, isFolder))
 
         # Add our listing to Kodi.
 
@@ -930,25 +949,25 @@ class ZiggoPlugin:
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 
-    def listSeries(self, categoryId):
+    def list_series(self, categoryId):
         listing = []
-        screen_details = self.helper.dynamicCall(LoginSession.obtain_vod_screen_details, collection_id=categoryId)
-        items_seen = []
+        screenDetails = self.helper.dynamicCall(LoginSession.obtain_vod_screen_details, collection_id=categoryId)
+        itemsSeen = []
         self.load_series_overviews()
-        for collection in screen_details['collections']:
+        for collection in screenDetails['collections']:
             for item in collection['items']:
-                if item['id'] in items_seen:
+                if item['id'] in itemsSeen:
                     continue
                 if item['type'] == 'SERIES':
                     overview = self.__get_series_overview(item['id'])
-                    li = self.listItem_from_seriesItem(item, overview)
-                    items_seen.append((item['id']))
-                    callback_url = '{0}?action=listseries&seriesId={1}'.format(self.url, item['id'])
-                    is_folder = True
-                    listing.append((callback_url, li, is_folder))
+                    li = self.listitem_from_seriesitem(item, overview)
+                    itemsSeen.append((item['id']))
+                    callbackUrl = '{0}?action=listseries&seriesId={1}'.format(self.url, item['id'])
+                    isFolder = True
+                    listing.append((callbackUrl, li, isFolder))
 
         # Save overviews
-        Path(self.pluginPath(G.SERIES_INFO)).write_text(json.dumps(self.series_overviews))
+        Path(self.plugin_path(G.SERIES_INFO)).write_text(json.dumps(self.seriesOverviews))
 
         # Add our listing to Kodi.
 
@@ -959,7 +978,7 @@ class ZiggoPlugin:
         xbmcplugin.endOfDirectory(__handle__)
 
     def __get_details(self, item):
-        for overview in self.movie_overviews:
+        for overview in self.movieOverviews:
             if overview['id'] == item['id']:
                 return overview
 
@@ -969,35 +988,35 @@ class ZiggoPlugin:
                                                    'brandingProviderId'])
         else:
             overview = self.helper.dynamicCall(LoginSession.obtain_asset_details, id=item['id'])
-        self.movie_overviews.append(overview)
+        self.movieOverviews.append(overview)
         return overview
 
-    def listMovies(self, categoryId):
+    def list_movies(self, categoryId):
         # Create a list for our items.
         listing = []
-        movie_list = self.helper.dynamicCall(LoginSession.obtain_vod_screen_details, collection_id=categoryId)
-        items_seen = []
+        movieList = self.helper.dynamicCall(LoginSession.obtain_vod_screen_details, collection_id=categoryId)
+        itemsSeen = []
         self.load_movie_overviews()
-        for collection in movie_list['collections']:
+        for collection in movieList['collections']:
             for item in collection['items']:
-                if item['id'] in items_seen:
+                if item['id'] in itemsSeen:
                     continue
                 if item['type'] == 'ASSET':
                     details = self.__get_details(item)
-                    playable_instance = self.__get_playable_instance(details)
-                    if playable_instance is not None:
-                        li = self.listItem_from_movie(item, details, playable_instance)
-                        items_seen.append((item['id']))
+                    playableInstance = self.__get_playable_instance(details)
+                    if playableInstance is not None:
+                        li = self.listitem_from_movie(item, details, playableInstance)
+                        itemsSeen.append((item['id']))
                         if li.getProperty('IsPlayable') == 'true':
-                            callback_url = '{0}?action=play&type=movie&id={1}'.format(self.url,
-                                                                                      playable_instance['id'])
+                            callbackUrl = '{0}?action=play&type=movie&id={1}'.format(self.url,
+                                                                                      playableInstance['id'])
                         else:
-                            callback_url = '{0}?action=cantplay&video={1}'.format(self.url, playable_instance['id'])
+                            callbackUrl = '{0}?action=cantplay&video={1}'.format(self.url, playableInstance['id'])
                         li.setProperty('IsPlayable', 'false')
-                        listing.append((callback_url, li, False))
+                        listing.append((callbackUrl, li, False))
 
         # Save overviews
-        Path(self.pluginPath(G.MOVIE_INFO)).write_text(json.dumps(self.movie_overviews))
+        Path(self.plugin_path(G.MOVIE_INFO)).write_text(json.dumps(self.movieOverviews))
 
         # Add our listing to Kodi.
 
@@ -1007,39 +1026,39 @@ class ZiggoPlugin:
         # Finish creating a virtual folder.
         xbmcplugin.endOfDirectory(__handle__)
 
-    def router(self, param_string, url):
+    def router(self, paramString, url):
         """
             Router function that calls other functions
             depending on the provided param_string
             :type url: url from plugin invocation
-            :param param_string:
+            :param paramString:
             :return:
             """
         # Parse a URL-encoded param_string to the dictionary of
         # {<parameter>: <value>} elements
         self.url = url
-        params = dict(parse_qsl(param_string[1:]))
+        params = dict(parse_qsl(paramString[1:]))
         # Check the parameters passed to the plugin
         if params:
             if params['action'] == 'listing':
                 # Display the list of videos in a provided category.
                 if params['categoryId'] == "Channels":
-                    self.listChannels()
+                    self.list_channels()
                 elif params['categoryId'] == 'Recordings':
-                    self.listRecordings('recorded')
+                    self.list_recordings('recorded')
                 elif params['categoryId'] == 'PlannedRecordings':
-                    self.listRecordings('planned')
+                    self.list_recordings('planned')
                 elif params['categoryId'] == G.MOVIES:
-                    self.listMovies(params['category'])
+                    self.list_movies(params['category'])
                 elif params['categoryId'] == G.SERIES:
-                    self.listSeries(params['category'])
+                    self.list_series(params['category'])
                 elif params['categoryId'] == G.GENRES:
                     self.list_genres(params['category'])
             elif params['action'] == 'epg':
                 xbmc.executebuiltin('RunScript(' +
-                                    addon.getAddonInfo('path') +
+                                    self.addon.getAddonInfo('path') +
                                     'epgscript.py,' +
-                                    addon.getAddonInfo('id') + ')', True)
+                                    self.addon.getAddonInfo('id') + ')', True)
             elif params['action'] == 'subcategory':
                 self.list_subcategories(params['categoryId'])
             elif params['action'] == 'play':
@@ -1054,9 +1073,9 @@ class ZiggoPlugin:
                     self.play_movie(params['id'])
             elif params['action'] == 'delete':
                 if params['type'] == 'recording':
-                    self.deleteRecording(params['id'], params['rectype'])
+                    self.delete_recording(params['id'], params['rectype'])
                 elif params['type'] == 'showrecording':
-                    self.deleteShowRecording(params['id'], params['rectype'])
+                    self.delete_show_recording(params['id'], params['rectype'])
             elif params['action'] == 'listseries':
                 self.list_series_seasons(params['seriesId'])
             elif params['action'] == 'listseason':
@@ -1064,17 +1083,17 @@ class ZiggoPlugin:
             elif params['action'] == 'listgenre':
                 self.list_genre_items(params['genreId'])
             elif params['action'] == 'listshowrecording':
-                self.listShowRecording(params['recording'], params['type'])
+                self.list_show_recording(params['recording'], params['type'])
             elif params['action'] == 'cantplay':
                 # Play a video from a provided URL.
                 xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
                 xbmcplugin.endOfDirectory(__handle__, succeeded=False, updateListing=False, cacheToDisc=False)
             elif params['action'] == 'selectProfile':
-                self.selectProfile()
+                self.select_profile()
         else:
             # If the plugin is called from Kodi UI without any parameters,
             # display the list of video categories
-            self.listCategories()
+            self.list_categories()
         # Close opened session if any
         # self.helper.dynamicCall(LoginSession.close)
 
@@ -1089,7 +1108,7 @@ class ZiggoPlugin:
         return None
 
     @staticmethod
-    def checkService():
+    def check_service():
         home: SharedProperties = SharedProperties(addon=addon)
         if home.isServiceActive():
             return
@@ -1139,5 +1158,5 @@ if __name__ == '__main__':
         xbmcgui.Dialog().ok('Error', '{0}'.format(exc.getResponse()))
         xbmc.log(traceback.format_exc(), xbmc.LOGERROR)
     except Exception as exc:
-        xbmcgui.Dialog().ok('Error', '{0}'.format(exc))
+        xbmcgui.Dialog().ok('Error', f'{exc}')
         xbmc.log(traceback.format_exc(), xbmc.LOGERROR)

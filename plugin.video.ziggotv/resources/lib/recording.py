@@ -183,12 +183,19 @@ class PlannedRecording(Recording):
 
 
 class RecordingList:
-    def __init__(self, recordingsJson):
+    def __init__(self, recordingsJson=None):
+        self.recs = []
+        if recordingsJson is None:
+            self.total = 0
+            self.size = 0
+            self.quota = 0
+            self.occupied = 0
+            return
+
         self.total = recordingsJson['total']
         self.size = recordingsJson['size']
         self.quota = recordingsJson['quota']['quota']
         self.occupied = recordingsJson['quota']['occupied']
-        self.recs = []
         for data in recordingsJson['data']:
             if data['type'] == 'season':
                 season = SeasonRecording(data)

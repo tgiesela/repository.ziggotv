@@ -2,7 +2,8 @@ import unittest
 import datetime
 
 from resources.lib import utils
-from resources.lib.events import ChannelGuide, EventList
+from resources.lib.channel import ChannelGuide
+from resources.lib.events import EventList
 from tests.test_base import TestBase
 
 
@@ -14,13 +15,19 @@ class TestEvents(TestBase):
     def test_events(self):
         self.session.refresh_channels()
 
-        guide = ChannelGuide(self.addon)
+        guide = ChannelGuide(self.addon, self.session.get_channels())
         guide.loadStoredEvents()
+
+        for channel in self.session.get_channels():
+            channel.events = guide.getEvents(channel.id)
 
         startDate = datetime.datetime.now()
         endDate = startDate + datetime.timedelta(hours=2)
         guide.obtainEventsInWindow(startDate.astimezone(datetime.timezone.utc),
                                    endDate.astimezone(datetime.timezone.utc))
+
+        for channel in self.session.get_channels():
+            channel.events = guide.getEvents(channel.id)
 
         latestEndDate = endDate
         startDate = startDate + datetime.timedelta(days=-6)

@@ -15,7 +15,7 @@ import xbmcvfs
 from requests import Response
 
 from resources.lib import utils
-from resources.lib.Channel import Channel
+from resources.lib.channel import Channel
 from resources.lib.globals import G
 from resources.lib.recording import SeasonRecording, RecordingList
 from resources.lib.streaminginfo import StreamingInfo, ReplayStreamingInfo, VodStreamingInfo, RecordingStreamingInfo
@@ -916,7 +916,7 @@ class LoginSession(Web):
             recordings_info = json.loads(Path(self.pluginpath(G.RECORDINGS_INFO)).read_text())
             return RecordingList(recordings_info['planned'])
         else:
-            return None
+            return RecordingList()
 
     def getRecordings(self) -> RecordingList:
         """
