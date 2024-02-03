@@ -26,14 +26,14 @@ class TestRecordings(TestBase):
             elif type(rec) is SeasonRecording:
                 season: SeasonRecording = rec
                 print('Season {0} #: {1}'.format(season.title, season.episodes))
-                for episode in season.getEpisodes('planned'):
+                for episode in season.get_episodes('planned'):
                     print(season.title + ' ' + episode.startTime)
-                for episode in season.getEpisodes('recorded'):
+                for episode in season.get_episodes('recorded'):
                     print(season.title + ' ' + episode.startTime)
 
     def test_planned(self):
-        self.session.refreshRecordings(True)
-        recs = self.session.getRecordingsPlanned()
+        self.session.refresh_recordings(True)
+        recs = self.session.get_recordings_planned()
         self.print_recordings(recs)
         for rec in recs.recs:
             if type(rec) is SeasonRecording:
@@ -43,16 +43,19 @@ class TestRecordings(TestBase):
                     print(season.title + ' ' + episode.startTime)
 
     def test_recorded(self):
-        self.session.refreshRecordings(True)
-        recs = self.session.getRecordings()
+        self.session.refresh_recordings(True)
+        recs = self.session.get_recordings()
         self.print_recordings(recs)
 
     def test_record(self):
         self.session.refresh_channels()
         self.session.refresh_entitlements()
+        self.session.refresh_recordings(False)
+        recs = self.session.get_recordings()
+        self.print_recordings(recs)
         epg = ChannelGuide(self.addon, self.session.get_channels())
-        epg.loadStoredEvents()
-        epg.obtainEvents()
+        epg.load_stored_events()
+        epg.obtain_events()
         channels = ChannelList(self.session.get_channels(), self.session.get_entitlements())
         npo1: Channel = None
         for channel in channels:
@@ -60,22 +63,22 @@ class TestRecordings(TestBase):
                 npo1 = channel
                 break
         self.assertIsNotNone(npo1)
-        npo1.events = epg.getEvents(npo1.id)
+        npo1.events = epg.get_events(npo1.id)
         # currentEvent = npo1.events.getCurrentEvent()
-        windowEvents = npo1.events.getEventsInWindow(datetime.datetime.now(),
-                                                     datetime.datetime.now() + datetime.timedelta(hours=2))
+        windowEvents = npo1.events.get_events_in_window(datetime.datetime.now(),
+                                                        datetime.datetime.now() + datetime.timedelta(hours=2))
         self.assertTrue(len(windowEvents) >= 2)
-        rec1 = self.session.recordEvent(windowEvents[0].id)
+        rec1 = self.session.record_event(windowEvents[0].id)
         print(rec1)
-        rec2 = self.session.recordEvent(windowEvents[1].id)
+        rec2 = self.session.record_event(windowEvents[1].id)
         print(rec2)
-        recs = self.session.getRecordings()
+        recs = self.session.get_recordings()
         self.print_recordings(recs)
-        recs = self.session.getRecordingsPlanned()
+        recs = self.session.get_recordings_planned()
         self.print_recordings(recs)
-        rslt = self.session.deleteRecordings(events=[windowEvents[0].id], shows=[])
+        rslt = self.session.delete_recordings(events=[windowEvents[0].id], shows=[])
         print(rslt)
-        rslt = self.session.deleteRecordings(events=[windowEvents[1].id], shows=[])
+        rslt = self.session.delete_recordings(events=[windowEvents[1].id], shows=[])
         print(rslt)
 
 

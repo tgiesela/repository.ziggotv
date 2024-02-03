@@ -17,30 +17,30 @@ class TestChannels(TestBase):
         channels = self.session.get_channels()
         entitlements = self.session.get_entitlements()
         cl = ChannelList(channels, entitlements)
-        clByLcn: [Channel] = cl.channelsByLCN()
+        clByLcn: [Channel] = cl.channels_by_lcn()
         print('First={0}-{1}'.format(clByLcn[0].logicalChannelNumber, clByLcn[0].name))
         print('Second={0}-{1}'.format(clByLcn[1].logicalChannelNumber, clByLcn[1].name))
 
-        clByname: [Channel] = cl.channelsByName()
+        clByname: [Channel] = cl.channels_by_name()
         print('First={0}-{1}'.format(clByname[0].logicalChannelNumber, clByname[0].name))
         print('Second={0}-{1}'.format(clByname[1].logicalChannelNumber, clByname[1].name))
 
         cl.entitledOnly = True
-        cl.applyFilter()
+        cl.apply_filter()
         for x in cl:
             c: Channel = x
             if c.isHidden:
                 print('Hidden channel: {0}'.format(c.name))
-            if not cl.isEntitled(c):
+            if not cl.is_entitled(c):
                 print('Channel not entitled: {0}'.format(c.name))
         cl.suppressHidden = True
         cl.entitledOnly = False
-        cl.applyFilter()
+        cl.apply_filter()
         for x in cl:
             c: Channel = x
             if c.isHidden:
                 print('Hidden channel: {0}'.format(c.name))
-            if not cl.isEntitled(c):
+            if not cl.is_entitled(c):
                 print('Channel not entitled: {0}'.format(c.name))
 
 

@@ -1,27 +1,28 @@
+import json
+import os
 import datetime
 
 import xbmcaddon
 import xbmcvfs
-import json
-import os
 
 from resources.lib import utils
 
 
 class Poster:
-    def __init__(self, posterjson):
-        self.url = posterjson['url']
-        self.type = posterjson['type']  # values seen: HighResPortrait
+    def __init__(self, posterJson):
+        self.url = posterJson['url']
+        self.type = posterJson['type']  # values seen: HighResPortrait
 
 
 class Recording:
+    # pylint: disable=too-many-instance-attributes
     class Language:
-        def __init__(self, languagejson):
-            self.language = languagejson['lang']
-            self.purpose = languagejson['purpose']
+        def __init__(self, languageJson):
+            self.language = languageJson['lang']
+            self.purpose = languageJson['purpose']
 
     def __init__(self, recordingjson):
-        self.poster = Poster(posterjson=recordingjson['poster'])
+        self.poster = Poster(posterJson=recordingjson['poster'])
         self.recordingState = recordingjson['recordingState']  # recorded, planned
         self.minimumAge = 0
         self.private = False
@@ -86,7 +87,7 @@ class Recording:
 
     @property
     def isRecording(self):
-        return self.recordingState == 'recording' or self.recordingState == 'ongoing'
+        return self.recordingState in ['recording', 'ongoing']
 
     @property
     def isPlanned(self):
@@ -98,8 +99,9 @@ class Recording:
 
 
 class SeasonRecording:
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, recordingJson):
-        self.poster = Poster(posterjson=recordingJson['poster'])
+        self.poster = Poster(posterJson=recordingJson['poster'])
         self.episodes = recordingJson['noOfEpisodes']
         self.seasonTitle = recordingJson['seasonTitle']
         self.showId = recordingJson['showId']
@@ -131,7 +133,7 @@ class SeasonRecording:
                     recSingle = SingleRecording(episode)
                     self.episodes.append(recSingle)
 
-    def getEpisodes(self, recType):
+    def get_episodes(self, recType):
         """
 
         @param recType: one 'planned|recorded'
@@ -149,6 +151,7 @@ class SeasonRecording:
 
 
 class SingleRecording(Recording):
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, recordingJson, season: SeasonRecording = None):
         super().__init__(recordingJson)
         if 'privateCopy' in recordingJson:
@@ -210,7 +213,7 @@ class RecordingList:
 
     def find(self, eventId):
         for rec in self.recs:
-            if type(rec) is SeasonRecording:
+            if isinstance(rec, SeasonRecording):
                 season: SeasonRecording = rec
                 for srec in season.episodes:
                     if srec.id == eventId:
@@ -225,9 +228,9 @@ class RecordingList:
 class SavedStateList:
     def __init__(self, addon: xbmcaddon.Addon):
         self.addon = addon
-        self.addon_path = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
+        self.addonPath = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
         self.states = {}
-        self.fileName = self.addon_path + 'playbackstates.json'
+        self.fileName = self.addonPath + 'playbackstates.json'
         targetdir = os.path.dirname(self.fileName)
         if targetdir == '':
             targetdir = os.getcwd()
@@ -242,26 +245,26 @@ class SavedStateList:
         with open(self.fileName, 'r+') as file:
             self.states = json.load(file)
 
-    def add(self, id, position):
-        self.states.update({id: {'position': position,
-                                 'dateAdded': utils.DatetimeHelper.unixDatetime(datetime.datetime.now())}})
+    def add(self, itemId, position):
+        self.states.update({itemId: {'position': position,
+                                 'dateAdded': utils.DatetimeHelper.unix_datetime(datetime.datetime.now())}})
         with open(self.fileName, 'w') as file:
             json.dump(self.states, file)
 
-    def delete(self, id):
-        if id in self.states:
-            self.states.pop(id)
+    def delete(self, itemId):
+        if itemId in self.states:
+            self.states.pop(itemId)
 
-    def get(self, id):
+    def get(self, itemId):
         for item in self.states:
-            if item == id:
+            if item == itemId:
                 return self.states[item]['position']
         return None
 
     def cleanup(self, daystokeep=365):
         expDate = datetime.datetime.now() - datetime.timedelta(days=daystokeep)
         for item in list(self.states):
-            if self.states[item]['dateAdded'] < utils.DatetimeHelper.unixDatetime(expDate):
+            if self.states[item]['dateAdded'] < utils.DatetimeHelper.unix_datetime(expDate):
                 self.delete(item)
         with open(self.fileName, 'w') as file:
             json.dump(self.states, file)

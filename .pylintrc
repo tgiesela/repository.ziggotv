@@ -8,7 +8,7 @@ class-naming-style=PascalCase
 #method-rgx=((__)?[a-z]|[A-Z0-9])[a-z]*(__)?
 variable-naming-style=camelCase
 argument-naming-style=camelCase
-class-attribute-naming-style=camelCase
+class-attribute-naming-style=UPPER_CASE
 attr-naming-style=camelCase
 
 [FORMAT]

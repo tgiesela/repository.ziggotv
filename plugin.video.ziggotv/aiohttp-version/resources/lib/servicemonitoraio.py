@@ -97,8 +97,8 @@ class ServiceMonitor(xbmc.Monitor):
                 # self.session.load_cookies()
                 xbmc.log("Delete token after OnStop", xbmc.LOGDEBUG)
                 self.session.delete_token(self.ProxyServer.get_streaming_token())
-                self.session.streaming_token = None
-                self.ProxyServer.set_streaming_token(self.session.streaming_token)
+                self.session.streamingToken = None
+                self.ProxyServer.set_streaming_token(self.session.streamingToken)
 
         # xbmc,Playlist.OnAdd,{"item":{"title":"1. NPO 1","type":"video"},"playlistid":1,"position":0})
         # xbmc, Info.OnChanged, null ????

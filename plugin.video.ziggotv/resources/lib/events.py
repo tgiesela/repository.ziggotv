@@ -1,11 +1,11 @@
 import datetime
-import json
 from typing import List
 
 from resources.lib import utils
-from resources.lib.LinkedList import LinkedList, Node
+from resources.lib.linkedlist import LinkedList, Node
 
 
+# pylint: disable=too-many-instance-attributes, too-few-public-methods
 class EventDetails:
     def __init__(self, eventJson):
         if 'shortDescription' in eventJson:
@@ -40,8 +40,9 @@ class EventDetails:
 
 
 class Event:
+    # pylint: disable=too-many-branches
     def __init__(self, eventJson):
-        self.__programDetails: EventDetails = None
+        self.programDetails: EventDetails = None
         self.startTime = eventJson['startTime']
         self.endTime = eventJson['endTime']
         self.title = eventJson['title']
@@ -63,17 +64,17 @@ class Event:
         else:
             self.replayTVMinAge = 0
         if 'hasReplayTV' in eventJson:
-            self.__hasReplayTV = eventJson['hasReplayTV']
+            self.hasReplayTV = eventJson['hasReplayTV']
         else:
-            self.__hasReplayTV = True
+            self.hasReplayTV = True
         if 'hasReplayTVOTT' in eventJson:
-            self.__hasReplayTVOTT = eventJson['hasReplayTVOTT']
+            self.hasReplayTVOTT = eventJson['hasReplayTVOTT']
         else:
-            self.__hasReplayTVOTT = True
+            self.hasReplayTVOTT = True
         if 'hasStartOver' in eventJson:
-            self.__hasStartOver = eventJson['hasStartOver']
+            self.hasStartOver = eventJson['hasStartOver']
         else:
-            self.__hasStartOver = True
+            self.hasStartOver = True
 
     @property
     def duration(self):
@@ -85,46 +86,42 @@ class Event:
 
     @property
     def hasDetails(self):
-        return self.__programDetails is not None
+        return self.programDetails is not None
 
     @property
     def details(self):
-        return self.__programDetails
+        return self.programDetails
 
     @details.setter
     def details(self, value):
-        self.__programDetails = EventDetails(value)
+        self.programDetails = EventDetails(value)
 
     @property
     def canReplay(self):
-        now = utils.DatetimeHelper.unixDatetime(datetime.datetime.now())
+        now = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
         if self.startTime < now < self.endTime or self.endTime <= now:
-            return self.__hasStartOver and self.__hasReplayTV
-        else:
-            return False
+            return self.hasStartOver and self.hasReplayTV
+        return False
 
     @property
     def canRecord(self):
-        now = utils.DatetimeHelper.unixDatetime(datetime.datetime.now())
+        now = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
         if self.startTime < now < self.endTime or self.endTime <= now:
-            return self.__hasStartOver and self.__hasReplayTV
-        else:
-            if self.startTime > now:
-                return True
-            else:
-                return False
+            return self.hasStartOver and self.hasReplayTV
+        if self.startTime > now:
+            return True
+        return False
 
     @property
     def isPlaying(self):
-        now = utils.DatetimeHelper.unixDatetime(datetime.datetime.now())
+        now = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
         if self.startTime < now < self.endTime:
             return True
-        else:
-            return False
+        return False
 
 
 class EventList(LinkedList):
-    def __isDuplicate(self, event: Event):
+    def __is_duplicate(self, event: Event):
         currentNode: Node = self.head
         while currentNode is not None:
             currentEvent: Event = currentNode.data
@@ -133,7 +130,7 @@ class EventList(LinkedList):
             currentNode = currentNode.next
         return False
 
-    def __findInsertLocation(self, event: Event):
+    def __find_insert_location(self, event: Event):
         # The event list is ordered on startTime
         currentNode: Node = self.head
         # if event.startTime < current_event.startTime:
@@ -146,33 +143,32 @@ class EventList(LinkedList):
             currentNode = currentNode.next
         return currentNode
 
-    def insertEvent(self, event: Event):
+    def insert_event(self, event: Event):
         currentNode: Node = self.head
         if currentNode is None:  # Emtpy list
-            self.insertAtBegin(event)
+            self.insert_at_begin(event)
             return
-        if self.__isDuplicate(event):
+        if self.__is_duplicate(event):
             return
-        node = self.__findInsertLocation(event)
+        node = self.__find_insert_location(event)
         if node is None:
-            self.insertAtEnd(event)
+            self.insert_at_end(event)
         else:
             if node.data is None:
                 node.data = event
             else:
-                self.insertBefore(node, event)
+                self.insert_before(node, event)
 
     @staticmethod
-    def nextEvent(node) -> Event:
+    def next_event(node) -> Event:
         if node is None:
             return None
-        else:
-            return node.next.data
+        return node.next.data
 
-    def getEventsInWindow(self, tstart: datetime.datetime, tend: datetime.datetime) -> List[Event]:
+    def get_events_in_window(self, tstart: datetime.datetime, tend: datetime.datetime) -> List[Event]:
         evtlist: List[Event] = []
-        evtnode = self.__findEvent(tstart, tend)
-        endtime = utils.DatetimeHelper.unixDatetime(tend)
+        evtnode = self.__find_event(tstart, tend)
+        endtime = utils.DatetimeHelper.unix_datetime(tend)
         while evtnode is not None:
             evt: Event = evtnode.data
             if evt.startTime >= endtime:
@@ -181,8 +177,8 @@ class EventList(LinkedList):
             evtnode = evtnode.next
         return evtlist
 
-    def getCurrentEvent(self) -> Event:
-        currentTime: datetime.datetime = utils.DatetimeHelper.unixDatetime(datetime.datetime.now())
+    def get_current_event(self) -> Event:
+        currentTime: datetime.datetime = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
         currentNode: Node = self.head
         while currentNode is not None:
             currentEvent: Event = currentNode.data
@@ -194,9 +190,9 @@ class EventList(LinkedList):
                 return None
         return None
 
-    def __findEvent(self, ts: datetime.datetime, te: datetime.datetime) -> Node:
-        windowstarttime = utils.DatetimeHelper.unixDatetime(ts)
-        windowendtime = utils.DatetimeHelper.unixDatetime(te)
+    def __find_event(self, ts: datetime.datetime, te: datetime.datetime) -> Node:
+        windowstarttime = utils.DatetimeHelper.unix_datetime(ts)
+        windowendtime = utils.DatetimeHelper.unix_datetime(te)
         currentNode: Node = self.head
         while currentNode is not None:
             currentEvent: Event = currentNode.data
@@ -205,8 +201,7 @@ class EventList(LinkedList):
                     return currentNode
             if windowstarttime < currentEvent.startTime < windowendtime:
                 return currentNode
-            elif currentEvent.startTime >= windowstarttime:
+            if currentEvent.startTime >= windowstarttime:
                 return None
             currentNode = currentNode.next
         return None
-

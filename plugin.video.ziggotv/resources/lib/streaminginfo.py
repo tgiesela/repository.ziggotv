@@ -1,13 +1,15 @@
 """
 Contains classes to hold streaming info, including token, for different types
 """
+import dataclasses
 
 
+@dataclasses.dataclass
 class StreamingInfo:
     """
     Base Class containing streaming info
     """
-
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.drmContentId = streamingJson['drmContentId']
@@ -17,8 +19,9 @@ class StreamingInfo:
         self.token = None
 
 
+@dataclasses.dataclass
 class ReplayStreamingInfo:
-
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.drmContentId = streamingJson['drmContentId']
@@ -34,14 +37,32 @@ class ReplayStreamingInfo:
         self.isAdult = False
         if 'isAdult' in streamingJson:
             self.isAdult = streamingJson['isAdult']
-        self.ageRating = streamingJson['ageRating']
+        self.ageRating = -1
+        if 'ageRating' in streamingJson:
+            self.ageRating = streamingJson['ageRating']
         self.fallbackUrl = streamingJson['fallbackUrl']
         self.url = streamingJson['url']
         self.isAvad = streamingJson['isAvad']
+        self.trickPlayControl = []
+        if 'trickPlayControl' in streamingJson:
+            self.trickPlayControl = streamingJson['trickPlayControl']
         self.token = None
 
+    @property
+    def fast_forward_allowed(self):
+        return 'disallowFastForward' not in self.trickPlayControl
 
+    @property
+    def skip_forward_allowed(self):
+        return 'disallowSkipForward' not in self.trickPlayControl
+
+    @property
+    def ad_restriction(self):
+        return 'adRestrictionOnly' not in self.trickPlayControl
+
+@dataclasses.dataclass
 class VodStreamingInfo:
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.drmContentId = streamingJson['drmContentId']
@@ -58,7 +79,9 @@ class VodStreamingInfo:
         self.token = None
 
 
+@dataclasses.dataclass
 class RecordingStreamingInfo:
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.trickPlayControl = streamingJson['trickPlayControl']

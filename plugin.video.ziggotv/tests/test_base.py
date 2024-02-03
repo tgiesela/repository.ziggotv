@@ -46,17 +46,19 @@ class TestBase(unittest.TestCase):
         self.addon.setSetting('full-hd', 'true')
         self.cleanup_all()
         self.session = LoginSession(xbmcaddon.Addon())
-        self.session.print_network_traffic = False
+        self.session.printNetworkTraffic = False
         self.svc = HttpProxyService(threading.Lock())
         self.svc.set_address((self.addon.getSetting('proxy-ip'), self.addon.getSettingInt('proxy-port')))
-        self.svc.startHttpServer()
+        self.svc.start_http_server()
 
     def setUp(self):
+        self.session = LoginSession(xbmcaddon.Addon())
         print("Executing setup")
 
     def tearDown(self):
+        print("Executing teardown")
         self.session.close()
-        self.svc.stopHttpServer()
+        self.svc.stop_http_server()
         self.cleanup_all()
 
     @staticmethod
@@ -95,3 +97,4 @@ class TestBase(unittest.TestCase):
         with open(f'c:/temp/credentials.json', 'r') as credfile:
             credentials = json.loads(credfile.read())
         self.session.login(credentials['username'], credentials['password'])
+        self.session.obtain_customer_info()

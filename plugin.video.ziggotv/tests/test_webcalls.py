@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import requests
 import xbmcaddon
 
-from resources.lib.UrlTools import UrlTools
+from resources.lib.urltools import UrlTools
 from resources.lib.webcalls import LoginSession, WebException
 from tests.test_base import TestBase
 
@@ -25,8 +25,8 @@ class TestWebCalls(TestBase):
         try:
             self.session.login('baduser', 'badpassword')
         except WebException as exc:
-            print(exc.getResponse())
-            print(exc.getStatus())
+            print(exc.get_response())
+            print(exc.get_status())
         self.do_login()
         cookies = self.session.load_cookies()
         cookies_dict = requests.utils.dict_from_cookiejar(cookies)
@@ -35,14 +35,14 @@ class TestWebCalls(TestBase):
         else:
             self.fail('Expected cookies not found')
         self.session.dump_cookies()
-        self.session.session_info['accessToken'] = \
+        self.session.sessionInfo['accessToken'] = \
             ('eyJ0eXAiOiJKV1QiLCJraWQiOiJvZXNwX3Rva2VuX3Byb2RfMjAyMDA4MTkiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3ZWItYXBpLXBy'
              'b2Qtb2JvLmhvcml6b24udHYiLCJzaWQiOiJlYzYxNDE5NWE0NjdkNWM5ZGZkM2Q0MGQ2MzVmYTdhZjA4NmU4MzEzZDZhOGUyODQ5NDQ3Z'
              'Dk3ZTg4NGIzMzkzIiwiaWF0IjoxNzA1NzM2Mjc0LCJleHAiOjE3MDU3NDM0NzQsInN1YiI6Ijg2NTQ4MDdfbmwifQ.SAD1RuDYX60_tq7'
              'Zt0v-Zh3iKKS2hU6nv34-zAEKl2w')
         self.do_login()
         self.session.cookies.pop('ACCESSTOKEN')
-        self.session.session_info['accessToken'] = \
+        self.session.sessionInfo['accessToken'] = \
             ('eyJ0eXAiOiJKV1QiLCJraWQiOiJvZXNwX3Rva2VuX3Byb2RfMjAyMDA4MTkiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3ZWItYXBpLXBy'
              'b2Qtb2JvLmhvcml6b24udHYiLCJzaWQiOiJlYzYxNDE5NWE0NjdkNWM5ZGZkM2Q0MGQ2MzVmYTdhZjA4NmU4MzEzZDZhOGUyODQ5NDQ3Z'
              'Dk3ZTg4NGIzMzkzIiwiaWF0IjoxNzA1NzM2Mjc0LCJleHAiOjE3MDU3NDM0NzQsInN1YiI6Ijg2NTQ4MDdfbmwifQ.SAD1RuDYX60_tq7'
@@ -60,7 +60,7 @@ class TestWebCalls(TestBase):
     def test_entitlements(self):
         self.cleanup_all()
         self.session = LoginSession(xbmcaddon.Addon())
-        self.session.print_network_traffic = 'false'
+        self.session.printNetworkTraffic = 'false'
         self.do_login()
         entitlements = self.session.get_entitlements()
         self.assertDictEqual({}, entitlements)
@@ -71,18 +71,19 @@ class TestWebCalls(TestBase):
         self.session.refresh_widevine_license()
 
     def test_tokens(self):
+        self.do_login()
         self.session.refresh_channels()
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        streamInfo = self.session.obtain_tv_streaming_token(channel.id, asset_type='Orion-DASH')
-        self.session.streaming_token = streamInfo.token
+        streamInfo = self.session.obtain_tv_streaming_token(channel.id, assetType='Orion-DASH')
+        self.session.streamingToken = streamInfo.token
         headers = {}
         hw_uuid = str(uuid.UUID(hex=hex(uuid.getnode())[2:]*2+'00000000'))
         headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
             'Host': 'prod.spark.ziggogo.tv',
             'x-streaming-token': streamInfo.token,
-            'X-cus': self.session.customer_info['customerId'],
+            'X-cus': self.session.customerInfo['customerId'],
             'x-go-dev': hw_uuid,  # '214572a3-2033-4327-b8b3-01a9a674f1e0',
             'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
             'deviceName': 'Firefox'
@@ -91,6 +92,7 @@ class TestWebCalls(TestBase):
         response = self.session.get_license('nl_tv_standaard_cenc', '\x08\x04', headers)
         updated_streaming_token = response.headers['x-streaming-token']
         self.assertFalse(updated_streaming_token == streamInfo.token)
+        self.session.obtain_customer_info()
         new_streaming_token = self.session.update_token(updated_streaming_token)
         self.assertFalse(new_streaming_token == streamInfo.token)
         self.session.delete_token(new_streaming_token)
@@ -112,10 +114,10 @@ class TestWebCalls(TestBase):
         tools = UrlTools(self.addon)
         self.do_login()
         self.session.refresh_channels()
-        self.session.print_network_traffic = True
+        self.session.printNetworkTraffic = True
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        locator, asset_type = channel.getLocator(self.addon)
+        locator, asset_type = channel.get_locator(self.addon)
         tkn = self.session.obtain_tv_streaming_token(channel.id, asset_type)
         locator = channel.locators['Default'].replace('http://', 'https://')
         if '/dash' in locator:
@@ -145,13 +147,13 @@ class TestWebCalls(TestBase):
                                           'dGRCcVVLM29TYmkyV2o2STlKUEZ6JnNlc1RpbWU9MTcwNjI2NzkyMyZzdHJMaW09Myw4NWYxZjU'
                                           '1OTY0NTQxYTlhNGJhYTQyODhhYjFlNzI3YzU1Y2Q1MzAyNWUxYmRjZmQ2N2UzMjg5NGVjYTg3Nz'
                                           'A4/disk1/NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd', baseURL)
-        print('REDIRECTED URL: {0}'.format(tools.redirected_url))
+        print('REDIRECTED URL: {0}'.format(tools.redirectedUrl))
 
         for c in channels:
             if c.name == 'STAR Channel':
                 channel = c
                 break
-        locator, asset_type = channel.getLocator(self.addon)
+        locator, asset_type = channel.get_locator(self.addon)
         tkn = self.session.obtain_tv_streaming_token(channel.id, asset_type)
         locator = channel.locators['Default'].replace('http://', 'https://')
         if '/dash' in locator:
@@ -183,9 +185,10 @@ class TestWebCalls(TestBase):
                                           'dGRCcVVLM29TYmkyV2o2STlKUEZ6JnNlc1RpbWU9MTcwNjI2NzkyMyZzdHJMaW09Myw4NWYxZjU'
                                           '1OTY0NTQxYTlhNGJhYTQyODhhYjFlNzI3YzU1Y2Q1MzAyNWUxYmRjZmQ2N2UzMjg5NGVjYTg3Nz'
                                           'A4/disk1/NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd', baseURL)
-        print('REDIRECTED URL: {0}'.format(tools.redirected_url))
+        print('REDIRECTED URL: {0}'.format(tools.redirectedUrl))
 
     def test_voor_jou(self):
+        self.do_login()
         profiles = self.session.get_profiles()
         for profile in profiles:
             print('Profile: {0}\n'.format(profile['name']))
@@ -230,6 +233,7 @@ class TestWebCalls(TestBase):
                                     print("ENDTIME:", datetime.datetime.fromtimestamp(asset_json['endTime']))
 
     def test_movies_and_series(self):
+        self.do_login()
         profiles = self.session.get_profiles()
         for profile in profiles:
             print('Profile: {0}\n'.format(profile['name']))

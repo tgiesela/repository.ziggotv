@@ -1,7 +1,15 @@
-from enum import Enum, IntEnum
+"""
+Global definitions.
+Constants are grouped in classes. The classes are imported (with some exceptions)
+"""
+from enum import IntEnum
 
 
 class StringIds:
+    """
+    Id of strings in the language files. Changing them here also requires a change in the strings.po files
+    of the different languages.
+    """
     MSG_SWITCH_OR_PLAY = 40004
     MSG_SWITCH = 40005
     MSG_CANNOTWATCH = 40009
@@ -25,31 +33,34 @@ class StringIds:
     MSG_REPLAY_EVENT = 40024
     MSG_SWITCH_CHANNEL = 40025
 
-class GlobalVariables:
-    VIDEO_PLAYING = 'VIDEO_PLAYING'
-    VIDEO_ID = 'VIDEO_ID'
+    def __init__(self):
+        pass
 
+class GlobalVariables:
+    """
+    General global variables. Mainly the URLs used, filenames, and texts
+    """
     ZIGGO_URL = 'https://www.ziggogo.tv/'
     ZIGGOPROD_URL = 'https://prod.spark.ziggogo.tv/'
     STATIC_URL = 'https://staticqbr-nl-prod.prod.cdn.dmdsdp.com/'
     STATICPROD_URL = 'https://static.spark.ziggogo.tv/'
-    authentication_URL = ZIGGOPROD_URL + 'auth-service/v1/authorization'
-    personalisation_URL = ZIGGOPROD_URL + 'eng/web/personalization-service/v1/customer/{householdid}'
-    entitlements_URL = ZIGGOPROD_URL + 'eng/web/purchase-service/v2/customers/{householdid}/entitlements'
-    widevine_URL = ZIGGOPROD_URL + 'eng/web/session-manager/license/certificate/widevine'
-    license_URL = ZIGGOPROD_URL + 'eng/web/session-manager/license'
-    channels_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/channels'
-    streaming_URL = ZIGGOPROD_URL + 'eng/web/session-service/session/v2/web-desktop/customers/{householdid}'
-    homeservice_URL = ZIGGOPROD_URL + 'eng/web/personal-home-service/'
-    vod_service_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/'
-    linearservice_v2_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/'
-    linearservice_v1_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v1/'
-    pickerservice_URL = ZIGGOPROD_URL + 'eng/web/picker-service/v1/'
-    gridservice_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/grid-screen/'
-    events_URL = STATICPROD_URL + 'eng/web/epg-service-lite/nl/nl/events/segments/'
-    replayEvent_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/replayEvent/'
-    recordings_URL = ZIGGOPROD_URL + 'eng/web/recording-service/customers/{householdid}/'
-    discovery_URL = ZIGGOPROD_URL + 'eng/web/discovery-service/v2/learn-actions/'
+    AUTHENTICATION_URL = ZIGGOPROD_URL + 'auth-service/v1/authorization'
+    PERSONALISATION_URL = ZIGGOPROD_URL + 'eng/web/personalization-service/v1/customer/{householdid}'
+    ENTITLEMENTS_URL = ZIGGOPROD_URL + 'eng/web/purchase-service/v2/customers/{householdid}/entitlements'
+    WIDEVINE_URL = ZIGGOPROD_URL + 'eng/web/session-manager/license/certificate/widevine'
+    LICENSE_URL = ZIGGOPROD_URL + 'eng/web/session-manager/license'
+    CHANNELS_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/channels'
+    STREAMING_URL = ZIGGOPROD_URL + 'eng/web/session-service/session/v2/web-desktop/customers/{householdid}'
+    HOMESERVICE_URL = ZIGGOPROD_URL + 'eng/web/personal-home-service/'
+    VOD_SERVICE_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/'
+    LINEARSERVICE_V2_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/'
+    LINEARSERVICE_V1_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v1/'
+    PICKERSERVICE_URL = ZIGGOPROD_URL + 'eng/web/picker-service/v1/'
+    GRIDSERVICE_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/grid-screen/'
+    EVENTS_URL = STATICPROD_URL + 'eng/web/epg-service-lite/nl/nl/events/segments/'
+    REPLAYEVENT_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/replayEvent/'
+    RECORDINGS_URL = ZIGGOPROD_URL + 'eng/web/recording-service/customers/{householdid}/'
+    DISCOVERY_URL = ZIGGOPROD_URL + 'eng/web/discovery-service/v2/learn-actions/'
 
     SESSION_INFO = 'session.json'
     CUSTOMER_INFO = 'customer.json'
@@ -62,49 +73,6 @@ class GlobalVariables:
     GUIDE_INFO = 'epg.json'
     RECORDINGS_INFO = 'recordings.json'
 
-    CONST_BASE_HEADERS = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-        'Accept': '*/*',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept-Language': 'en-US,en;q=0.9,nl;q=0.8',
-        'Cache-Control': 'no-cache',
-        'DNT': '1',
-        'TE': 'trailers',
-        'Origin': 'https://www.ziggogo.tv',
-        'Pragma': 'no-cache',
-        'Referer': 'https://www.ziggogo.tv/',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-site',
-        'X-Device-Code': 'web'
-    }
-    ALLOWED_LICENSE_HEADERS = [
-        "Accept",
-        "Accept-Encoding",
-        "Accept-Language",
-        "Cache-Control",
-        "Connection",
-        "Content-Length",
-        "Cookie",
-        "deviceName",
-        "DNT",
-        "Host",
-        "Origin",
-        "Pragma",
-        "Referer",
-        "Sec-Fetch-Dest",
-        "Sec-Fetch-Mode",
-        "Sec-Fetch-Site",
-        "TE",
-        "User-Agent",
-        "X-cus",
-        "x-drm-schemeId",
-        "x-go-dev",
-        "X-OESP-Username",
-        "X-Profile",
-        "x-streaming-token",
-        "x-tracking-id"
-    ]
     SERIES = 'Series'
     MOVIES = 'Movies'
     GENRES = 'Genre'
@@ -112,17 +80,66 @@ class GlobalVariables:
     PROTOCOL = 'mpd'
     DRM = 'com.widevine.alpha'
 
-    class ALIGNMENT(IntEnum):
-        XBFONT_LEFT = 0x00000000,
-        XBFONT_RIGHT = 0x00000001,
-        XBFONT_CENTER_X = 0x00000002,
-        XBFONT_CENTER_Y = 0x00000004,
-        XBFONT_TRUNCATED = 0x00000008,
-        XBFONT_JUSTIFIED = 0x00000010
-
     def __init__(self):
         pass
 
 
+class Alignment(IntEnum):
+    """
+    xbmc alignment constants (not available in current version of xbmcgui
+    """
+    XBFONT_LEFT = 0x00000000
+    XBFONT_RIGHT = 0x00000001
+    XBFONT_CENTER_X = 0x00000002
+    XBFONT_CENTER_Y = 0x00000004
+    XBFONT_TRUNCATED = 0x00000008
+    XBFONT_JUSTIFIED = 0x00000010
+
+
+CONST_BASE_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
+    'Accept': '*/*',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Language': 'en-US,en;q=0.9,nl;q=0.8',
+    'Cache-Control': 'no-cache',
+    'DNT': '1',
+    'TE': 'trailers',
+    'Origin': 'https://www.ziggogo.tv',
+    'Pragma': 'no-cache',
+    'Referer': 'https://www.ziggogo.tv/',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-site',
+    'X-Device-Code': 'web'
+}
+ALLOWED_LICENSE_HEADERS = [
+    "Accept",
+    "Accept-Encoding",
+    "Accept-Language",
+    "Cache-Control",
+    "Connection",
+    "Content-Length",
+    "Cookie",
+    "deviceName",
+    "DNT",
+    "Host",
+    "Origin",
+    "Pragma",
+    "Referer",
+    "Sec-Fetch-Dest",
+    "Sec-Fetch-Mode",
+    "Sec-Fetch-Site",
+    "TE",
+    "User-Agent",
+    "X-cus",
+    "x-drm-schemeId",
+    "x-go-dev",
+    "X-OESP-Username",
+    "X-Profile",
+    "x-streaming-token",
+    "x-tracking-id"
+]
+
 G = GlobalVariables()
 S = StringIds()
+A = Alignment(Alignment.XBFONT_CENTER_X)

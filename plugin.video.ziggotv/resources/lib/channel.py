@@ -68,20 +68,23 @@ class Channel:
         self.isHidden = False
         if 'isHidden' in eventJson:
             self.isHidden = True
+        self.avadEnabled = False
+        if 'avadEnabled' in eventJson:
+            self.avadEnabled = True
+        self.adSupport = []
+        if 'adSupport' in eventJson:
+            self.adSupport = eventJson['adSupport']
 
     @property
     def id(self):
         return self.channelId
 
-    def getLocator(self, addon: xbmcaddon.Addon) -> typing.Tuple[str, str]:
+    def get_locator(self, addon: xbmcaddon.Addon) -> typing.Tuple[str, str]:
         try:
             # max_res = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.max')
             maxResDrm = xbmcaddon.Addon('inputstream.adaptive').getSetting('adaptivestream.res.secure.max')
-            if maxResDrm in ['auto', '1080p', '2K', '4K', '1440p']:
-                hdAllowed = True
-            else:
-                hdAllowed = False
-        except Exception as exc:
+            hdAllowed = maxResDrm in ['auto', '1080p', '2K', '4K', '1440p']
+        except Exception:
             hdAllowed = True
         assetType = 'Orion-DASH'
         fullHD = addon.getSettingBool('full-hd')
@@ -110,7 +113,7 @@ class ChannelList(UserList):
         while i < len(entitlements['entitlements']):
             self.entitlementList.append(entitlements['entitlements'][i]["id"])
             i += 1
-        self.applyFilter()
+        self.apply_filter()
 
     @property
     def hiddenSuppressed(self):
@@ -128,38 +131,38 @@ class ChannelList(UserList):
     def entitledOnly(self, value):
         self._entitledOnly = value
 
-    def applyFilter(self):
+    def apply_filter(self):
         self.filteredChannels = []
         for channel in self.channels:
             if channel.isHidden and self.suppressHidden:
                 continue
             if self.entitledOnly:
-                if self.isEntitled(channel):
+                if self.is_entitled(channel):
                     self.filteredChannels.append(channel)
             else:
                 self.filteredChannels.append(channel)
         self.data = self.filteredChannels
 
-    def isEntitled(self, channel):
+    def is_entitled(self, channel):
         for product in channel.linearProducts:
             if product in self.entitlementList:
                 return True
         return False
 
-    def supportsReplay(self, channel):
+    def supports_replay(self, channel):
         for product in channel.replayProducts:
             if product['entitlementId'] in self.entitlementList:
                 if product['allowStartOver']:
                     return True
         return False
 
-    def supportsRecord(self):
+    def supports_record(self):
         return 'PVR' in self.entitlements
 
-    def channelsByLCN(self):
+    def channels_by_lcn(self):
         return sorted(self.channels, key=lambda x: x.logicalChannelNumber, reverse=False)
 
-    def channelsByName(self):
+    def channels_by_name(self):
         return sorted(self.channels, key=lambda x: x.name, reverse=False)
 
 
@@ -171,29 +174,29 @@ class ChannelGuide:
             self.startDate = None
             self.endDate = None
             if date is None:
-                self.__setWindow(datetime.datetime.now().astimezone(datetime.timezone.utc))
+                self.__set_window(datetime.datetime.now().astimezone(datetime.timezone.utc))
             else:
-                self.__setWindow(date)
+                self.__set_window(date)
 
-        def __setWindow(self, dt: datetime.datetime):
+        def __set_window(self, dt: datetime.datetime):
             self.startDate = dt.replace(hour=int(dt.hour / 6) * 6, minute=0, second=0, microsecond=0)
             self.endDate = self.startDate + datetime.timedelta(hours=6)
 
-        def dateInWindow(self, evtDate: datetime.datetime):
+        def date_in_window(self, evtDate: datetime.datetime):
             if self.startDate <= evtDate < self.endDate:
                 return True
             return False
 
-        def nextWindow(self):
+        def next_window(self):
             return self.startDate + datetime.timedelta(hours=6)
 
-        def previousWindow(self):
+        def previous_window(self):
             return self.startDate - datetime.timedelta(hours=6)
 
-        def setData(self, data):
+        def set_data(self, data):
             self.data = data
 
-        def getData(self):
+        def get_data(self):
             return self.data
 
         @property
@@ -212,56 +215,32 @@ class ChannelGuide:
         self.windows = []
         self.channels = channels.copy()
 
-    def __currentWindow(self):
+    def __current_window(self):
         dtNow = datetime.datetime.now().astimezone(datetime.timezone.utc)
         for w in self.windows:
             window: ChannelGuide.GuideWindow = w
-            if window.dateInWindow(dtNow):
+            if window.date_in_window(dtNow):
                 return w
         currentWindow = ChannelGuide.GuideWindow(dtNow)
         return currentWindow
 
-    def __isWindowPresent(self, evtDate: datetime.datetime):
+    def __is_window_present(self, evtDate: datetime.datetime):
         for w in self.windows:
             window: ChannelGuide.GuideWindow = w
-            if window.dateInWindow(evtDate):
+            if window.date_in_window(evtDate):
                 return True
         return False
 
-    def __findWindow(self, evtDate: datetime.datetime) -> GuideWindow:
+    def __find_window(self, evtDate: datetime.datetime) -> GuideWindow:
         for w in self.windows:
             window: ChannelGuide.GuideWindow = w
-            if window.dateInWindow(evtDate):
+            if window.date_in_window(evtDate):
                 return w
         return None
 
-    def __findLastWindow(self):
-        if len(self.windows) == 0:
-            return self.__currentWindow()
-        lastDate = datetime.datetime.min
-        window: ChannelGuide.GuideWindow = self.windows[0]
-        for w in self.windows:
-            w: ChannelGuide.GuideWindow = w
-            if w.startDate > lastDate:
-                lastDate = w.startDate
-                window = w
-        return window
-
-    def __findFirstWindow(self):
-        if len(self.windows) == 0:
-            return self.__currentWindow()
-        firstDate = datetime.datetime.max
-        window: ChannelGuide.GuideWindow = self.windows[0]
-        for w in self.windows:
-            w: ChannelGuide.GuideWindow = w
-            if w.startDate < firstDate:
-                firstDate = w.startDate
-                window = w
-        return window
-
-    def __processEvents(self, window):
+    def __process_events(self, window):
         # from resources.lib.channel import Channel
-        for channel in window.getData():
+        for channel in window.get_data():
             currentChannel: Channel = None
             for c in self.channels:
                 if c.id == channel['channelId']:
@@ -273,12 +252,12 @@ class ChannelGuide:
             if 'events' in channel:
                 for event in channel['events']:
                     evt = Event(event)
-                    currentChannel.events.insertEvent(evt)
+                    currentChannel.events.insert_event(evt)
             else:
                 xbmc.log('No events', xbmc.LOGDEBUG)
         window.processed = True
 
-    def __obtainEvents(self, window: GuideWindow):
+    def __obtain_events(self, window: GuideWindow):
         """
             Obtain events not yet stored in epg.json and append them
             to the internal events. Update the channels with the new events
@@ -287,22 +266,22 @@ class ChannelGuide:
                 window with startDate for the events
         """
         from resources.lib.webcalls import LoginSession
-        response = self.helper.dynamicCall(LoginSession.get_events, starttime=window.startDate.strftime('%Y%m%d%H%M%S'))
+        response = self.helper.dynamic_call(LoginSession.get_events, starttime=window.startDate.strftime('%Y%m%d%H%M%S'))
         self.windows.append(window)
-        window.setData(response['entries'])
-        self.appendEvents(response, window.startDate)
-        self.__processEvents(window)
+        window.set_data(response['entries'])
+        self.append_events(response, window.startDate)
+        self.__process_events(window)
 
-    def obtainEvents(self):
-        window = self.__currentWindow()
-        if self.__isWindowPresent(window.startDate):
-            window = self.__findWindow(window.startDate)
+    def obtain_events(self):
+        window = self.__current_window()
+        if self.__is_window_present(window.startDate):
+            window = self.__find_window(window.startDate)
             if not window.processed:
-                self.__processEvents(window)
+                self.__process_events(window)
         else:
-            self.__obtainEvents(window)
+            self.__obtain_events(window)
 
-    def obtainEventsInWindow(self, startDate: datetime, endDate: datetime):
+    def obtain_events_in_window(self, startDate: datetime, endDate: datetime):
         """
         Startdate for the window is determined. This is a date with a 6-hour interval
 
@@ -310,61 +289,62 @@ class ChannelGuide:
         @param endDate:
         @return:
         """
-        if self.__isWindowPresent(startDate):
-            startWindow = self.__findWindow(startDate)
+        if self.__is_window_present(startDate):
+            startWindow = self.__find_window(startDate)
             if not startWindow.processed:
-                self.__processEvents(startWindow)
+                self.__process_events(startWindow)
         else:
             startWindow = ChannelGuide.GuideWindow(startDate)
-            self.__obtainEvents(startWindow)
+            self.__obtain_events(startWindow)
 
-        if self.__isWindowPresent(endDate):
-            endWindow = self.__findWindow(endDate)
+        if self.__is_window_present(endDate):
+            endWindow = self.__find_window(endDate)
             if not endWindow.processed:
-                self.__processEvents(endWindow)
+                self.__process_events(endWindow)
         else:
             endWindow = ChannelGuide.GuideWindow(endDate)
-            self.__obtainEvents(endWindow)
+            self.__obtain_events(endWindow)
 
-        nextWindow = ChannelGuide.GuideWindow(startWindow.nextWindow())
+        nextWindow = ChannelGuide.GuideWindow(startWindow.next_window())
         while nextWindow.startDate < endWindow.startDate:
-            self.__obtainEvents(nextWindow)
-            nextWindow = ChannelGuide.GuideWindow(nextWindow.nextWindow())
+            self.__obtain_events(nextWindow)
+            nextWindow = ChannelGuide.GuideWindow(nextWindow.next_window())
 
-    def getEvents(self, channelId):
+    def get_events(self, channelId):
         for channel in self.channels:
             if channel.id == channelId:
                 return channel.events
+        return None
 
-    def appendEvents(self, response, startTime):
+    def append_events(self, response, startTime):
         if 'segments' not in self.eventsJson:
             self.eventsJson = {'segments': []}
         for segment in self.eventsJson['segments']:
-            if segment['starttime'] == DatetimeHelper.unixDatetime(startTime):
+            if segment['starttime'] == DatetimeHelper.unix_datetime(startTime):
                 self.eventsJson['segments'].remove(segment)
-        self.eventsJson['segments'].append({'starttime': DatetimeHelper.unixDatetime(startTime),
+        self.eventsJson['segments'].append({'starttime': DatetimeHelper.unix_datetime(startTime),
                                             'events': response})
         # Path(self.pluginPath(G.GUIDE_INFO)).write_text(json.dumps(self.eventsJson))
 
-    def pluginPath(self, name):
+    def plugin_path(self, name):
         return self.addonPath + name
 
-    def loadStoredEvents(self):
+    def load_stored_events(self):
         self.windows = []
-        if Path(self.pluginPath(G.GUIDE_INFO)).exists():
-            epgStr = Path(self.pluginPath(G.GUIDE_INFO)).read_text()
+        if Path(self.plugin_path(G.GUIDE_INFO)).exists():
+            epgStr = Path(self.plugin_path(G.GUIDE_INFO)).read_text()
         else:
             epgStr = ''
         if epgStr is None or epgStr == '':
             self.eventsJson = {'segments': []}
         else:
             self.eventsJson = json.loads(epgStr)
-            self.cleanEvents()
+            self.clean_events()
             for segment in self.eventsJson['segments']:
-                dt = DatetimeHelper.fromUnix(segment['starttime'])
+                dt = DatetimeHelper.from_unix(segment['starttime'])
                 dt = dt.replace(tzinfo=datetime.timezone.utc)
                 window = ChannelGuide.GuideWindow(dt)
-                window.setData(segment['events']['entries'])
+                window.set_data(segment['events']['entries'])
                 self.windows.append(window)
                 # self.__processEvents(window)
 
@@ -374,15 +354,15 @@ class ChannelGuide:
         for w in self.windows:
             window: ChannelGuide.GuideWindow = w
             if window.processed:
-                self.__processEvents(window)
+                self.__process_events(window)
 
-    def cleanEvents(self):
+    def clean_events(self):
         for segment in self.eventsJson['segments']:
             oldestTime = datetime.datetime.now() + datetime.timedelta(days=-5)
-            if segment['starttime'] < DatetimeHelper.unixDatetime(oldestTime):
+            if segment['starttime'] < DatetimeHelper.unix_datetime(oldestTime):
                 self.eventsJson['segments'].remove(segment)
         self.__reprocess()
     #        Path(self.pluginPath(G.GUIDE_INFO)).write_text(json.dumps(self.eventsJson))
 
-    def storeEvents(self):
-        Path(self.pluginPath(G.GUIDE_INFO)).write_text(json.dumps(self.eventsJson))
+    def store_events(self):
+        Path(self.plugin_path(G.GUIDE_INFO)).write_text(json.dumps(self.eventsJson))

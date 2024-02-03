@@ -27,7 +27,7 @@ class TestVideoPlayer(unittest.TestCase):
         super().__init__(*args, **kwargs)
 
     def test_times(self):
-        rslt = utils.DatetimeHelper.toUnix('2021-06-03T18:01:16.974Z', '%Y-%m-%dT%H:%M:%S.%fZ')
+        rslt = utils.DatetimeHelper.to_unix('2021-06-03T18:01:16.974Z', '%Y-%m-%dT%H:%M:%S.%fZ')
         self.assertEqual(rslt, 1622736076)
         print(rslt)
 

@@ -5,8 +5,8 @@ from urllib.parse import unquote
 
 import xbmcaddon
 
-from resources.lib.UrlTools import UrlTools
-from resources.lib.ZiggoPlayer import VideoHelpers
+from resources.lib.urltools import UrlTools
+from resources.lib.ziggoplayer import VideoHelpers
 from resources.lib.globals import G
 from resources.lib.webcalls import LoginSession
 from tests.test_base import TestBase

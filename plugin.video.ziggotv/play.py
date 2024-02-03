@@ -6,7 +6,7 @@ import xbmc
 import xbmcaddon
 
 from resources.lib.channel import Channel
-from resources.lib.ZiggoPlayer import VideoHelpers
+from resources.lib.ziggoplayer import VideoHelpers
 from resources.lib.events import ChannelGuide
 from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
@@ -27,7 +27,7 @@ def play(playType, path, addon):
     helper = ProxyHelper(addon)
     videoHelper = VideoHelpers(addon)
     epg = ChannelGuide(addon)
-    channels = helper.dynamicCall(LoginSession.get_channels)
+    channels = helper.dynamic_call(LoginSession.get_channels)
     channel: Channel = None
     for c in channels:
         if c.id == path:
@@ -38,8 +38,8 @@ def play(playType, path, addon):
         raise RuntimeError("Channel not found: " + path)
 
     try:
-        epg.loadStoredEvents()
-        channel.events = epg.getEvents(channel.id)
+        epg.load_stored_events()
+        channel.events = epg.get_events(channel.id)
         if playType == 'channel':
             videoHelper.play_channel(channel=channel)
         elif playType == 'vod':

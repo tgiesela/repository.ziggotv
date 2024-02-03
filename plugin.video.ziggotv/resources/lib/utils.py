@@ -1,6 +1,6 @@
 import binascii
 from datetime import datetime
-from enum import Enum, IntEnum
+from enum import IntEnum
 import threading
 import time
 from typing import Any
@@ -31,9 +31,9 @@ def atoh(barr):
 
 
 class ServiceStatus(IntEnum):
-    STARTING = 1,
-    STOPPING = 2,
-    STARTED = 3,
+    STARTING = 1
+    STOPPING = 2
+    STARTED = 3
     STOPPED = 4
 
 
@@ -42,69 +42,66 @@ class SharedProperties:
         self.addon: xbmcaddon.Addon = addon
         self.window: xbmcgui.Window = xbmcgui.Window(10000)
 
-    def setServiceStatus(self, status: ServiceStatus):
+    def set_service_status(self, status: ServiceStatus):
         self.window.setProperty(self.addon.getAddonInfo('id') + 'ServiceStatus', str(status.value))
 
-    def isServiceActive(self) -> bool:
-        if self.window.getProperty(self.addon.getAddonInfo('id') + 'ServiceStatus') == str(ServiceStatus.STARTED.value):
-            return True
-        else:
-            return False
+    def is_service_active(self) -> bool:
+        return self.window.getProperty(
+                    self.addon.getAddonInfo('id') + 'ServiceStatus') == str(ServiceStatus.STARTED.value)
 
-    def setUUID(self):
+    def set_uuid(self):
         self.window.setProperty(self.addon.getAddonInfo('id') + 'UUID',
                                 str(uuid.UUID(hex=hex(uuid.getnode())[2:]*2+'00000000')))
 
-    def getUUID(self):
-        self.window.getProperty(self.addon.getAddonInfo('id') + 'UUID')
+    def get_uuid(self):
+        return self.window.getProperty(self.addon.getAddonInfo('id') + 'UUID')
 
 
 class Timer(threading.Thread):
 
     def __init__(self, interval, callback_function=None):
-        self._timer_runs = threading.Event()
-        self._timer_runs.set()
+        self.timerRuns = threading.Event()
+        self.timerRuns.set()
         self.interval = interval
-        self.callback_function = callback_function
+        self.callbackFunction = callback_function
         super().__init__()
 
     def run(self):
-        expired_secs = 0
-        while self._timer_runs.is_set():
+        expiredSecs = 0
+        while self.timerRuns.is_set():
             time.sleep(1)
-            expired_secs += 1
-            if expired_secs >= self.interval:
+            expiredSecs += 1
+            if expiredSecs >= self.interval:
                 self.timer()
-                expired_secs = 0
+                expiredSecs = 0
 
     def stop(self):
-        self._timer_runs.clear()
+        self.timerRuns.clear()
         self.join()
 
     def timer(self):
-        self.callback_function()
+        self.callbackFunction()
 
 
 class DatetimeHelper:
     @staticmethod
-    def fromUnix(unix_time: int, tz: datetime.tzinfo = None) -> datetime:
-        date_time_max = datetime(2035, 12, 31, 0, 0)
-        max_unix_time_in_secs = time.mktime(date_time_max.timetuple())
-        if unix_time > max_unix_time_in_secs:
-            return datetime.fromtimestamp(unix_time / 1000, tz)
-        else:
-            return datetime.fromtimestamp(unix_time, tz)
+    def from_unix(unixTime: int, tz: datetime.tzinfo = None) -> datetime:
+        dateTimeMax = datetime(2035, 12, 31, 0, 0)
+        maxUnixTimeInSecs = time.mktime(dateTimeMax.timetuple())
+        if unixTime > maxUnixTimeInSecs:
+            return datetime.fromtimestamp(unixTime / 1000, tz)
+        return datetime.fromtimestamp(unixTime, tz)
 
     @staticmethod
     def now(tz: datetime.tzinfo = None) -> datetime:
         return datetime.now(tz)
 
     @staticmethod
-    def toUnix(dt: str, dt_format: str):
-        return int(time.mktime(datetime.strptime(dt, dt_format).timetuple()))
+    def to_unix(dt: str, dtFormat: str):
+        return int(time.mktime(datetime.strptime(dt, dtFormat).timetuple()))
 
     @staticmethod
-    def unixDatetime(dt: datetime):
+    def unix_datetime(dt: datetime):
         return int(time.mktime(dt.timetuple()))
 
 
@@ -114,7 +111,7 @@ class ProxyHelper:
         self.ip = addon.getSetting('proxy-ip')
         self.host = 'http://{0}:{1}/'.format(self.ip, self.port)
 
-    def dynamicCall(self, method, **kwargs) -> Any:
+    def dynamic_call(self, method, **kwargs) -> Any:
         """
         Helper function to call a function in the service which is running.
         If successful, the response will be the response from the called function.
@@ -141,15 +138,15 @@ class ProxyHelper:
             contentType = response.headers.get('content-type')
             if contentType == 'text/html':
                 return response.content
-            elif contentType == 'application/octet-stream':
+            if contentType == 'application/octet-stream':
                 result = pickle.loads(response.content)
                 return result
-            else:
-                return None
+            return None
         except WebException as exc:
             raise exc
         except Exception as exc:
             xbmc.log('Exception during dynamic Call: {0}'.format(exc), xbmc.LOGERROR)
+            return None
 
 
 if __name__ == '__main__':
