@@ -2,9 +2,11 @@
 Global definitions.
 Constants are grouped in classes. The classes are imported (with some exceptions)
 """
+import dataclasses
 from enum import IntEnum
 
 
+@dataclasses.dataclass
 class StringIds:
     """
     Id of strings in the language files. Changing them here also requires a change in the strings.po files
@@ -36,6 +38,8 @@ class StringIds:
     def __init__(self):
         pass
 
+
+@dataclasses.dataclass
 class GlobalVariables:
     """
     General global variables. Mainly the URLs used, filenames, and texts
@@ -72,6 +76,7 @@ class GlobalVariables:
     SERIES_INFO = 'series.json'
     GUIDE_INFO = 'epg.json'
     RECORDINGS_INFO = 'recordings.json'
+    PLAYBACK_INFO = 'playbackstates.json'
 
     SERIES = 'Series'
     MOVIES = 'Movies'

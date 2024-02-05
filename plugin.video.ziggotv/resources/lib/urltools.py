@@ -1,3 +1,6 @@
+"""
+Module with a collection of url functions
+"""
 from collections import namedtuple
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode, unquote
 
@@ -6,6 +9,9 @@ import xbmcaddon
 
 
 class UrlTools:
+    """
+    class implementing all kind of functions to manipulate the urls
+    """
     def __init__(self, addon: xbmcaddon.Addon):
         self.baseUrl = None
         self.redirectedUrl = None
@@ -13,6 +19,12 @@ class UrlTools:
         self.addon = addon
 
     def build_url(self, streamingToken, locator) -> str:
+        """
+        function to build an url to pass to ISA
+        @param streamingToken:
+        @param locator:
+        @return:
+        """
         useProxy = self.addon.getSettingBool('use-proxy')
         if useProxy:
             xbmc.log('Using proxy server', xbmc.LOGINFO)
@@ -88,7 +100,7 @@ class UrlTools:
                 levels = o.path.split('/')
                 levels.pop(len(levels)-1)  # Always remove last level, because it contains a filename (manifest.mpd)
                 cntToRemove = baseURL.count('../')
-                for i in range(cntToRemove):
+                for _ in range(cntToRemove):
                     levels.pop(len(levels)-1)
                 # Reconstruct the actual_url to be used as baseUrl
                 path = '/'.join(levels)

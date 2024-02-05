@@ -9,6 +9,7 @@ class StreamingInfo:
     """
     Base Class containing streaming info
     """
+
     # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
@@ -21,6 +22,9 @@ class StreamingInfo:
 
 @dataclasses.dataclass
 class ReplayStreamingInfo:
+    """
+    class for streaming info of a replay event
+    """
     # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
@@ -49,19 +53,35 @@ class ReplayStreamingInfo:
         self.token = None
 
     @property
-    def fast_forward_allowed(self):
+    def fastForwardAllowed(self) -> bool:
+        """
+        indicates if fast-forward is allowed
+        @return:
+        """
         return 'disallowFastForward' not in self.trickPlayControl
 
     @property
-    def skip_forward_allowed(self):
+    def skipForwardAllowed(self) -> bool:
+        """
+        indicates if skip-forward is allowed
+        @return:
+        """
         return 'disallowSkipForward' not in self.trickPlayControl
 
     @property
-    def ad_restriction(self):
+    def adRestriction(self) -> bool:
+        """
+        indicates if ad restrictions apply
+        @return:
+        """
         return 'adRestrictionOnly' not in self.trickPlayControl
+
 
 @dataclasses.dataclass
 class VodStreamingInfo:
+    """
+    class for streaming info of a Video On Demand
+    """
     # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
@@ -81,6 +101,10 @@ class VodStreamingInfo:
 
 @dataclasses.dataclass
 class RecordingStreamingInfo:
+    """
+    class for streaming info of a recording
+    """
+
     # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']

@@ -1,3 +1,6 @@
+"""
+module with classes for program events used for epg, replay and recording
+"""
 import datetime
 from typing import List
 
@@ -7,6 +10,9 @@ from resources.lib.linkedlist import LinkedList, Node
 
 # pylint: disable=too-many-instance-attributes, too-few-public-methods
 class EventDetails:
+    """
+    class containing the details of an event
+    """
     def __init__(self, eventJson):
         if 'shortDescription' in eventJson:
             self.description = eventJson['shortDescription']
@@ -17,7 +23,9 @@ class EventDetails:
 
         self.eventId = eventJson['eventId']
         self.channelId = eventJson['channelId']
-        self.mergedId = eventJson['mergedId']
+        self.mergedId = None
+        if 'mergeId' in eventJson:
+            self.mergedId = eventJson['mergedId']
         self.seriesId = None
         if 'seriesId' in eventJson:
             self.seriesId = eventJson['seriesId']
@@ -35,11 +43,18 @@ class EventDetails:
             self.genres = []
 
     @property
-    def isSeries(self):
+    def isSeries(self) -> bool:
+        """
+        property indicating if event is a series/show or single program
+        @return: True/False
+        """
         return self.seriesId is not None
 
 
 class Event:
+    """
+    class containing the basic properties of an event. See EventDetails for more information
+    """
     # pylint: disable=too-many-branches
     def __init__(self, eventJson):
         self.programDetails: EventDetails = None
@@ -51,33 +66,31 @@ class Event:
             self.mergedId = eventJson['mergedId']
         else:
             self.mergedId = ''
+        self.minimumAge = 0
         if 'minimumAge' in eventJson:
             self.minimumAge = eventJson['minimumAge']
-        else:
-            self.minimumAge = 0
+        self.isPlaceHolder = False
         if 'isPlaceHolder' in eventJson:
             self.isPlaceHolder = eventJson['isPlaceHolder']
-        else:
-            self.isPlaceHolder = False
+        self.replayTVMinAge = 0
         if 'replayTVMinAge' in eventJson:
             self.replayTVMinAge = eventJson['replayTVMinAge']
-        else:
-            self.replayTVMinAge = 0
+        self.hasReplayTV = True
         if 'hasReplayTV' in eventJson:
             self.hasReplayTV = eventJson['hasReplayTV']
-        else:
-            self.hasReplayTV = True
+        self.hasReplayTVOTT = True
         if 'hasReplayTVOTT' in eventJson:
             self.hasReplayTVOTT = eventJson['hasReplayTVOTT']
-        else:
-            self.hasReplayTVOTT = True
+        self.hasStartOver = True
         if 'hasStartOver' in eventJson:
             self.hasStartOver = eventJson['hasStartOver']
-        else:
-            self.hasStartOver = True
 
     @property
     def duration(self):
+        """
+        Length of event in seconds
+        @return: length of event in seconds
+        """
         return self.endTime - self.startTime
 
     @duration.setter
@@ -85,11 +98,19 @@ class Event:
         self.duration = value
 
     @property
-    def hasDetails(self):
+    def hasDetails(self) -> bool:
+        """
+        Indicates if details are already available
+        @return: True/False
+        """
         return self.programDetails is not None
 
     @property
-    def details(self):
+    def details(self) -> EventDetails:
+        """
+        Get the event details
+        @return: details
+        """
         return self.programDetails
 
     @details.setter
@@ -97,14 +118,22 @@ class Event:
         self.programDetails = EventDetails(value)
 
     @property
-    def canReplay(self):
+    def canReplay(self) -> bool:
+        """
+        Checks if event supports replay
+        @return: True/False
+        """
         now = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
         if self.startTime < now < self.endTime or self.endTime <= now:
             return self.hasStartOver and self.hasReplayTV
         return False
 
     @property
-    def canRecord(self):
+    def canRecord(self) -> bool:
+        """
+        Checks if event can be recorded
+        @return: True/False
+        """
         now = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
         if self.startTime < now < self.endTime or self.endTime <= now:
             return self.hasStartOver and self.hasReplayTV
@@ -113,7 +142,11 @@ class Event:
         return False
 
     @property
-    def isPlaying(self):
+    def isPlaying(self) -> bool:
+        """
+        Checks if event is currently playing
+        @return: True/False
+        """
         now = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
         if self.startTime < now < self.endTime:
             return True
@@ -121,6 +154,9 @@ class Event:
 
 
 class EventList(LinkedList):
+    """
+    class containing the events sorted on start time. Linked List implementation.
+    """
     def __is_duplicate(self, event: Event):
         currentNode: Node = self.head
         while currentNode is not None:
@@ -144,6 +180,11 @@ class EventList(LinkedList):
         return currentNode
 
     def insert_event(self, event: Event):
+        """
+        Insert event in the linked list of events
+        @param event:
+        @return:
+        """
         currentNode: Node = self.head
         if currentNode is None:  # Emtpy list
             self.insert_at_begin(event)
@@ -159,25 +200,29 @@ class EventList(LinkedList):
             else:
                 self.insert_before(node, event)
 
-    @staticmethod
-    def next_event(node) -> Event:
-        if node is None:
-            return None
-        return node.next.data
-
     def get_events_in_window(self, tstart: datetime.datetime, tend: datetime.datetime) -> List[Event]:
-        evtlist: List[Event] = []
-        evtnode = self.__find_event(tstart, tend)
-        endtime = utils.DatetimeHelper.unix_datetime(tend)
-        while evtnode is not None:
-            evt: Event = evtnode.data
-            if evt.startTime >= endtime:
+        """
+        Get a list of events in a specific time window (from tstart until tend)
+        @param tstart:
+        @param tend:
+        @return:
+        """
+        evtList: List[Event] = []
+        evtNode = self.__find_event(tstart, tend)
+        endTime = utils.DatetimeHelper.unix_datetime(tend)
+        while evtNode is not None:
+            evt: Event = evtNode.data
+            if evt.startTime >= endTime:
                 break
-            evtlist.append(evtnode.data)
-            evtnode = evtnode.next
-        return evtlist
+            evtList.append(evtNode.data)
+            evtNode = evtNode.next
+        return evtList
 
     def get_current_event(self) -> Event:
+        """
+        Get the current event playing
+        @return: event | None
+        """
         currentTime: datetime.datetime = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
         currentNode: Node = self.head
         while currentNode is not None:
@@ -191,17 +236,17 @@ class EventList(LinkedList):
         return None
 
     def __find_event(self, ts: datetime.datetime, te: datetime.datetime) -> Node:
-        windowstarttime = utils.DatetimeHelper.unix_datetime(ts)
-        windowendtime = utils.DatetimeHelper.unix_datetime(te)
+        windowStartTime = utils.DatetimeHelper.unix_datetime(ts)
+        windowEndTime = utils.DatetimeHelper.unix_datetime(te)
         currentNode: Node = self.head
         while currentNode is not None:
             currentEvent: Event = currentNode.data
-            if windowstarttime >= currentEvent.startTime:  # start of event before start of window
-                if currentEvent.endTime > windowstarttime:  # end of event beyond start of window
+            if windowStartTime >= currentEvent.startTime:  # start of event before start of window
+                if currentEvent.endTime > windowStartTime:  # end of event beyond start of window
                     return currentNode
-            if windowstarttime < currentEvent.startTime < windowendtime:
+            if windowStartTime < currentEvent.startTime < windowEndTime:
                 return currentNode
-            if currentEvent.startTime >= windowstarttime:
+            if currentEvent.startTime >= windowStartTime:
                 return None
             currentNode = currentNode.next
         return None

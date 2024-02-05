@@ -1,8 +1,12 @@
+"""
+Module with classes to support the API of ziggo-go
+"""
+# pylint: disable=too-many-lines
 import base64
 import datetime
 import json
-import inspect
 from typing import List
+from http.cookiejar import Cookie
 
 from datetime import timezone
 from pathlib import Path
@@ -11,8 +15,8 @@ import requests
 import xbmc
 import xbmcaddon
 import xbmcvfs
-from requests import Response
 
+from resources.lib.utils import b2ah, WebException
 from resources.lib.channel import Channel
 from resources.lib.globals import G, CONST_BASE_HEADERS, ALLOWED_LICENSE_HEADERS
 from resources.lib.recording import RecordingList
@@ -21,29 +25,15 @@ from resources.lib.utils import DatetimeHelper
 
 try:
     import pyjwt
+# pylint: disable=broad-exception-caught
 except Exception:
     import jwt as pyjwt
 
 
-def b2ah(barr):
-    return barr.hex()
-
-
-class WebException(Exception):
-    def __init__(self, response: Response):
-        funcName = inspect.stack()[1].function
-        message = 'Unexpected response status in {0}: {1}'.format(funcName, response.status_code)
-        super().__init__(message)
-        self.response = response
-
-    def get_response(self):
-        return self.response.content
-
-    def get_status(self):
-        return self.response.status_code
-
-
 class Web(requests.Session):
+    """
+    class which extends requests.Session and for use by LoginSession
+    """
 
     def __init__(self, addon: xbmcaddon.Addon):
         super().__init__()
@@ -52,28 +42,30 @@ class Web(requests.Session):
         self.load_cookies()
 
     def pluginpath(self, name):
+        """returns full path for the plugin to store a file"""
         return self.addonPath + name
 
     def dump_cookies(self):
-        from http.cookiejar import Cookie
+        """routine for debugging"""
         for _cookie in self.cookies:
             c: Cookie = _cookie
             xbmc.log('Cookie: {0}, domain: {1}, value: {2}, path: {3}'.format(c.name, c.domain, c.value, c.path))
 
     def save_cookies(self, response):
+        """save cookies to a file"""
         newCookies = requests.utils.dict_from_cookiejar(response.cookies)
         if Path(self.pluginpath(G.COOKIES_INFO)).exists():
-            savedCookies = json.loads(Path(self.pluginpath(G.COOKIES_INFO)).read_text())  # save them to file as JSON
+            savedCookies = json.loads(Path(self.pluginpath(G.COOKIES_INFO)).read_text(encoding='utf-8'))
         else:
             savedCookies = {}
 
         savedCookies = self.merge(newCookies, savedCookies)
-        # new_cookies = requests.utils.dict_from_cookiejar(self.session.cookies)  # turn cookiejar into dict
-        Path(self.pluginpath(G.COOKIES_INFO)).write_text(json.dumps(savedCookies))  # save them to file as JSON
+        Path(self.pluginpath(G.COOKIES_INFO)).write_text(json.dumps(savedCookies), encoding='utf-8')
 
     def load_cookies(self):
+        """load cookies from disk"""
         if Path(self.pluginpath(G.COOKIES_INFO)).exists():
-            cookies = json.loads(Path(self.pluginpath(G.COOKIES_INFO)).read_text())  # save them to file as JSON
+            cookies = json.loads(Path(self.pluginpath(G.COOKIES_INFO)).read_text(encoding='utf-8'))
         else:
             cookies = {}
         cookies = requests.utils.cookiejar_from_dict(cookies)  # turn dict to cookiejar
@@ -82,10 +74,12 @@ class Web(requests.Session):
 
     @staticmethod
     def merge(dict1, dict2):
+        """merge two dictionaries"""
         dict2.update(dict1)
         return dict2
 
     def print_dialog(self, response):
+        """debugging: print a http dialogue with headers and data from the received response (if any)"""
         if not self.printNetworkTraffic:
             return
 
@@ -221,7 +215,10 @@ class Web(requests.Session):
 
 
 class LoginSession(Web):
-
+    """
+    Implements the ziggo-go API (partially)
+    """
+    # pylint: disable=too-many-instance-attributes, too-many-public-methods
     def __init__(self, addon):
         super().__init__(addon)
         self.sessionInfo = {}
@@ -254,27 +251,39 @@ class LoginSession(Web):
             return True
         if response.status_code == 401:  # not authenticated
             self.sessionInfo = {}
-            Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(self.sessionInfo))
+            Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(self.sessionInfo), encoding='utf-8')
         return False
 
     def get_session_info(self):
+        """
+        load session information from disk
+        @return: nothing
+        """
         if Path(self.pluginpath(G.SESSION_INFO)).exists():
-            self.sessionInfo = json.loads(Path(self.pluginpath(G.SESSION_INFO)).read_text())
+            self.sessionInfo = json.loads(Path(self.pluginpath(G.SESSION_INFO)).read_text(encoding='utf-8'))
         else:
             self.sessionInfo = {}
         return self.sessionInfo
 
     def get_customer_info(self):
+        """
+        load customer information from disk
+        @return: nothing
+        """
         if Path(self.pluginpath(G.CUSTOMER_INFO)).exists():
-            self.customerInfo = json.loads(Path(self.pluginpath(G.CUSTOMER_INFO)).read_text())
+            self.customerInfo = json.loads(Path(self.pluginpath(G.CUSTOMER_INFO)).read_text(encoding='utf-8'))
             self.set_active_profile(self.get_profiles()[0])
         else:
             self.customerInfo = {}
         return self.customerInfo
 
     def get_channels(self):
+        """
+        load the channels from disk
+        @return: list of Channel objects
+        """
         if Path(self.pluginpath(G.CHANNEL_INFO)).exists():
-            channelInfo = json.loads(Path(self.pluginpath(G.CHANNEL_INFO)).read_text())
+            channelInfo = json.loads(Path(self.pluginpath(G.CHANNEL_INFO)).read_text(encoding='utf-8'))
             self.channels.clear()
             for info in channelInfo:
                 channel = Channel(info)
@@ -286,22 +295,31 @@ class LoginSession(Web):
         return self.channels
 
     def get_entitlements(self):
+        """
+        load entitlement information from disk
+        @return: entitlement json string
+        """
         if Path(self.pluginpath(G.ENTITLEMENTS_INFO)).exists():
-            self.entitlementsInfo = json.loads(Path(self.pluginpath(G.ENTITLEMENTS_INFO)).read_text())
+            self.entitlementsInfo = json.loads(Path(self.pluginpath(G.ENTITLEMENTS_INFO)).read_text(encoding='utf-8'))
         else:
             self.entitlementsInfo = {}
         return self.entitlementsInfo
 
     def obtain_customer_info(self):
+        """
+        get customer information from ziggo go and store it in a disk-file
+        @return: nothing
+        """
         try:
             self.cookies.pop("CLAIMSTOKEN")
+        # pylint: disable=broad-exception-caught
         except Exception:
             pass
         url = G.PERSONALISATION_URL.format(householdid=self.sessionInfo['householdId'])
         response = super().do_get(url, params={'with': 'profiles,devices'})
         if not self.__status_code_ok(response):
             raise WebException(response)
-        Path(self.pluginpath(G.CUSTOMER_INFO)).write_text(json.dumps(response.json()))
+        Path(self.pluginpath(G.CUSTOMER_INFO)).write_text(json.dumps(response.json()), encoding='utf-8')
 
     def __login_valid(self):
         _valid = False
@@ -323,6 +341,12 @@ class LoginSession(Web):
         return False
 
     def login(self, username: str, password: str):
+        """
+        Function to authenticate against the API
+        @param username:
+        @param password:
+        @return: sessionInfo string in json format
+        """
         self.username = username
         if not self.__login_valid():
             self.extraHeaders = {}
@@ -330,10 +354,10 @@ class LoginSession(Web):
             Path(self.pluginpath(G.COOKIES_INFO)).unlink(missing_ok=True)
             response = super().do_post(G.AUTHENTICATION_URL,
                                        jsonData={"password": password,
-                                                  "username": username})
+                                                 "username": username})
             if not self.__status_code_ok(response):
                 raise WebException(response)
-            Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()))
+            Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()), encoding='utf-8')
             self.sessionInfo = self.get_session_info()
         else:
             # Zie comment bij login_valid()
@@ -351,18 +375,18 @@ class LoginSession(Web):
                 # domain = urlparse(G.authentication_URL).netloc
                 try:
                     self.cookies.clear(domain='', path='/', name='ACCESSTOKEN')
+                # pylint: disable=broad-exception-caught
                 except Exception as exc:
                     xbmc.log("ACCESSTOKEN cannot be removed: {0}".format(exc), xbmc.LOGERROR)
                     xbmc.log("COOKIES: {0}".format(self.cookies.keys()), xbmc.LOGERROR)
                 #  self.cookies.pop("ACCESSTOKEN") # Causes duplicate error in some cases
                 response = super().do_post(G.AUTHENTICATION_URL + "/refresh",
                                            jsonData={"refreshToken": self.sessionInfo['refreshToken'],
-                                                      "username": username})
+                                                     "username": username})
                 if not self.__status_code_ok(response):
                     raise WebException(response)
-                Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()))
-
-            self.sessionInfo = self.get_session_info()
+                Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()), encoding='utf-8')
+                self.sessionInfo = self.get_session_info()
 
         self.obtain_customer_info()
         self.customerInfo = self.get_customer_info()
@@ -378,6 +402,10 @@ class LoginSession(Web):
         return self.sessionInfo
 
     def refresh_channels(self):
+        """
+        Obtain list of channels via the API and store on disk
+        @return: nothing
+        """
         response = super().do_get(G.CHANNELS_URL,
                                   params={'cityId': self.customerInfo["cityId"],
                                           'language': 'nl',
@@ -385,26 +413,40 @@ class LoginSession(Web):
                                   extraHeaders=self.extraHeaders)
         if not self.__status_code_ok(response):
             raise WebException(response)
-        Path(self.pluginpath(G.CHANNEL_INFO)).write_text(json.dumps(response.json()))
+        Path(self.pluginpath(G.CHANNEL_INFO)).write_text(json.dumps(response.json()), encoding='utf-8')
 
     def refresh_entitlements(self):
+        """
+        Obtain entitlements via the API and store on disk
+        @return: nothing
+        """
         url = G.ENTITLEMENTS_URL.format(householdid=self.sessionInfo['householdId'])
         response = super().do_get(url,
                                   params={'enableDayPass': 'true'},
                                   extraHeaders=self.extraHeaders)
         if not self.__status_code_ok(response):
             raise WebException(response)
-        Path(self.pluginpath(G.ENTITLEMENTS_INFO)).write_text(json.dumps(response.json()))
+        Path(self.pluginpath(G.ENTITLEMENTS_INFO)).write_text(json.dumps(response.json()), encoding='utf-8')
 
     def refresh_widevine_license(self):
+        """
+        Obtain widevine license via the API and store on disk
+        @return: nothing
+        """
         response = super().do_get(G.WIDEVINE_URL,
                                   extraHeaders=self.extraHeaders)
         if not self.__status_code_ok(response):
             raise WebException(response)
         encodedContent = base64.b64encode(response.content)
-        Path(self.pluginpath(G.WIDEVINE_LICENSE)).write_text(encodedContent.decode("ascii"))
+        Path(self.pluginpath(G.WIDEVINE_LICENSE)).write_text(encodedContent.decode("ascii"), encoding='ascii')
 
-    def obtain_tv_streaming_token(self, channelId, assetType):
+    def obtain_tv_streaming_token(self, channelId, assetType) -> StreamingInfo:
+        """
+        obtain streaming token for watching a channel
+        @param channelId:
+        @param assetType: obtained from the channel locators
+        @return: StreamingInfo object
+        """
         url = G.STREAMING_URL.format(householdid=self.sessionInfo['householdId']) + '/live'
         response = super().do_post(url,
                                    params={
@@ -420,7 +462,12 @@ class LoginSession(Web):
         self.streamInfo.token = response.headers["x-streaming-token"]
         return self.streamInfo
 
-    def obtain_replay_streaming_token(self, path):
+    def obtain_replay_streaming_token(self, path) -> ReplayStreamingInfo:
+        """
+        obtain streaming token for replay of an event
+        @param path: the id of the event
+        @return: ReplayStreamingInfo object
+        """
         url = G.STREAMING_URL.format(householdid=self.sessionInfo['householdId']) + '/replay'
         response = super().do_post(url,
                                    params={
@@ -435,7 +482,12 @@ class LoginSession(Web):
         self.replayStreamInfo.token = response.headers["x-streaming-token"]
         return self.replayStreamInfo
 
-    def obtain_vod_streaming_token(self, streamId):
+    def obtain_vod_streaming_token(self, streamId) -> VodStreamingInfo:
+        """
+        obtain streaming token for play of a Video On Demand
+        @param streamId: the id of the vod
+        @return: VodStreamingInfo object
+        """
         url = G.STREAMING_URL.format(householdid=self.sessionInfo['householdId']) + '/vod'
         response = super().do_post(url,
                                    params={
@@ -450,7 +502,12 @@ class LoginSession(Web):
         self.vodStreamInfo.token = response.headers["x-streaming-token"]
         return self.vodStreamInfo
 
-    def obtain_recording_streaming_token(self, streamid):
+    def obtain_recording_streaming_token(self, streamid) -> RecordingStreamingInfo:
+        """
+        obtain streaming token for play of a recording
+        @param streamid: the id of the recording
+        @return: RecordingStreamingInfo object
+        """
         url = G.STREAMING_URL.format(householdid=self.sessionInfo['householdId']) + '/recording'
         response = super().do_post(url,
                                    params={
@@ -465,24 +522,36 @@ class LoginSession(Web):
         self.recStreamInfo.token = response.headers["x-streaming-token"]
         return self.recStreamInfo
 
-    def get_license(self, content_id, request_data, license_headers):
+    def get_license(self, contentId, requestData, licenseHeaders):
+        """
+        Get a license to play a channel, recording, vod etc via the API
+        @param contentId:
+        @param requestData:
+        @param licenseHeaders:
+        @return: response of the host
+        """
         url = G.LICENSE_URL
-        license_headers.update({'x-streaming-token': self.streamingToken})
-        for key in license_headers:
+        licenseHeaders.update({'x-streaming-token': self.streamingToken})
+        for key in licenseHeaders:
             if key in ALLOWED_LICENSE_HEADERS:
                 pass
             else:
-                xbmc.log("HEADER DROPPPED: {0}:{1}".format(key, license_headers[key]), xbmc.LOGDEBUG)
-                license_headers[key] = None
+                xbmc.log("HEADER DROPPPED: {0}:{1}".format(key, licenseHeaders[key]), xbmc.LOGDEBUG)
+                licenseHeaders[key] = None
         response = super().do_post(url,
-                                   params={'ContentId': content_id},
-                                   data=request_data,
-                                   extraHeaders=license_headers)
+                                   params={'ContentId': contentId},
+                                   data=requestData,
+                                   extraHeaders=licenseHeaders)
         if 'x-streaming-token' in response.headers:
             self.streamingToken = response.headers['x-streaming-token']
         return response
 
-    def update_token(self, streaming_token):
+    def update_token(self, streamingToken):
+        """
+        update a streaming token via the API
+        @param streamingToken: the latest token
+        @return: new streaming token
+        """
         url = G.LICENSE_URL + '/token'
         profileId = self.activeProfile["profileId"]
         trackingId = self.get_customer_info()["hashedCustomerId"]
@@ -490,7 +559,7 @@ class LoginSession(Web):
             'X-OESP-Username': self.username,
             'x-tracking-id': trackingId,
             'X-Profile': profileId,
-            'x-streaming-token': streaming_token
+            'x-streaming-token': streamingToken
         }
         response = super().do_post(url,
                                    data=None,
@@ -503,7 +572,12 @@ class LoginSession(Web):
             return response.headers["x-streaming-token"]
         return ''
 
-    def delete_token(self, streaming_id):
+    def delete_token(self, streamingId):
+        """
+        delete streaming token via the API
+        @param streamingId: the token to delete
+        @return: nothing
+        """
         url = G.LICENSE_URL + '/token'
         profileId = self.activeProfile["profileId"]
         trackingId = self.get_customer_info()["hashedCustomerId"]
@@ -511,7 +585,7 @@ class LoginSession(Web):
             'X-OESP-Username': self.username,
             'x-tracking-token': trackingId,
             'X-Profile': profileId,
-            'x-streaming-token': streaming_id
+            'x-streaming-token': streamingId
         }
         response = super().do_delete(url,
                                      data=None,
@@ -521,30 +595,48 @@ class LoginSession(Web):
             raise WebException(response)
 
     def get_manifest(self, url):
+        """
+        Get a manifest file via the API
+        @param url:
+        @return:
+        """
         response = super().do_get(url, data=None, params=None)
         return response
 
     def get_profiles(self):
+        """
+        get the user profiles
+        @return: profiles for the customer in json format
+        """
         return self.customerInfo["profiles"]
 
     def set_active_profile(self, profile):
+        """
+        set the active user profile
+        @param profile: the id of the profile
+        @return:
+        """
         self.activeProfile = profile
 
-    def __get_optin_date(self, optinType, unixtime=False):
+    def __get_optin_date(self, optInType, unixTime=False):
         optins = self.customerInfo['customerOptIns']
         i = 0
         while i < len(optins):
-            if optins[i]['optInType'] == optinType:
+            if optins[i]['optInType'] == optInType:
                 replayOptinDate = optins[i]['lastModified']
-                if unixtime:
+                if unixTime:
                     return DatetimeHelper.to_unix(replayOptinDate, '%Y-%m-%dT%H:%M:%S.%fZ')
                 return replayOptinDate
             i += 1
-        if unixtime:
+        if unixTime:
             return 0
         return ''
 
     def obtain_structure(self):
+        """
+        Obtain structure for the web-page. Currently not used
+        @return:
+        """
         url = G.HOMESERVICE_URL + 'structure/'
         params = {
             'profileId': self.activeProfile["profileId"],
@@ -561,10 +653,15 @@ class LoginSession(Web):
         return response.content
 
     def obtain_home_collection(self, collection: []):
+        """
+        Obtain the home collection for the web-page. Currently not used
+        @param collection:
+        @return:
+        """
         profileId = self.activeProfile["profileId"]
         householdId = self.customerInfo['customerId']
         cityId = self.customerInfo["cityId"]
-        replayOptinDate = self.__get_optin_date('replay', unixtime=False)
+        replayOptinDate = self.__get_optin_date('replay', unixTime=False)
         url = (G.HOMESERVICE_URL
                + 'customers/{household_id}/profiles/{profile_id}/screen'.format(household_id=householdId,
                                                                                 profile_id=profileId))
@@ -590,8 +687,13 @@ class LoginSession(Web):
 
         return response.content
 
-    def obtain_grid_screen_details(self, collection_id):
-        url = G.GRIDSERVICE_URL + collection_id
+    def obtain_grid_screen_details(self, collectionId):
+        """
+        obtain a list of movies or series to list in the addon menu
+        @param collectionId: the id of a genre
+        @return:
+        """
+        url = G.GRIDSERVICE_URL + collectionId
         cityId = self.customerInfo["cityId"]
         profileId = self.activeProfile["profileId"]
         params = {
@@ -615,8 +717,13 @@ class LoginSession(Web):
             raise WebException(response)
         return json.loads(response.content)
 
-    def obtain_vod_screen_details(self, collection_id):
-        url = G.VOD_SERVICE_URL + 'collections-screen/{id}'.format(id=collection_id)
+    def obtain_vod_screen_details(self, collectionId):
+        """
+        obtain a list of genres
+        @param collectionId:
+        @return:
+        """
+        url = G.VOD_SERVICE_URL + 'collections-screen/{id}'.format(id=collectionId)
         cityId = self.customerInfo["cityId"]
         profileId = self.activeProfile["profileId"]
         params = {
@@ -638,8 +745,14 @@ class LoginSession(Web):
             raise WebException(response)
         return json.loads(response.content)
 
-    def obtain_asset_details(self, id, brandingProviderId=None):
-        url = G.VOD_SERVICE_URL + 'details-screen/{id}'.format(id=id)
+    def obtain_asset_details(self, assetId, brandingProviderId=None):
+        """
+        Obtain movie details
+        @param assetId:
+        @param brandingProviderId:
+        @return: json format of movie details
+        """
+        url = G.VOD_SERVICE_URL + 'details-screen/{id}'.format(id=assetId)
         cityId = self.customerInfo["cityId"]
         profileId = self.activeProfile["profileId"]
         params = {
@@ -659,8 +772,13 @@ class LoginSession(Web):
             raise WebException(response)
         return json.loads(response.content)
 
-    def obtain_series_overview(self, id):
-        url = G.PICKERSERVICE_URL + 'showPage/' + id + '/nl'
+    def obtain_series_overview(self, seriesId):
+        """
+        obtain series details
+        @param seriesId:
+        @return: json format of series details
+        """
+        url = G.PICKERSERVICE_URL + 'showPage/' + seriesId + '/nl'
         cityId = self.customerInfo["cityId"]
         params = {
             'cityId': cityId,
@@ -674,6 +792,10 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def obtain_vod_screens(self):
+        """
+        get a list of additional items to show in the addon menu (e.g. Sky Showtime etc.)
+        @return: list of items in json format
+        """
         url = G.VOD_SERVICE_URL + 'structure/omw_play'
         params = {
             'language': 'nl',
@@ -693,6 +815,11 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def get_episode_list(self, item):
+        """
+        get a list of episode for a series/show
+        @param item:
+        @return: list of episodes in json format
+        """
         profileId = self.activeProfile["profileId"]
         cityId = self.customerInfo["cityId"]
         url = G.ZIGGOPROD_URL + 'eng/web/picker-service/v2/episodePicker'
@@ -700,7 +827,7 @@ class LoginSession(Web):
                   'language': 'nl',
                   'country': 'nl',
                   'cityId': cityId,
-                  'replayOptedInTime': self.__get_optin_date('replay', unixtime=True),
+                  'replayOptedInTime': self.__get_optin_date('replay', unixTime=True),
                   'profileId': profileId,
                   'maxRes': '4K',
                   'mergingOn': 'true',
@@ -712,6 +839,11 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def get_episode(self, item):
+        """
+        get information of an episode for a series/show
+        @param item:
+        @return:
+        """
         profileId = self.activeProfile["profileId"]
         cityId = self.customerInfo["cityId"]
         if item['type'] == 'REPLAY':
@@ -724,7 +856,7 @@ class LoginSession(Web):
                           'language': 'nl',
                           'country': 'nl',
                           'cityId': cityId,
-                          'replayOptedInTime': self.__get_optin_date('replay', unixtime=True),
+                          'replayOptedInTime': self.__get_optin_date('replay', unixTime=True),
                           'profileId': profileId,
                           'maxRes': '4K',
                           'mergingOn': 'true',
@@ -750,6 +882,10 @@ class LoginSession(Web):
         return '', ''
 
     def get_mostwatched_channels(self):
+        """
+        get a list of most watched channels (not used)
+        @return:
+        """
         url = G.LINEARSERVICE_V1_URL + 'mostWatchedChannels'
         cityId = self.customerInfo["cityId"]
         params = {
@@ -761,13 +897,13 @@ class LoginSession(Web):
             raise WebException(response)
         return response.content
 
-    def get_events(self, starttime: str):
+    def get_events(self, startTime: str):
         """
-
-        :param starttime: datetime in format yyyymmddhhss
+        get a list of events to use in the EPG
+        :param startTime: datetime in format 'yyyymmddhhss'
         :return: list of events per channel
         """
-        url = G.EVENTS_URL + starttime
+        url = G.EVENTS_URL + startTime
         response = super().do_get(url=url)
         if not self.__status_code_ok(response):
             raise WebException(response)
@@ -812,6 +948,12 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def __get_recordings_season(self, channelId, showId):
+        """
+        get a list of recordings in a series/show
+        @param channelId:
+        @param showId:
+        @return:
+        """
         url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'episodes/shows/' + showId
         response = super().do_get(url, params={'source': 'recording',
                                                'isAdult': 'false',
@@ -827,8 +969,13 @@ class LoginSession(Web):
             raise WebException(response)
         return json.loads(response.content)
 
-    def get_recording_details(self, id):
-        url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'details/single/' + id
+    def get_recording_details(self, recordingId):
+        """
+        get the details of a recording
+        @param recordingId:
+        @return:
+        """
+        url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'details/single/' + recordingId
         response = super().do_get(url, params={'profileId': self.activeProfile['profileId'],
                                                'language': 'nl'
                                                })
@@ -837,6 +984,13 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def delete_recordings_planned(self, events: [], shows: [], channelId=None):
+        """
+        delete planned recordings
+        @param events: list of events to delete
+        @param shows: list of series/show/season to delete
+        @param channelId:
+        @return:
+        """
         eventList = []
         showList = []
         for event in events:
@@ -854,6 +1008,13 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def delete_recordings(self, events: [], shows: [], channelId=None):
+        """
+        delete a list of recordings
+        @param events: list of events to delete
+        @param shows: list of series/show/season to delete
+        @param channelId:
+        @return:
+        """
         eventList = []
         showList = []
         for event in events:
@@ -871,6 +1032,11 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def record_event(self, eventId):
+        """
+        Record an event
+        @param eventId:
+        @return:
+        """
         url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings/single'
         request = {'eventId': eventId,
                    'retentionLimit': 365}
@@ -880,6 +1046,12 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def record_show(self, eventId, channelId):
+        """
+        record a show/series/season
+        @param eventId:
+        @param channelId:
+        @return:
+        """
         url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings/show'
         request = {'eventId': eventId,
                    'channelId': channelId,
@@ -921,14 +1093,14 @@ class LoginSession(Web):
                     seasonRecordings = self.__get_recordings_season(recording['channelId'], recording['showId'])
                     recording.update({'episodes': seasonRecordings})
         recJson.update({'recorded': recordings})
-        Path(self.pluginpath(G.RECORDINGS_INFO)).write_text(json.dumps(recJson))
+        Path(self.pluginpath(G.RECORDINGS_INFO)).write_text(json.dumps(recJson), encoding='utf-8')
 
     def get_recordings_planned(self) -> RecordingList:
         """
         @return: list of planned recordings
         """
         if Path(self.pluginpath(G.RECORDINGS_INFO)).exists():
-            recordingsInfo = json.loads(Path(self.pluginpath(G.RECORDINGS_INFO)).read_text())
+            recordingsInfo = json.loads(Path(self.pluginpath(G.RECORDINGS_INFO)).read_text(encoding='utf-8'))
             return RecordingList(recordingsInfo['planned'])
         return RecordingList()
 
@@ -937,11 +1109,16 @@ class LoginSession(Web):
         @return: list of planned recordings
         """
         if Path(self.pluginpath(G.RECORDINGS_INFO)).exists():
-            recordingsInfo = json.loads(Path(self.pluginpath(G.RECORDINGS_INFO)).read_text())
+            recordingsInfo = json.loads(Path(self.pluginpath(G.RECORDINGS_INFO)).read_text(encoding='utf-8'))
             return RecordingList(recordingsInfo['recorded'])
         return None
 
     def get_event_details(self, eventId):
+        """
+        Get the details of an event for the EPG
+        @param eventId:
+        @return:
+        """
         url = G.REPLAYEVENT_URL + eventId
         params = {
             'returnLinearContent': 'true',
@@ -954,7 +1131,15 @@ class LoginSession(Web):
         return json.loads(response.content)
 
     def get_extra_headers(self):
+        """
+        get a list of extra headers
+        @return:
+        """
         return self.extraHeaders
 
     def get_cookies_dict(self):
+        """
+        get a list of cookies
+        @return:
+        """
         return self.cookies.get_dict()

@@ -1,3 +1,6 @@
+"""
+Proxy server related classes
+"""
 import pickle
 import traceback
 from socket import socket
@@ -15,14 +18,18 @@ from http.client import HTTPSConnection
 
 from xml.dom import minidom
 from resources.lib.urltools import UrlTools
-from resources.lib.webcalls import LoginSession, WebException
+from resources.lib.webcalls import LoginSession
+from resources.lib.utils import WebException
 import xbmc
 import xbmcaddon
 
 
 class HTTPRequestHandler(BaseHTTPRequestHandler):
-
+    """
+    class to handle HTTP requests that arrive at the proxy server
+    """
     def __init__(self, request: socket, client_address: typing.Tuple[str, int], server: socketserver.BaseServer):
+        # pylint: disable=useless-parent-delegation
         super().__init__(request, client_address, server)
 
     def log_request(self, code='-', size='-'):
@@ -43,10 +50,18 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
         proxy.handle_post(self)
 
     def do_OPTIONS(self):
+        """
+        Handle http OPTIONS
+        @return:
+        """
         proxy: ProxyServer = self.server
         proxy.handle_options(self)
 
     def do_HEAD(self):
+        """
+        Handle http HEAD
+        @return:
+        """
         proxy: ProxyServer = self.server
         proxy.handle_head(self)
     # pylint: enable=invalid-name
@@ -68,24 +83,34 @@ class ProxyServer(http.server.HTTPServer):
         xbmc.log("ProxyServer created", xbmc.LOGINFO)
 
     def set_streaming_token(self, token):
+        """
+        function to set the streaming token for the currently playing stream
+        The streaming token is kept in session.
+        @param token: the streaming token to be used
+        @return:
+        """
         with self.lock:
             self.session.streamingToken = token
             xbmc.log('Setting streaming token to: {0}'.format(token), xbmc.LOGDEBUG)
 
     def get_streaming_token(self):
+        """
+        function to get the streaming token for the currently playing stream
+        The streaming token is kept in session.
+        @return:  the streaming token to be used
+        """
         with self.lock:
             return self.session.streamingToken
 
-    def get_manifest_url(self, url: str, streamingToken: str):
-        return self.urlTools.get_manifest_url(proxyUrl=url, streamingToken=streamingToken)
-
-    def update_redirection(self, proxyUrl, actualUrl, baseURL):
-        self.urlTools.update_redirection(proxyUrl, actualUrl, baseURL)
-
-    def replace_baseurl(self, url, streamingToken):
-        return self.urlTools.replace_baseurl(url, streamingToken)
-
-    def handle_manifest(self, request, type='get'):
+    def handle_manifest(self, request, requestType='get'):
+        """
+        Function to handle the manifest request. The url for the real host is constructed here. The
+        parameters in the request (hostname, path and token) are extracted and the streaming token
+        is inserted. The request is forwarded to the real host.
+        @param request:
+        @param requestType: 'get'|'head'
+        @return:
+        """
         parsedUrl = urlparse(request.path)
         qs = parse_qs(parsedUrl.query)
         if 'path' in qs and 'hostname' in qs and 'token' in qs:
@@ -97,15 +122,15 @@ class ProxyServer(http.server.HTTPServer):
                 xbmc.log("Using original token", xbmc.LOGDEBUG)
                 self.set_streaming_token(origToken)
                 streamingToken = origToken
-            manifestUrl = self.get_manifest_url(request.path, streamingToken)
+            manifestUrl = self.urlTools.get_manifest_url(proxyUrl=request.path, streamingToken=streamingToken)
             with self.lock:
-                if type == 'get':
+                if requestType == 'get':
                     response = self.session.get_manifest(manifestUrl)
                     manifestBaseurl = self.baseurl_from_manifest(response.content)
-                elif type == 'head':
+                elif requestType == 'head':
                     response = self.session.do_head(manifestUrl)
                     manifestBaseurl = None
-            self.update_redirection(request.path, response.url, manifestBaseurl)
+            self.urlTools.update_redirection(request.path, response.url, manifestBaseurl)
             request.send_response(response.status_code)
             request.end_headers()
             request.wfile.write(response.content)
@@ -115,7 +140,13 @@ class ProxyServer(http.server.HTTPServer):
             request.end_headers()
 
     def handle_default(self, request):
-        url = self.replace_baseurl(request.path, self.get_streaming_token())
+        """
+        Handles get requests which are not manifest/license request. This concerns the video/audio requests.
+        Also here the url for the real host must be constructed and the streaming token must be inserted.
+        @param request:
+        @return:
+        """
+        url = self.urlTools.replace_baseurl(request.path, self.get_streaming_token())
         parsedDestUrl = urlparse(url)
         if parsedDestUrl.scheme == 'https':
             connection = HTTPConnection(parsedDestUrl.hostname, timeout=10)
@@ -161,6 +192,11 @@ class ProxyServer(http.server.HTTPServer):
                 block = response.read(8192)
 
     def handle_get(self, request):
+        """
+        General function to handle get requests
+        @param request:
+        @return:
+        """
         path = request.path  # Path with parameters received from request e.g. "/manifest?id=234324"
         xbmc.log('HTTP GET Request received: {0}'.format(unquote(path)), xbmc.LOGDEBUG)
         try:
@@ -178,6 +214,7 @@ class ProxyServer(http.server.HTTPServer):
         except ConnectionAbortedError as exc:
             xbmc.log('Connection aborted during processing: {0}'.format(exc), xbmc.LOGERROR)
             xbmc.log(traceback.format_exc(), xbmc.LOGDEBUG)
+        # pylint: disable=broad-exception-caught
         except Exception as exc:
             xbmc.log('Exception in handle_get(): {0}'.format(exc), xbmc.LOGERROR)
             xbmc.log(traceback.format_exc(), xbmc.LOGDEBUG)
@@ -185,6 +222,11 @@ class ProxyServer(http.server.HTTPServer):
             request.end_headers()
 
     def handle_post(self, request):
+        """
+        Function to handle the license request. The request is forwarded to the real host.
+        @param request:
+        @return:
+        """
         path = request.path  # Path with parameters received from request e.g. "/license?id=234324"
         xbmc.log('HTTP POST request received: {0}'.format(unquote(path)), xbmc.LOGDEBUG)
         if '/license' not in path:
@@ -217,6 +259,7 @@ class ProxyServer(http.server.HTTPServer):
             xbmc.log('Connection reset during processing: {0}'.format(exc), xbmc.LOGERROR)
         except ConnectionAbortedError as exc:
             xbmc.log('Connection aborted during processing: {0}'.format(exc), xbmc.LOGERROR)
+        # pylint: disable=broad-exception-caught
         except Exception as exc:
             xbmc.log('Exception in do_post(): {0}'.format(exc), xbmc.LOGERROR)
             request.send_response(500)
@@ -224,6 +267,12 @@ class ProxyServer(http.server.HTTPServer):
 
     @staticmethod
     def handle_options(request):
+        # pylint: disable=too-many-statements
+        """
+        Handle http OPTIONS request. Just sends the headers. Is probably not used.
+        @param request:
+        @return:
+        """
         request.send_response(200, "ok")
         request.send_header('Access-Control-Allow-Origin', '*')
         request.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
@@ -287,6 +336,13 @@ class ProxyServer(http.server.HTTPServer):
         request.end_headers()
 
     def handle_function(self, request):
+        """
+        This function processes dynamic procedure calls via HTTP. Those requests are transformed into
+        a call to LoginSession. This way only one LoginSession is kept alive and all access to ziggo-GO are
+        via the http-proxy
+        @param request:
+        @return:
+        """
         parsedUrl = urlparse(request.path)
         method = parsedUrl.path[10:]
         qs = parse_qs(parsedUrl.query)
@@ -305,15 +361,21 @@ class ProxyServer(http.server.HTTPServer):
                     request.end_headers()
                     request.wfile.write(pickle.dumps(retval))
             except WebException as exc:
-                request.send_response(exc.get_status())
+                request.send_response(exc.status)
                 request.send_header('content-type', 'text/html')
                 request.end_headers()
-                request.wfile.write(exc.get_response())
+                request.wfile.write(exc.response)
         else:
             request.send_response(400)
             request.end_headers()
 
     def handle_head(self, request):
+        """
+        when a HEAD request is received, it is assumed to be a manifest call. If so, it
+        will be forwarded to the real host to get all the headers. Used occasionally by Input Stream Adaptive
+        @param request:
+        @return:
+        """
         #  We should forward this to real server, but for now we will respond with code 501
         path = request.path  # Path with parameters received from request e.g. "/license?id=234324"
         xbmc.log('HTTP HEAD request received: {0}'.format(unquote(path)), xbmc.LOGDEBUG)
@@ -325,6 +387,12 @@ class ProxyServer(http.server.HTTPServer):
 
     @staticmethod
     def baseurl_from_manifest(manifest):
+        """
+        Function to check is a BaseURL exists in the manifest file. If so, extract and return it.
+        This was required because some channels use relative url's (RTL8 and others).
+        @param manifest:
+        @return:
+        """
         document = minidom.parseString(manifest)
         for parent in document.getElementsByTagName('MPD'):
             periods = parent.getElementsByTagName('Period')

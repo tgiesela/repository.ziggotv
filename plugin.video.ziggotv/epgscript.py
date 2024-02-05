@@ -1,3 +1,7 @@
+"""
+Script run from plugin.video.ziggotv when 'epg' is chosen. It creates a new
+window to present the EPG.
+"""
 import sys
 
 import xbmc
@@ -7,12 +11,16 @@ from xbmcgui import Action, Control
 
 from resources.lib.channel import ChannelList
 from resources.lib.programevent import ProgramEventGrid
-from resources.lib.globals import G
 from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
 
 
 class EpgWindowXml(xbmcgui.WindowXML):
+    # pylint: disable=too-many-instance-attributes
+    """
+    Class representing Epg Window defined in screen-epg.xml.
+    Ids used in this file correspond to the .xml file
+    """
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls, args[0], args[1])
 
@@ -39,8 +47,10 @@ class EpgWindowXml(xbmcgui.WindowXML):
 
     # Callbacks
 
+    # pylint: disable=useless-parent-delegation
     def show(self) -> None:
         super().show()
+    # pylint: enable=useless-parent-delegation
 
     def onControl(self, control: Control) -> None:
         self.grid.onControl(control)

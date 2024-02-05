@@ -1,29 +1,31 @@
-import json
-
-from urllib.parse import urlencode
-
+"""
+Module with classes for playing videos
+"""
 import xbmc
 import xbmcaddon
 import xbmcgui
-import xbmcvfs
 
 from resources.lib.channel import Channel, ChannelList
+from resources.lib.listitemhelper import ListitemHelper
 from resources.lib.recording import SingleRecording
 from resources.lib.streaminginfo import ReplayStreamingInfo
 from resources.lib.urltools import UrlTools
 from resources.lib.events import Event
-from resources.lib.globals import G, S, CONST_BASE_HEADERS
+from resources.lib.globals import G, S
 from resources.lib.utils import ProxyHelper, SharedProperties
 from resources.lib.webcalls import LoginSession
 
 try:
-    # pylint: disable=import-error
+    # pylint: disable=import-error, broad-exception-caught
     from inputstreamhelper import Helper
 except Exception as excpt:
     pass
 
 
 class ZiggoPlayer(xbmc.Player):
+    """
+    class extending the default VideoPlayer.
+    """
 
     def __init__(self):
         super().__init__()
@@ -53,129 +55,37 @@ class ZiggoPlayer(xbmc.Player):
         xbmc.log("ZIGGOPLAYER PLAYBACK ERROR", xbmc.LOGDEBUG)
 
     def set_replay(self, isReplay, time=0):
+        """
+        method to set that the video is for replay and set an optional start time to position the video
+        @param isReplay:
+        @param time:
+        @return:
+        """
         self.replay = isReplay
         self.prePadding = time
 
 
 class VideoHelpers:
+    """
+    class with helper functions to prepare playing a video/recording etc.
+    """
+
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, addon: xbmcaddon.Addon):
         self.addon = addon
         self.helper = ProxyHelper(addon)
         self.player: ZiggoPlayer = ZiggoPlayer()
+        self.liHelper: ListitemHelper = ListitemHelper(addon)
         self.customerInfo = self.helper.dynamic_call(LoginSession.get_customer_info)
         self.entitlements = self.helper.dynamic_call(LoginSession.get_entitlements)
         self.channels = ChannelList(self.helper.dynamic_call(LoginSession.get_channels), self.entitlements)
         self.uuId = SharedProperties(addon=self.addon).get_uuid()
 
-    def __get_widevine_license(self):
-        addonPath = xbmcvfs.translatePath(self.addon.getAddonInfo('profile'))
-        # pylint: disable=unspecified-encoding
-        with open(addonPath + "widevine.json", mode="r") as certFile:
-            contents = certFile.read()
-
-        return contents
-
-    def __send_notification(self, item: xbmcgui.ListItem, token, locator):
-        tag: xbmc.InfoTagVideo = item.getVideoInfoTag()
-        uniqueid = tag.getUniqueID('ziggochannelid')
-        params = {'sender': self.addon.getAddonInfo('id'),
-                  'message': tag.getTitle(),
-                  'data': {'command': 'play_video',
-                           'command_params': {'uniqueId': uniqueid, 'streamingToken': token, 'locator': locator}
-                           },
-                  }
-
-        command = json.dumps({'jsonrpc': '2.0',
-                              'method': 'JSONRPC.NotifyAll',
-                              'params': params,
-                              'id': 1,
-                              })
-        xbmc.executeJSONRPC(command)
-
-    def listitem_from_url(self, requesturl, streamingToken, drmContentId) -> xbmcgui.ListItem:
-        li = xbmcgui.ListItem(path=requesturl)
-        li.setProperty('IsPlayable', 'true')
-        tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
-        tag.setMediaType('video')
-        li.setMimeType('application/dash+xml')
-        li.setContentLookup(False)
-        li.setProperty(
-            key='inputstream',
-            value='inputstream.adaptive')
-        li.setProperty(
-            key='inputstream.adaptive.license_flags',
-            value='persistent_storage')
-        li.setProperty(
-            key='inputstream.adaptive.manifest_type',
-            value=G.PROTOCOL)
-        li.setProperty(
-            key='inputstream.adaptive.license_type',
-            value=G.DRM)
-        licenseHeaders = dict(CONST_BASE_HEADERS)
-        # 'Content-Type': 'application/octet-stream',
-        licenseHeaders.update({
-            'Host': 'prod.spark.ziggogo.tv',
-            'x-streaming-token': streamingToken,
-            'X-cus': self.customerInfo['customerId'],
-            'x-go-dev': self.uuId,
-            'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
-            'deviceName': 'Firefox'
-        })
-        extraHeaders = ProxyHelper(self.addon).dynamic_call(LoginSession.get_extra_headers)
-        for key in extraHeaders:
-            licenseHeaders.update({key: extraHeaders[key]})
-
-        useLicenseProxy = True
-        if useLicenseProxy:
-            port = self.addon.getSetting('proxy-port')
-            ip = self.addon.getSetting('proxy-ip')
-            url = 'http://{0}:{1}/license'.format(ip, port)
-            params = {'ContentId': drmContentId,
-                      'addon': self.addon.getAddonInfo('id')}
-            url = (url + '?' + urlencode(params) +
-                   '|' + urlencode(licenseHeaders) +
-                   '|R{SSM}'
-                   '|')
-        else:
-            cookies = ProxyHelper(self.addon).dynamic_call(LoginSession.get_cookies_dict)
-            url = G.LICENSE_URL
-            params = {'ContentId': drmContentId}
-            url = (url + '?' + urlencode(params) +
-                   '|' + urlencode(licenseHeaders) +
-                   'Cookie=ACCESSTOKEN={0};CLAIMSTOKEN={1}'.format(cookies['ACCESSTOKEN'], cookies['CLAIMSTOKEN']) +
-                   '|R{SSM}'
-                   '|')
-        # Prefix for request {SSM|SID|KID|PSSH}
-        # R - The data will be kept as is raw
-        # b - The data will be base64 encoded
-        # B - The data will be base64 encoded and URL encoded
-        # D - The data will be decimal converted (each char converted as integer concatenated by comma)
-        # H - The data will be hexadecimal converted (each character converted as hexadecimal and concatenated)
-        # Prefix for response
-        # -  Not specified, or, R if the response payload is in binary raw format
-        # B if the response payload is encoded as base64
-        # J[license tokens] if the response payload is in JSON format. You must specify the license tokens
-        #    names to allow inputstream.adaptive searches for the license key and optionally the HDCP limit.
-        #    The tokens must be separated by ;. The first token must be for the key license, the second one,
-        #    optional, for the HDCP limit. The HDCP limit is the result of resolution width multiplied for
-        #    its height. For example to limit until to 720p: 1280x720 the result will be 921600.
-        # BJ[license tokens] same meaning of J[license tokens] but the JSON is encoded as base64.
-        # HB if the response payload is after two return chars \r\n\r\n in binary raw format.
-
-        li.setProperty(
-            key='inputstream.adaptive.license_key',
-            value=url)
-        # Test
-        # server certificate to be used to encrypt messages to the license server. Should be encoded as Base64
-        widevineCertificate = self.__get_widevine_license()
-        li.setProperty(
-            key='inputstream.adaptive.server_certificate',
-            value=widevineCertificate)
-        self.__send_notification(li, streamingToken, url)  # send the streaming-token to the Service
-
-        return li
-
     def user_wants_switch(self):
+        """
+        ask the use if a switch to channel is requested
+        @return:
+        """
         choice = xbmcgui.Dialog().yesno('Play',
                                         self.addon.getLocalizedString(S.MSG_SWITCH),
                                         self.addon.getLocalizedString(S.BTN_CANCEL),
@@ -236,24 +146,25 @@ class VideoHelpers:
         locator, assetType = channel.get_locator(self.addon)
         if locator is None:
             xbmcgui.Dialog().ok('Info', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
-            return
+            return None
         streamInfo = self.helper.dynamic_call(LoginSession.obtain_tv_streaming_token,
                                               channelId=channel.id, assetType=assetType)
         try:
             url = urlHelper.build_url(streamInfo.token, locator)
-            playItem = self.listitem_from_url(requesturl=url,
-                                              streamingToken=streamInfo.token,
-                                              drmContentId=streamInfo.drmContentId)
+            playItem = self.liHelper.listitem_from_url(requesturl=url,
+                                                       streamingToken=streamInfo.token,
+                                                       drmContentId=streamInfo.drmContentId)
             event = channel.events.get_current_event()
             self.__add_event_info(playItem, channel, event)
             self.player.set_replay(False, 0)
             self.player.play(item=url, listitem=playItem)
             self.__wait_for_player()
             return playItem
+        # pylint: disable=broad-exception-caught
         except Exception as exc:
             xbmc.log('Error in __play_channel: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
             if streamInfo is not None and streamInfo.token is not None:
-                self.helper.dynamic_call(LoginSession.delete_token, streaming_id=streamInfo.token)
+                self.helper.dynamic_call(LoginSession.delete_token, streamingId=streamInfo.token)
             return None
 
     def __replay_event(self, event: Event, channel: Channel):
@@ -262,21 +173,22 @@ class VideoHelpers:
             return
         urlHelper = UrlTools(self.addon)
         streamInfo: ReplayStreamingInfo = self.helper.dynamic_call(LoginSession.obtain_replay_streaming_token,
-                                              path=event.details.eventId)
+                                                                   path=event.details.eventId)
         try:
             url = urlHelper.build_url(streamInfo.token, streamInfo.url)
-            playItem = self.listitem_from_url(requesturl=url,
-                                              streamingToken=streamInfo.token,
-                                              drmContentId=streamInfo.drmContentId)
+            playItem = self.liHelper.listitem_from_url(requesturl=url,
+                                                       streamingToken=streamInfo.token,
+                                                       drmContentId=streamInfo.drmContentId)
             self.__add_event_info(playItem, channel, event)
-#            if streamInfo.skip_forward_allowed:
+            #            if streamInfo.skip_forward_allowed:
             self.player.set_replay(True, streamInfo.prePaddingTime)
             self.player.play(item=url, listitem=playItem)
             self.__wait_for_player()
+        # pylint: disable=broad-exception-caught
         except Exception as exc:
             xbmc.log('Error in __replay_event: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
             if streamInfo is not None and streamInfo.token is not None:
-                self.helper.dynamic_call(LoginSession.delete_token, streaming_id=streamInfo.token)
+                self.helper.dynamic_call(LoginSession.delete_token, streamingId=streamInfo.token)
 
     @staticmethod
     def __get_playable_instance(overview):
@@ -293,13 +205,12 @@ class VideoHelpers:
         if playableInstance is None:
             xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
 
-        helper = VideoHelpers(self.addon)
         urlHelper = UrlTools(self.addon)
         streamInfo = self.helper.dynamic_call(LoginSession.obtain_vod_streaming_token, streamId=playableInstance['id'])
         try:
             url = urlHelper.build_url(streamInfo.token, streamInfo.url)
 
-            playItem = helper.listitem_from_url(
+            playItem = self.liHelper.listitem_from_url(
                 requesturl=url,
                 streamingToken=streamInfo.token,
                 drmContentId=streamInfo.drmContentId)
@@ -307,24 +218,24 @@ class VideoHelpers:
             self.player.play(item=url, listitem=playItem)
             self.__wait_for_player()
             return playItem
+        # pylint: disable=broad-exception-caught
         except Exception as exc:
             xbmc.log('Error in __play_vod: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
             if streamInfo is not None and streamInfo.token is not None:
-                self.helper.dynamic_call(LoginSession.delete_token, streaming_id=streamInfo.token)
+                self.helper.dynamic_call(LoginSession.delete_token, streamingId=streamInfo.token)
             return None
 
     def __play_recording(self, recording: SingleRecording, resumePoint) -> xbmcgui.ListItem:
-        helper = VideoHelpers(self.addon)
         urlHelper = UrlTools(self.addon)
         streamInfo = self.helper.dynamic_call(LoginSession.obtain_recording_streaming_token, streamid=recording.id)
         try:
             url = urlHelper.build_url(streamInfo.token, streamInfo.url)
 
-            playItem = helper.listitem_from_url(
+            playItem = self.liHelper.listitem_from_url(
                 requesturl=url,
                 streamingToken=streamInfo.token,
                 drmContentId=streamInfo.drmContentId)
-            details = self.helper.dynamic_call(LoginSession.get_recording_details, id=recording.id)
+            details = self.helper.dynamic_call(LoginSession.get_recording_details, recordingId=recording.id)
             self.__add_recording_info(playItem, details)
             if resumePoint > 0:
                 self.player.set_replay(True, resumePoint * 1000)
@@ -333,19 +244,26 @@ class VideoHelpers:
             self.player.play(item=url, listitem=playItem)
             self.__wait_for_player()
             return playItem
+        # pylint: disable=broad-exception-caught
         except Exception as exc:
             xbmc.log('Error in __play_vod: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
             if streamInfo is not None and streamInfo.token is not None:
-                self.helper.dynamic_call(LoginSession.delete_token, streaming_id=streamInfo.token)
+                self.helper.dynamic_call(LoginSession.delete_token, streamingId=streamInfo.token)
             return None
 
     def __record_event(self, event):
         self.helper.dynamic_call(LoginSession.record_event, eventId=event.id)
 
     def __record_show(self, event, channel):
-        self.helper.dynamic_call(LoginSession.record_show, eventId=event.id, channelId=channel.channelId)
+        self.helper.dynamic_call(LoginSession.record_show, eventId=event.id, channelId=channel.id)
 
     def update_event(self, channel: Channel, event):
+        """
+        update the event information in the player to reflect the current event
+        @param channel:
+        @param event:
+        @return:
+        """
         if event is None:
             return
         if not event.hasDetails:
@@ -363,6 +281,12 @@ class VideoHelpers:
         self.player.updateInfoTag(item)
 
     def play_epg(self, event: Event, channel: Channel):
+        """
+        Function to play something from the EPG. Can be an event, record event, record show, switch to channel
+        @param event:
+        @param channel:
+        @return:
+        """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
         isHelper = Helper(G.PROTOCOL, drm=G.DRM)
@@ -399,16 +323,32 @@ class VideoHelpers:
             self.__record_show(event, channel)
 
     def play_movie(self, movieOverview) -> xbmcgui.ListItem:
+        """
+        Play a movie
+        @param movieOverview:
+        @return:
+        """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
         return self.__play_vod(movieOverview)
 
     def play_recording(self, recording: SingleRecording, resumePoint):
+        """
+        play recording
+        @param recording:
+        @param resumePoint:
+        @return:
+        """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
         return self.__play_recording(recording, resumePoint)
 
     def play_channel(self, channel: Channel) -> xbmcgui.ListItem:
+        """
+        Play a channel
+        @param channel:
+        @return:
+        """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
         return self.__play_channel(channel)

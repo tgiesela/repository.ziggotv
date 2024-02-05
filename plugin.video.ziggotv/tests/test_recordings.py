@@ -1,9 +1,11 @@
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
+
 import datetime
 import unittest
 
 from resources.lib.channel import ChannelList, Channel
-from resources.lib.channel import ChannelGuide
-from resources.lib.recording import Recording, RecordingList, SingleRecording, SeasonRecording, PlannedRecording
+from resources.lib.channelguide import ChannelGuide
+from resources.lib.recording import RecordingList, SingleRecording, SeasonRecording, PlannedRecording
 from tests.test_base import TestBase
 
 
@@ -19,11 +21,11 @@ class TestRecordings(TestBase):
                                                                 recs.quota,
                                                                 recs.occupied))
         for rec in recs.recs:
-            if type(rec) is SingleRecording:
+            if isinstance(rec, SingleRecording):
                 print('Single {0}: {1}'.format(rec.title, rec.recordingState))
-            elif type(rec) is PlannedRecording:
+            elif isinstance(rec, PlannedRecording):
                 print('Planned {0}: {1}'.format(rec.title, rec.recordingState))
-            elif type(rec) is SeasonRecording:
+            elif isinstance(rec, SeasonRecording):
                 season: SeasonRecording = rec
                 print('Season {0} #: {1}'.format(season.title, season.episodes))
                 for episode in season.get_episodes('planned'):
@@ -36,7 +38,7 @@ class TestRecordings(TestBase):
         recs = self.session.get_recordings_planned()
         self.print_recordings(recs)
         for rec in recs.recs:
-            if type(rec) is SeasonRecording:
+            if isinstance(rec, SeasonRecording):
                 print('SHOW ' + rec.title + '\n')
                 season: SeasonRecording = rec
                 for episode in season.episodes:

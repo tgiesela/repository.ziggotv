@@ -1,8 +1,7 @@
-import threading
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
 import unittest
 
 from resources.lib.channel import ChannelList, Channel
-from resources.lib.servicemonitor import HttpProxyService
 from tests.test_base import TestBase
 
 

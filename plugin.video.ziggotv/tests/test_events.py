@@ -1,8 +1,9 @@
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
 import unittest
 import datetime
 
 from resources.lib import utils
-from resources.lib.channel import ChannelGuide
+from resources.lib.channelguide import ChannelGuide
 from resources.lib.events import EventList
 from tests.test_base import TestBase
 
