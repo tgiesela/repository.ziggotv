@@ -1,7 +1,9 @@
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
 import unittest
 import os
 import json
 import threading
+from time import sleep
 
 import xbmcaddon
 
@@ -19,6 +21,7 @@ class Addon(xbmcaddon.Addon):
         super().__init__(name)
         self.settings = {}
 
+    # pylint: disable=redefined-builtin
     def setSetting(self, id: str, value: str) -> None:
         self.settings.update({id: value})
 
@@ -33,6 +36,7 @@ class Addon(xbmcaddon.Addon):
 
     def getSettingNumber(self, id: str) -> float:
         return float(self.settings[id])
+    # pylint: enable=redefined-builtin
 
 
 class TestBase(unittest.TestCase):
@@ -46,17 +50,20 @@ class TestBase(unittest.TestCase):
         self.addon.setSetting('full-hd', 'true')
         self.cleanup_all()
         self.session = LoginSession(xbmcaddon.Addon())
-        self.session.print_network_traffic = False
+        self.session.printNetworkTraffic = False
         self.svc = HttpProxyService(threading.Lock())
         self.svc.set_address((self.addon.getSetting('proxy-ip'), self.addon.getSettingInt('proxy-port')))
-        self.svc.startHttpServer()
+        sleep(1)
 
     def setUp(self):
+        self.session = LoginSession(xbmcaddon.Addon())
+        self.svc.start_http_server()
         print("Executing setup")
 
     def tearDown(self):
+        print("Executing teardown")
         self.session.close()
-        self.svc.stopHttpServer()
+        self.svc.stop_http_server()
         self.cleanup_all()
 
     @staticmethod
@@ -81,7 +88,15 @@ class TestBase(unittest.TestCase):
 
     def cleanup_widevine(self):
         self.remove(G.WIDEVINE_LICENSE)
-        self.remove(G.WIDEVINE_LICENSE + '.raw')
+
+    def cleanup_epg(self):
+        self.remove(G.GUIDE_INFO)
+
+    def cleanup_recordings(self):
+        self.remove(G.RECORDINGS_INFO)
+
+    def cleanup_playbackstates(self):
+        self.remove(G.PLAYBACK_INFO)
 
     def cleanup_all(self):
         self.cleanup_customer()
@@ -90,8 +105,12 @@ class TestBase(unittest.TestCase):
         self.cleanup_cookies()
         self.cleanup_entitlements()
         self.cleanup_widevine()
+        self.cleanup_epg()
+        self.cleanup_recordings()
+        self.cleanup_playbackstates()
 
     def do_login(self):
-        with open(f'c:/temp/credentials.json', 'r') as credfile:
+        with open('c:/temp/credentials.json', 'r', encoding='utf-8') as credfile:
             credentials = json.loads(credfile.read())
         self.session.login(credentials['username'], credentials['password'])
+        self.session.obtain_customer_info()

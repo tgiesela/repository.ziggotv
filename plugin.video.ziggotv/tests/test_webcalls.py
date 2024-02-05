@@ -1,16 +1,19 @@
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
+
 import datetime
 import json
 import unittest
-import urllib.parse
 import uuid
-from collections import namedtuple
-from urllib.parse import urlparse
+
+from xml.dom import minidom
 
 import requests
 import xbmcaddon
 
-from resources.lib.UrlTools import UrlTools
-from resources.lib.webcalls import LoginSession, WebException
+
+from resources.lib.urltools import UrlTools
+from resources.lib.utils import WebException
+from resources.lib.webcalls import LoginSession
 from tests.test_base import TestBase
 
 
@@ -25,24 +28,24 @@ class TestWebCalls(TestBase):
         try:
             self.session.login('baduser', 'badpassword')
         except WebException as exc:
-            print(exc.getResponse())
-            print(exc.getStatus())
+            print(exc.response)
+            print(exc.status)
         self.do_login()
         cookies = self.session.load_cookies()
-        cookies_dict = requests.utils.dict_from_cookiejar(cookies)
-        if 'ACCESSTOKEN' in cookies_dict and 'CLAIMSTOKEN' in cookies_dict:
+        cookiesDict = requests.utils.dict_from_cookiejar(cookies)
+        if 'ACCESSTOKEN' in cookiesDict and 'CLAIMSTOKEN' in cookiesDict:
             pass
         else:
             self.fail('Expected cookies not found')
         self.session.dump_cookies()
-        self.session.session_info['accessToken'] = \
+        self.session.sessionInfo['accessToken'] = \
             ('eyJ0eXAiOiJKV1QiLCJraWQiOiJvZXNwX3Rva2VuX3Byb2RfMjAyMDA4MTkiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3ZWItYXBpLXBy'
              'b2Qtb2JvLmhvcml6b24udHYiLCJzaWQiOiJlYzYxNDE5NWE0NjdkNWM5ZGZkM2Q0MGQ2MzVmYTdhZjA4NmU4MzEzZDZhOGUyODQ5NDQ3Z'
              'Dk3ZTg4NGIzMzkzIiwiaWF0IjoxNzA1NzM2Mjc0LCJleHAiOjE3MDU3NDM0NzQsInN1YiI6Ijg2NTQ4MDdfbmwifQ.SAD1RuDYX60_tq7'
              'Zt0v-Zh3iKKS2hU6nv34-zAEKl2w')
         self.do_login()
         self.session.cookies.pop('ACCESSTOKEN')
-        self.session.session_info['accessToken'] = \
+        self.session.sessionInfo['accessToken'] = \
             ('eyJ0eXAiOiJKV1QiLCJraWQiOiJvZXNwX3Rva2VuX3Byb2RfMjAyMDA4MTkiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3ZWItYXBpLXBy'
              'b2Qtb2JvLmhvcml6b24udHYiLCJzaWQiOiJlYzYxNDE5NWE0NjdkNWM5ZGZkM2Q0MGQ2MzVmYTdhZjA4NmU4MzEzZDZhOGUyODQ5NDQ3Z'
              'Dk3ZTg4NGIzMzkzIiwiaWF0IjoxNzA1NzM2Mjc0LCJleHAiOjE3MDU3NDM0NzQsInN1YiI6Ijg2NTQ4MDdfbmwifQ.SAD1RuDYX60_tq7'
@@ -60,43 +63,45 @@ class TestWebCalls(TestBase):
     def test_entitlements(self):
         self.cleanup_all()
         self.session = LoginSession(xbmcaddon.Addon())
-        self.session.print_network_traffic = 'false'
+        self.session.printNetworkTraffic = 'false'
         self.do_login()
         entitlements = self.session.get_entitlements()
         self.assertDictEqual({}, entitlements)
-        entitlements = self.session.refresh_entitlements()
+        self.session.refresh_entitlements()
+        entitlements = self.session.get_entitlements()
         self.assertFalse(entitlements == {})
 
     def test_widevine_license(self):
         self.session.refresh_widevine_license()
 
     def test_tokens(self):
+        self.do_login()
         self.session.refresh_channels()
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        streamInfo = self.session.obtain_tv_streaming_token(channel.id, asset_type='Orion-DASH')
-        self.session.streaming_token = streamInfo.token
+        streamInfo = self.session.obtain_tv_streaming_token(channel.id, assetType='Orion-DASH')
+        self.session.streamingToken = streamInfo.token
         headers = {}
-        hw_uuid = str(uuid.UUID(hex=hex(uuid.getnode())[2:]*2+'00000000'))
+        hwUuid = str(uuid.UUID(hex=hex(uuid.getnode())[2:]*2+'00000000'))
         headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
             'Host': 'prod.spark.ziggogo.tv',
             'x-streaming-token': streamInfo.token,
-            'X-cus': self.session.customer_info['customerId'],
-            'x-go-dev': hw_uuid,  # '214572a3-2033-4327-b8b3-01a9a674f1e0',
+            'X-cus': self.session.customerInfo['customerId'],
+            'x-go-dev': hwUuid,  # '214572a3-2033-4327-b8b3-01a9a674f1e0',
             'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
             'deviceName': 'Firefox'
         })
 
         response = self.session.get_license('nl_tv_standaard_cenc', '\x08\x04', headers)
-        updated_streaming_token = response.headers['x-streaming-token']
-        self.assertFalse(updated_streaming_token == streamInfo.token)
-        new_streaming_token = self.session.update_token(updated_streaming_token)
-        self.assertFalse(new_streaming_token == streamInfo.token)
-        self.session.delete_token(new_streaming_token)
+        updatedStreamingToken = response.headers['x-streaming-token']
+        self.assertFalse(updatedStreamingToken == streamInfo.token)
+        self.session.obtain_customer_info()
+        newStreamingToken = self.session.update_token(updatedStreamingToken)
+        self.assertFalse(newStreamingToken == streamInfo.token)
+        self.session.delete_token(newStreamingToken)
 
-    def baseURL_from_manifest(self, manifest):
-        from xml.dom import minidom
+    def baseurl_from_manifest(self, manifest):
         document = minidom.parseString(manifest)
         for parent in document.getElementsByTagName('MPD'):
             periods = parent.getElementsByTagName('Period')
@@ -104,19 +109,18 @@ class TestWebCalls(TestBase):
                 baseURL = period.getElementsByTagName('BaseURL')
                 if baseURL.length == 0:
                     return None
-                else:
-                    return baseURL[0].childNodes[0].data
+                return baseURL[0].childNodes[0].data
         return None
 
     def test_manifest(self):
         tools = UrlTools(self.addon)
         self.do_login()
         self.session.refresh_channels()
-        self.session.print_network_traffic = True
+        self.session.printNetworkTraffic = True
         channels = self.session.get_channels()
         channel = channels[0]  # Simply use the first channel
-        locator, asset_type = channel.getLocator(self.addon)
-        tkn = self.session.obtain_tv_streaming_token(channel.id, asset_type)
+        locator, assetType = channel.get_locator(self.addon)
+        tkn = self.session.obtain_tv_streaming_token(channel.id, assetType)
         locator = channel.locators['Default'].replace('http://', 'https://')
         if '/dash' in locator:
             locator = locator.replace("/dash", "/dash,vxttoken=" + tkn.token).replace("http://", "https://")
@@ -129,7 +133,7 @@ class TestWebCalls(TestBase):
         mpd = str(response.content, 'utf-8')
         self.assertFalse(mpd == '')
         self.assertTrue(mpd.find('<MPD') > 0)
-        baseURL = self.baseURL_from_manifest(response.content)
+        baseURL = self.baseurl_from_manifest(response.content)
         if baseURL is None:
             print('BaseURL not found')
         tools.update_redirection(locator, 'https://da-d436304520010b88000108000000000000000005.id.cdn.upcbroadband'
@@ -145,14 +149,14 @@ class TestWebCalls(TestBase):
                                           'dGRCcVVLM29TYmkyV2o2STlKUEZ6JnNlc1RpbWU9MTcwNjI2NzkyMyZzdHJMaW09Myw4NWYxZjU'
                                           '1OTY0NTQxYTlhNGJhYTQyODhhYjFlNzI3YzU1Y2Q1MzAyNWUxYmRjZmQ2N2UzMjg5NGVjYTg3Nz'
                                           'A4/disk1/NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd', baseURL)
-        print('REDIRECTED URL: {0}'.format(tools.redirected_url))
+        print('REDIRECTED URL: {0}'.format(tools.redirectedUrl))
 
         for c in channels:
             if c.name == 'STAR Channel':
                 channel = c
                 break
-        locator, asset_type = channel.getLocator(self.addon)
-        tkn = self.session.obtain_tv_streaming_token(channel.id, asset_type)
+        locator, assetType = channel.get_locator(self.addon)
+        tkn = self.session.obtain_tv_streaming_token(channel.id, assetType)
         locator = channel.locators['Default'].replace('http://', 'https://')
         if '/dash' in locator:
             locator = locator.replace("/dash", "/dash,vxttoken=" + tkn.token).replace("http://", "https://")
@@ -166,7 +170,7 @@ class TestWebCalls(TestBase):
         self.assertFalse(mpd == '')
         self.assertTrue(mpd.find('<MPD') > 0)
 
-        baseURL = self.baseURL_from_manifest(response.content)
+        baseURL = self.baseurl_from_manifest(response.content)
         if baseURL is None:
             print('BaseURL not found')
             return
@@ -183,9 +187,10 @@ class TestWebCalls(TestBase):
                                           'dGRCcVVLM29TYmkyV2o2STlKUEZ6JnNlc1RpbWU9MTcwNjI2NzkyMyZzdHJMaW09Myw4NWYxZjU'
                                           '1OTY0NTQxYTlhNGJhYTQyODhhYjFlNzI3YzU1Y2Q1MzAyNWUxYmRjZmQ2N2UzMjg5NGVjYTg3Nz'
                                           'A4/disk1/NL_000011_019563/go-dash-hdready-avc/NL_000011_019563.mpd', baseURL)
-        print('REDIRECTED URL: {0}'.format(tools.redirected_url))
+        print('REDIRECTED URL: {0}'.format(tools.redirectedUrl))
 
     def test_voor_jou(self):
+        self.do_login()
         profiles = self.session.get_profiles()
         for profile in profiles:
             print('Profile: {0}\n'.format(profile['name']))
@@ -201,35 +206,13 @@ class TestWebCalls(TestBase):
                 # if item['type'] in ['CombinedCollection', 'RecommendedForYou']:
                 else:
                     requestcolls.append(item['id'])
-                    home_coll = json.loads(self.session.obtain_home_collection(requestcolls))
-                    # print(home_coll)
-                    for collection in home_coll['collections']:
-                        print('\tCollection: ' + collection['title'])
-                        if 'subcollections' in collection:
-                            for subcoll in collection['subcollections']:
-                                print('\t\tSubcollection: ' + subcoll['title'], 'type: ', subcoll['type'])
-                        if 'items' in collection:
-                            for item in collection['items']:
-                                if 'entitlementState' in item:
-                                    if item['entitlementState'].lower() == 'entitled':
-                                        entitled = True
-                                    else:
-                                        entitled = False
-                                else:
-                                    entitled = False
-                                print('\t\tItem: ', item['title'], ',', item['type'], ', entitlementState: ', entitled)
-                                if 'brandingProviderId' in item:
-                                    print('\t\t      Branding-provider', item['brandingProviderId'])
-                                episoderesponse, asset = self.session.get_episode(item)
-                                print("Episo-resp:", episoderesponse)
-                                print("Asset-resp:", asset)
-                                if asset != '':
-                                    asset_json = json.loads(asset)
-                                    print("CHANNEL=", asset_json['channelId'])
-                                    print("STARTTIME:", datetime.datetime.fromtimestamp(asset_json['startTime']))
-                                    print("ENDTIME:", datetime.datetime.fromtimestamp(asset_json['endTime']))
+                    homeColl = json.loads(self.session.obtain_home_collection(requestcolls))
+                    # print(homeColl)
+                    for collection in homeColl['collections']:
+                        self.process_collection_voor_jou(collection)
 
     def test_movies_and_series(self):
+        self.do_login()
         profiles = self.session.get_profiles()
         for profile in profiles:
             print('Profile: {0}\n'.format(profile['name']))
@@ -239,75 +222,100 @@ class TestWebCalls(TestBase):
             combinedlist.append(response['hotlinks']['adultRentScreen'])
             for screen in combinedlist:
                 print('Screen: ' + screen['title'], 'id: ', screen['id'])
-                screen_details = self.session.obtain_vod_screen_details(screen['id'])
-                for collection in screen_details['collections']:
-                    if collection['collectionLayout'] == 'BasicCollection':
-                        print('\t{0}, type: {1}'.format(collection['title'], collection['contentType']))
-                    else:
-                        print('\t{0}, type: {1}'.format(collection['collectionLayout'], collection['contentType']))
-                    for item in collection['items']:
-                        if item['type'] == 'LINK':
-                            try:
-                                grid = self.session.obtain_grid_screen_details(item['gridLink']['id'])
-                                print(
-                                    '\t\t{0}:{2}'.format(item['type'], item['gridLink']['type'],
-                                                         item['gridLink']['title']))
-                            except Exception as exc:
-                                print(
-                                    '\t\tFAILED: {0}:{2}'.format(item['type'], item['gridLink']['type'],
-                                                                 item['gridLink']['title']))
-                        else:
-                            print('\t\t{0}-{1}:{2}'.format(item['type'], item['assetType'], item['title']))
-                            if item['type'] == 'SERIES':
-                                overview = self.session.obtain_series_overview(item['id'])
-                                print('\t\t{0}'.format(','.join(overview['genres'])))
-                                print('\t\t{0}'.format(overview['synopsis']))
-                                episodes = self.session.get_episode_list(item['id'])
-                                for season in episodes['seasons']:
-                                    print('\t\t\tSeizoen {0}, afl: {1}'.format(
-                                        season['season']
-                                        , season['totalEpisodes']))
-                                    for episode in season['episodes']:
-                                        if 'entitlementState' in episode['source']:
-                                            if episode['source']['entitlementState'].lower() == 'entitled':
-                                                entitled = True
-                                            else:
-                                                entitled = False
-                                        else:
-                                            entitled = False
-                                        if 'type' in episode['source']:
-                                            episode_type = episode['source']['type']
-                                        else:
-                                            episode_type = '?'
-                                        title = episode['title'] if 'title' in episode else '?'
-                                        print('\t\t\tAfl {0}, afl: {1} source {2} entitled {3} type {4}'.format(
-                                            episode['episode']
-                                            , title, episode['source']['titleId']
-                                            , entitled
-                                            , episode_type))
-                                        details = self.session.obtain_asset_details(episode['id'])
-                                        if 'instances' in details:
-                                            print('\t\t\tInstances found')
-                                        else:
-                                            print('\t\t\t{0}Instances NOT found, entitled: {1}'.format(title,
-                                                                                                       entitled))
-                                        # details2 = self.session.obtain_asset_details(episode['source']['eventId'])
-                            elif item['type'] == 'ASSET':
-                                if 'brandingProviderId' in item:
-                                    overview = self.session.obtain_asset_details(item['id'], item['brandingProviderId'])
-                                else:
-                                    overview = self.session.obtain_asset_details(item['id'])
-                                if 'genres' in overview:
-                                    print('\t\t{0}'.format(','.join(overview['genres'])))
-                                print('\t\t{0}'.format(overview['synopsis']))
-                                print('\t\t\tinstances')
-                                for instance in overview['instances']:
-                                    print('\t\t\t\t' + instance['id'])  # used to get streaming token
-                                    print('\t\t\t\tentitled {0}, price {1}'.format(
-                                        instance['offers'][0]['entitled']
-                                        , instance['offers'][0]['price']))
+                screenDetails = self.session.obtain_vod_screen_details(screen['id'])
+                for collection in screenDetails['collections']:
+                    self.process_collection_movies(collection)
             break # We only test one profile !
             # print(response)
+
+    def process_collection_voor_jou(self, collection):
+        print('\tCollection: ' + collection['title'])
+        if 'subcollections' in collection:
+            for subcoll in collection['subcollections']:
+                print('\t\tSubcollection: ' + subcoll['title'], 'type: ', subcoll['type'])
+        if 'items' in collection:
+            for item in collection['items']:
+                if 'entitlementState' in item:
+                    entitled = item['entitlementState'].lower() == 'entitled'
+                else:
+                    entitled = False
+                print('\t\tItem: ', item['title'], ',', item['type'], ', entitlementState: ', entitled)
+                if 'brandingProviderId' in item:
+                    print('\t\t      Branding-provider', item['brandingProviderId'])
+                episoderesponse, asset = self.session.get_episode(item)
+                print("Episo-resp:", episoderesponse)
+                print("Asset-resp:", asset)
+                if asset != '':
+                    assetJson = json.loads(asset)
+                    print("CHANNEL=", assetJson['channelId'])
+                    print("STARTTIME:", datetime.datetime.fromtimestamp(assetJson['startTime']))
+                    print("ENDTIME:", datetime.datetime.fromtimestamp(assetJson['endTime']))
+
+    def process_collection_movies(self, collection):
+        # pylint: disable=too-many-branches
+        if collection['collectionLayout'] == 'BasicCollection':
+            print('\t{0}, type: {1}'.format(collection['title'], collection['contentType']))
+        else:
+            print('\t{0}, type: {1}'.format(collection['collectionLayout'], collection['contentType']))
+        for item in collection['items']:
+            if item['type'] == 'LINK':
+                try:
+                    _ = self.session.obtain_grid_screen_details(item['gridLink']['id'])
+                    print('\t\t{0}:{1}'.format(item['type'], item['gridLink']['title']))
+                # pylint: disable=broad-exception-caught
+                except Exception:
+                    print(
+                        '\t\tFAILED: {0}:{1}'.format(item['type'], item['gridLink']['title']))
+            else:
+                print('\t\t{0}-{1}:{2}'.format(item['type'], item['assetType'], item['title']))
+                if item['type'] == 'SERIES':
+                    overview = self.session.obtain_series_overview(item['id'])
+                    print('\t\t{0}'.format(','.join(overview['genres'])))
+                    print('\t\t{0}'.format(overview['synopsis']))
+                    episodes = self.session.get_episode_list(item['id'])
+                    for season in episodes['seasons']:
+                        self.process_collection_movies_season(season)
+                elif item['type'] == 'ASSET':
+                    if 'brandingProviderId' in item:
+                        overview = self.session.obtain_asset_details(item['id'], item['brandingProviderId'])
+                    else:
+                        overview = self.session.obtain_asset_details(item['id'])
+                    if 'genres' in overview:
+                        print('\t\t{0}'.format(','.join(overview['genres'])))
+                    print('\t\t{0}'.format(overview['synopsis']))
+                    print('\t\t\tinstances')
+                    for instance in overview['instances']:
+                        print('\t\t\t\t' + instance['id'])  # used to get streaming token
+                        print('\t\t\t\tentitled {0}, price {1}'.format(
+                            instance['offers'][0]['entitled']
+                            , instance['offers'][0]['price']))
+
+    def process_collection_movies_season(self, season):
+        print('\t\t\tSeizoen {0}, afl: {1}'.format(
+            season['season']
+            , season['totalEpisodes']))
+        for episode in season['episodes']:
+            if 'entitlementState' in episode['source']:
+                entitled = episode['source']['entitlementState'].lower() == 'entitled'
+            else:
+                entitled = False
+            if 'type' in episode['source']:
+                episodeType = episode['source']['type']
+            else:
+                episodeType = '?'
+            title = episode['title'] if 'title' in episode else '?'
+            print('\t\t\tAfl {0}, afl: {1} source {2} entitled {3} type {4}'.format(
+                episode['episode']
+                , title, episode['source']['titleId']
+                , entitled
+                , episodeType))
+            details = self.session.obtain_asset_details(episode['id'])
+            if 'instances' in details:
+                print('\t\t\tInstances found')
+            else:
+                print('\t\t\t{0}Instances NOT found, entitled: {1}'.format(title,
+                                                                           entitled))
+            # details2 = self.session.obtain_asset_details(episode['source']['eventId'])
 
 
 if __name__ == '__main__':

@@ -1,3 +1,7 @@
+"""
+Script run from plugin.video.ziggotv when 'epg' is chosen. It creates a new
+window to present the EPG.
+"""
 import sys
 
 import xbmc
@@ -7,12 +11,16 @@ from xbmcgui import Action, Control
 
 from resources.lib.channel import ChannelList
 from resources.lib.programevent import ProgramEventGrid
-from resources.lib.globals import G
 from resources.lib.utils import ProxyHelper
 from resources.lib.webcalls import LoginSession
 
 
 class EpgWindowXml(xbmcgui.WindowXML):
+    # pylint: disable=too-many-instance-attributes
+    """
+    Class representing Epg Window defined in screen-epg.xml.
+    Ids used in this file correspond to the .xml file
+    """
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls, args[0], args[1])
 
@@ -29,18 +37,20 @@ class EpgWindowXml(xbmcgui.WindowXML):
         self.__initialize_session()
         self.channelList = ChannelList(self.channels, self.entitlements)
         self.channelList.entitledOnly = my_addon.getSettingBool('allowed-channels-only')
-        self.channelList.applyFilter()
+        self.channelList.apply_filter()
         self.mediaFolder = self.addon.getAddonInfo('path') + 'resources/skins/Default/media/'
 
     # Private methods
     def __initialize_session(self):
-        self.channels = self.helper.dynamicCall(LoginSession.get_channels)
-        self.entitlements = self.helper.dynamicCall(LoginSession.get_entitlements)
+        self.channels = self.helper.dynamic_call(LoginSession.get_channels)
+        self.entitlements = self.helper.dynamic_call(LoginSession.get_entitlements)
 
     # Callbacks
 
+    # pylint: disable=useless-parent-delegation
     def show(self) -> None:
         super().show()
+    # pylint: enable=useless-parent-delegation
 
     def onControl(self, control: Control) -> None:
         self.grid.onControl(control)
@@ -73,13 +83,13 @@ class EpgWindowXml(xbmcgui.WindowXML):
             self.close()
             return
 
-        if self.grid.isAtFirstRow():
+        if self.grid.is_at_first_row():
             #  Set control to header to select date or back to grid
             if action.getId() == xbmcgui.ACTION_MOVE_UP:
                 self.setFocusId(1010)
             elif (action.getId() == xbmcgui.ACTION_MOVE_DOWN and
                   self.getFocusId() in [1016, 1017, 1018, 1020]):
-                self.grid.setFocus()
+                self.grid.set_focus()
             elif (action.getId() in [xbmcgui.ACTION_MOVE_LEFT, xbmcgui.ACTION_MOVE_RIGHT] and
                   self.getFocusId() in [1016, 1017, 1018, 1020]):
                 pass  # Action handled via .xml <onleft> <onright>

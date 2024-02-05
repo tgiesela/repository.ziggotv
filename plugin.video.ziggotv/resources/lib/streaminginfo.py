@@ -1,13 +1,16 @@
 """
 Contains classes to hold streaming info, including token, for different types
 """
+import dataclasses
 
 
+@dataclasses.dataclass
 class StreamingInfo:
     """
     Base Class containing streaming info
     """
 
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.drmContentId = streamingJson['drmContentId']
@@ -17,8 +20,12 @@ class StreamingInfo:
         self.token = None
 
 
+@dataclasses.dataclass
 class ReplayStreamingInfo:
-
+    """
+    class for streaming info of a replay event
+    """
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.drmContentId = streamingJson['drmContentId']
@@ -34,14 +41,48 @@ class ReplayStreamingInfo:
         self.isAdult = False
         if 'isAdult' in streamingJson:
             self.isAdult = streamingJson['isAdult']
-        self.ageRating = streamingJson['ageRating']
+        self.ageRating = -1
+        if 'ageRating' in streamingJson:
+            self.ageRating = streamingJson['ageRating']
         self.fallbackUrl = streamingJson['fallbackUrl']
         self.url = streamingJson['url']
         self.isAvad = streamingJson['isAvad']
+        self.trickPlayControl = []
+        if 'trickPlayControl' in streamingJson:
+            self.trickPlayControl = streamingJson['trickPlayControl']
         self.token = None
 
+    @property
+    def fastForwardAllowed(self) -> bool:
+        """
+        indicates if fast-forward is allowed
+        @return:
+        """
+        return 'disallowFastForward' not in self.trickPlayControl
 
+    @property
+    def skipForwardAllowed(self) -> bool:
+        """
+        indicates if skip-forward is allowed
+        @return:
+        """
+        return 'disallowSkipForward' not in self.trickPlayControl
+
+    @property
+    def adRestriction(self) -> bool:
+        """
+        indicates if ad restrictions apply
+        @return:
+        """
+        return 'adRestrictionOnly' not in self.trickPlayControl
+
+
+@dataclasses.dataclass
 class VodStreamingInfo:
+    """
+    class for streaming info of a Video On Demand
+    """
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.drmContentId = streamingJson['drmContentId']
@@ -58,7 +99,13 @@ class VodStreamingInfo:
         self.token = None
 
 
+@dataclasses.dataclass
 class RecordingStreamingInfo:
+    """
+    class for streaming info of a recording
+    """
+
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, streamingJson):
         self.registrationRequired = streamingJson['deviceRegistrationRequired']
         self.trickPlayControl = streamingJson['trickPlayControl']

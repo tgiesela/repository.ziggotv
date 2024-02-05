@@ -4,7 +4,7 @@ import xbmc
 import xbmcaddon
 from aiohttp import web, ClientSession
 
-from resources.lib.UrlTools import UrlTools
+from resources.lib.urltools import UrlTools
 from resources.lib.webcalls import LoginSession
 
 
@@ -104,7 +104,7 @@ class ProxyServer:
         raise GracefulExit()
 
     def get_manifest_url(self, url: str, streaming_token: str):
-        return self.urlTools.get_manifest_url(proxy_url=url, streaming_token=streaming_token)
+        return self.urlTools.get_manifest_url(proxyUrl=url, streamingToken=streaming_token)
 
     def update_redirection(self, proxy_url, actual_url):
         self.urlTools.update_redirection(proxy_url, actual_url)
@@ -118,7 +118,7 @@ class ProxyServer:
 
     def set_streaming_token(self, token):
         with self.lock:
-            self.session.streaming_token = token
+            self.session.streamingToken = token
             self.streaming_token = token
             xbmc.log('Setting streaming token to: {0}'.format(token), xbmc.LOGDEBUG)
 
