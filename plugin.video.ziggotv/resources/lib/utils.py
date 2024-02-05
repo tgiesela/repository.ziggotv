@@ -224,8 +224,6 @@ class ProxyHelper:
 
         example: helper.dynamicCall(LoginSession.login,username='a',password='b'
         """
-        # We have a circular import of utils b2ah, TODO: relocate this class in another python file
-        # pylint: disable=import-outside-toplevel
         try:
             if kwargs is None:
                 arguments = {}
