@@ -44,6 +44,22 @@
                     <level>0</level>
                     <control type="toggle"/>
                 </setting>
+                <setting id="print-request-content" type="boolean" label="41011" parent="print-network-traffic">
+                    <default>false</default>
+                    <level>0</level>
+                    <control type="toggle"/>
+					<dependencies>
+						<dependency type="enable" setting="print-network-traffic">true</dependency>
+					</dependencies>
+                </setting>
+                <setting id="print-response-content" type="boolean" label="41012" parent="print-network-traffic">
+                    <default>false</default>
+                    <level>0</level>
+                    <control type="toggle"/>
+					<dependencies>
+						<dependency type="enable" setting="print-network-traffic">true</dependency>
+					</dependencies>
+                </setting>
                 <setting id="use-proxy" type="boolean" label="41006">
                     <default>true</default>
                     <level>0</level>

@@ -61,6 +61,14 @@ msgctxt "#41010"
 msgid "Full-HD"
 msgstr "Full-HD"
 
+msgctxt "#41011"
+msgid "Print request content"
+msgstr ""
+
+msgctxt "#41012"
+msgid "Print response content"
+msgstr ""
+
 msgctxt "#41014"
 msgid "Hide channels outside subscription"
 msgstr ""

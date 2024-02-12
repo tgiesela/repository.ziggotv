@@ -149,9 +149,9 @@ class ProxyServer(http.server.HTTPServer):
         url = self.urlTools.replace_baseurl(request.path, self.get_streaming_token())
         parsedDestUrl = urlparse(url)
         if parsedDestUrl.scheme == 'https':
-            connection = HTTPConnection(parsedDestUrl.hostname, timeout=10)
-        else:
             connection = HTTPSConnection(parsedDestUrl.hostname, timeout=10)
+        else:
+            connection = HTTPConnection(parsedDestUrl.hostname, timeout=10)
         connection.request("GET", parsedDestUrl.path)
         response = connection.getresponse()
         request.send_response(response.status)

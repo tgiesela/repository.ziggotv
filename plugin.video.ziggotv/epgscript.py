@@ -11,7 +11,7 @@ from xbmcgui import Action, Control
 
 from resources.lib.channel import ChannelList
 from resources.lib.programevent import ProgramEventGrid
-from resources.lib.utils import ProxyHelper
+from resources.lib.utils import ProxyHelper, SharedProperties
 from resources.lib.webcalls import LoginSession
 
 
@@ -21,6 +21,7 @@ class EpgWindowXml(xbmcgui.WindowXML):
     Class representing Epg Window defined in screen-epg.xml.
     Ids used in this file correspond to the .xml file
     """
+
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls, args[0], args[1])
 
@@ -50,6 +51,7 @@ class EpgWindowXml(xbmcgui.WindowXML):
     # pylint: disable=useless-parent-delegation
     def show(self) -> None:
         super().show()
+
     # pylint: enable=useless-parent-delegation
 
     def onControl(self, control: Control) -> None:
@@ -99,6 +101,29 @@ class EpgWindowXml(xbmcgui.WindowXML):
             self.grid.onAction(action)
 
 
+def check_service():
+    """
+    Function to check if the Ziggo service is running
+    @return:
+    """
+    home: SharedProperties = SharedProperties(addon=addon)
+    if home.is_service_active():
+        return
+    secondsToWait = 30
+    timeWaiting = 0
+    interval = 0.5
+    dlg = xbmcgui.DialogProgress()
+    dlg.create('ZiggoTV', 'Waiting for service to start...')
+    while (not home.is_service_active() and
+           timeWaiting < secondsToWait and not home.is_service_active() and not dlg.iscanceled()):
+        xbmc.sleep(int(interval * 1000))
+        timeWaiting += interval
+        dlg.update(int(timeWaiting / secondsToWait * 100), 'Waiting for service to start...')
+    dlg.close()
+    if not home.is_service_active():
+        raise RuntimeError('Service did not start in time')
+
+
 REMOTE_DEBUG = False
 if __name__ == '__main__':
     # if REMOTE_DEBUG:
@@ -109,8 +134,9 @@ if __name__ == '__main__':
     #     except:
     #         sys.stderr.write("Error: " + "You must add org.python.pydev.debug.pysrc to your PYTHONPATH")
     #         sys.stderr.write("Error: " + "Debug not available")
-    addonid = sys.argv[1]
-    addon = xbmcaddon.Addon(addonid)
+    addonId = sys.argv[1]
+    addon = xbmcaddon.Addon(addonId)
     xbmc.executebuiltin('Dialog.Close(busydialog)', True)
+    check_service()
     window = EpgWindowXml('screen-epg.xml', addon.getAddonInfo('path'), addon)
     window.doModal()
