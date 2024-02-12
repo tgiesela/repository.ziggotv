@@ -6,7 +6,6 @@ import traceback
 import json
 import sys
 import typing
-from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qsl
 
@@ -15,8 +14,7 @@ from resources.lib.listitemhelper import ListitemHelper
 from resources.lib.ziggoplayer import VideoHelpers
 from resources.lib.channelguide import ChannelGuide
 from resources.lib.globals import G, S
-from resources.lib.recording import RecordingList, SingleRecording, PlannedRecording, SeasonRecording, \
-    SavedStateList
+from resources.lib.recording import RecordingList, SingleRecording, PlannedRecording, SeasonRecording
 from resources.lib.utils import SharedProperties, ProxyHelper, WebException
 from resources.lib.webcalls import LoginSession
 
@@ -249,17 +247,7 @@ class ZiggoPlugin:
             xbmcplugin.endOfDirectory(self.handle, succeeded=False, updateListing=False, cacheToDisc=False)
             return
 
-        recList = SavedStateList(self.ADDON)
-        resumePoint = recList.get(path)
-        if resumePoint is None:
-            resumePoint = 0
-        else:
-            t = datetime.now().replace(hour=0, minute=0, second=0) + timedelta(seconds=resumePoint)
-            selected = xbmcgui.Dialog().contextmenu(
-                [self.ADDON.getLocalizedString(S.MSG_PLAY_FROM_BEGINNING),
-                 self.ADDON.getLocalizedString(S.MSG_RESUME_FROM).format(t.strftime('%H:%M:%S'))])
-            if selected == 0:
-                resumePoint = 0
+        resumePoint = videoHelper.get_resume_point(path)
 
         try:
 
@@ -269,12 +257,7 @@ class ZiggoPlugin:
 
             videoHelper.play_recording(recording, resumePoint)
             xbmcplugin.endOfDirectory(self.handle, succeeded=False, updateListing=False, cacheToDisc=False)
-            savedTime = None
-            while xbmc.Player().isPlaying():
-                savedTime = xbmc.Player().getTime()
-                xbmc.sleep(500)
-            recList.add(path, savedTime)
-            xbmc.log('RECORDING STOPPED: {0} at {1}'.format(path, savedTime), xbmc.LOGDEBUG)
+            videoHelper.monitor_state(path)
 
         # pylint: disable=broad-exception-caught
         except Exception as excpt:
@@ -958,9 +941,6 @@ if __name__ == '__main__':
     #     web_pdb.set_trace()
 
     plugin = ZiggoPlugin()
-    # if sys.argv[1] == 'selectProfile':
-    #     plugin.selectProfile()
-    #     exit(0)
 
     # Get the plugin url in plugin:// notation.
     __url__ = sys.argv[0]

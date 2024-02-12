@@ -288,9 +288,11 @@ class ProgramEventGrid:
                 self.videoHelper.play_epg(event.programEvent, self.rows[row].channel)
 
             except WebException as exc:
+                xbmc.log('Webexception in play_epg: {0}'.format(exc), xbmc.LOGERROR)
                 xbmcgui.Dialog().ok('Error', exc.response)
             # pylint: disable=broad-exception-caught
             except Exception as exc:
+                xbmc.log('Exception in play_epg: {0}'.format(exc), xbmc.LOGERROR)
                 xbmcgui.Dialog().ok('Error', '{0}'.format(exc))
 
     def onControl(self, control: xbmcgui.Control):

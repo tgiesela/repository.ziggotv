@@ -37,6 +37,8 @@ class Web(requests.Session):
 
     def __init__(self, addon: xbmcaddon.Addon):
         super().__init__()
+        self.printResponseContent = addon.getSettingBool('print-response-content')
+        self.printRequestContent = addon.getSettingBool('print-request-content')
         self.printNetworkTraffic = addon.getSettingBool('print-network-traffic')
         self.addonPath = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
         self.load_cookies()
@@ -78,17 +80,8 @@ class Web(requests.Session):
         dict2.update(dict1)
         return dict2
 
-    def print_dialog(self, response):
-        """debugging: print a http dialogue with headers and data from the received response (if any)"""
-        if not self.printNetworkTraffic:
-            return
-
-        print("URL: {0} {1}".format(response.request.method, response.url))
-        print("Status-code: {0}".format(response.status_code))
-        print("Request headers: {0}".format(response.request.headers))
-        print("Response headers: {0}".format(response.headers))
-        print("Cookies: ", self.cookies.get_dict())
-
+    @staticmethod
+    def __print_request(response):
         if response.request.body is None or response.request.body == '':
             print("Request data is empty")
         else:
@@ -108,6 +101,8 @@ class Web(requests.Session):
                     print("HEX: {0}".format(b2ah(response.request.body)))
                     print("B64: {0}".format(base64.b64encode(response.request.body)))
 
+    @staticmethod
+    def __print_response(response):
         if response.content is None or response.content == '':
             print("Response data is empty")
         else:
@@ -121,6 +116,23 @@ class Web(requests.Session):
             else:
                 print("HEX: {0}".format(b2ah(response.content)))
                 print("B64: {0}".format(base64.b64encode(response.content)))
+
+    def print_dialog(self, response):
+        """debugging: print a http dialogue with headers and data from the received response (if any)"""
+        if not self.printNetworkTraffic:
+            return
+
+        print("URL: {0} {1}".format(response.request.method, response.url))
+        print("Status-code: {0}".format(response.status_code))
+        print("Request headers: {0}".format(response.request.headers))
+        print("Response headers: {0}".format(response.headers))
+        print("Cookies: ", self.cookies.get_dict())
+
+        if self.printRequestContent:
+            self.__print_request(response)
+
+        if self.printResponseContent:
+            self.__print_response(response)
 
     def do_post(self, url: str, data=None, jsonData=None, extraHeaders=None, params=None):
         # pylint: disable=too-many-arguments

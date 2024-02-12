@@ -15,7 +15,7 @@ import xbmcvfs
 
 from resources.lib.channelguide import ChannelGuide
 from resources.lib.proxyserver import ProxyServer
-from resources.lib.utils import Timer, SharedProperties, ServiceStatus, ProxyHelper
+from resources.lib.utils import Timer, SharedProperties, ServiceStatus, ProxyHelper, WebException
 from resources.lib.webcalls import LoginSession
 
 
@@ -112,7 +112,7 @@ class ServiceMonitor(xbmc.Monitor):
         self.home.set_service_status(ServiceStatus.STARTING)
 
         self.helper = ProxyHelper(self.ADDON)
-        self.timer = None
+        self.tokenTimer = None
         self.refreshTimer = None
         self.licenseRefreshed = datetime.datetime.now() - datetime.timedelta(days=2)
         self.epg = None
@@ -159,6 +159,10 @@ class ServiceMonitor(xbmc.Monitor):
             self.helper.dynamic_call(LoginSession.close)
         except ConnectionResetError as exc:
             xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)
+        except WebException as webExc:
+            xbmc.log('WebException in __refresh_session{0}'.format(webExc), xbmc.LOGERROR)
+            xbmc.log('Response from server: status {0} content: {1}'.format(webExc.status, webExc.response),
+                     xbmc.LOGERROR)
         # pylint: disable=broad-exception-caught
         except Exception as exc:
             xbmc.log('Unexpected exception in __refresh_session: {0}'.format(exc), xbmc.LOGERROR)
@@ -178,8 +182,15 @@ class ServiceMonitor(xbmc.Monitor):
         token = proxy.get_streaming_token()
         if token is None or token == '':
             return
-        streamingToken = self.helper.dynamic_call(LoginSession.update_token, streamingToken=token)
-        proxy.set_streaming_token(streamingToken)
+        try:
+            streamingToken = self.helper.dynamic_call(LoginSession.update_token, streamingToken=token)
+            proxy.set_streaming_token(streamingToken)
+        except WebException as webExc:
+            xbmc.log('Could not update token. {0}'.format(webExc), xbmc.LOGERROR)
+            xbmc.log('Response from server: status {0} content: {1}'.format(webExc.status, webExc.response),
+                     xbmc.LOGERROR)
+            if 400 <= webExc.status < 500:  # authentication issue
+                self.__refresh_session()
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
@@ -201,17 +212,27 @@ class ServiceMonitor(xbmc.Monitor):
             if params['command'] == 'play_video':
                 streamingToken = params['command_params']['streamingToken']
                 proxy.set_streaming_token(streamingToken)
-                self.timer = Timer(60, self.update_token)
-                self.timer.start()
+                self.tokenTimer = Timer(60, self.update_token)
+                self.tokenTimer.start()
 
         elif sender == 'xbmc':
             if method == 'Player.OnStop':
-                if self.timer is not None:
-                    self.timer.stop()
-                # session = LoginSession(self.addon)
-                # session.load_cookies()
-                xbmc.log("Delete token after OnStop", xbmc.LOGDEBUG)
-                self.helper.dynamic_call(LoginSession.delete_token, streamingId=proxy.get_streaming_token())
+                if self.tokenTimer is not None:
+                    self.tokenTimer.stop()
+                xbmc.log('Delete token after OnStop', xbmc.LOGDEBUG)
+                try:
+                    self.helper.dynamic_call(LoginSession.delete_token, streamingId=proxy.get_streaming_token())
+                except WebException as exc:
+                    xbmc.log('Could not delete token. {0}'.format(exc), xbmc.LOGERROR)
+                    xbmc.log('Response from server: status {0} content: {1}'.format(exc.status, exc.response),
+                             xbmc.LOGERROR)
+                    if 400 <= exc.status < 500:  # authentication issue
+                        self.__refresh_session()
+                        try:
+                            self.helper.dynamic_call(LoginSession.delete_token, streamingId=proxy.get_streaming_token())
+                        except WebException as webExc:
+                            xbmc.log('Could not delete token on second attempt. {0}'.format(webExc), xbmc.LOGERROR)
+
                 proxy.session.streamingToken = None
                 proxy.set_streaming_token(None)
 
@@ -222,8 +243,8 @@ class ServiceMonitor(xbmc.Monitor):
         """
         self.proxyService.stop_http_server()
         self.home.set_service_status(ServiceStatus.STOPPING)
-        if self.timer is not None:
-            self.timer.stop()
+        if self.tokenTimer is not None:
+            self.tokenTimer.stop()
         if self.refreshTimer is not None:
             self.refreshTimer.stop()
         xbmc.log("SERVICE-MONITOR Timers stopped", xbmc.LOGDEBUG)

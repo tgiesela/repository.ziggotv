@@ -1,13 +1,15 @@
 """
 Module with classes for playing videos
 """
+from datetime import datetime, timedelta
+
 import xbmc
 import xbmcaddon
 import xbmcgui
 
 from resources.lib.channel import Channel, ChannelList
 from resources.lib.listitemhelper import ListitemHelper
-from resources.lib.recording import SingleRecording
+from resources.lib.recording import SingleRecording, SavedStateList
 from resources.lib.streaminginfo import ReplayStreamingInfo
 from resources.lib.urltools import UrlTools
 from resources.lib.events import Event
@@ -171,6 +173,7 @@ class VideoHelpers:
         if not event.canReplay:
             xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_REPLAY_NOT_AVAIALABLE))
             return
+        resumePoint = self.get_resume_point(event.id)
         urlHelper = UrlTools(self.addon)
         streamInfo: ReplayStreamingInfo = self.helper.dynamic_call(LoginSession.obtain_replay_streaming_token,
                                                                    path=event.details.eventId)
@@ -181,9 +184,13 @@ class VideoHelpers:
                                                        drmContentId=streamInfo.drmContentId)
             self.__add_event_info(playItem, channel, event)
             #            if streamInfo.skip_forward_allowed:
-            self.player.set_replay(True, streamInfo.prePaddingTime)
+            if resumePoint > 0:
+                self.player.set_replay(True, int(resumePoint * 1000))
+            else:
+                self.player.set_replay(True, streamInfo.prePaddingTime)
             self.player.play(item=url, listitem=playItem)
             self.__wait_for_player()
+            self.monitor_state(event.id)
         # pylint: disable=broad-exception-caught
         except Exception as exc:
             xbmc.log('Error in __replay_event: type {0}, args {1}'.format(type(exc), exc.args), xbmc.LOGERROR)
@@ -238,7 +245,7 @@ class VideoHelpers:
             details = self.helper.dynamic_call(LoginSession.get_recording_details, recordingId=recording.id)
             self.__add_recording_info(playItem, details)
             if resumePoint > 0:
-                self.player.set_replay(True, resumePoint * 1000)
+                self.player.set_replay(True, int(resumePoint * 1000))
             else:
                 self.player.set_replay(True, streamInfo.prePaddingTime)
             self.player.play(item=url, listitem=playItem)
@@ -360,3 +367,37 @@ class VideoHelpers:
             xbmc.sleep(500)
         if cnt >= 10:
             xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_VIDEO_NOT_STARTED))
+
+    def monitor_state(self, path):
+        """
+        Function to save the position of a playing recording or replay of an event. This allows restart at
+        a saved position.
+        @param path:
+        @return:
+        """
+        recList = SavedStateList(self.addon)
+        savedTime = None
+        while xbmc.Player().isPlaying():
+            savedTime = xbmc.Player().getTime()
+            xbmc.sleep(500)
+        recList.add(path, savedTime)
+        xbmc.log('PLAYING ITEM STOPPED: {0} at {1}'.format(path, savedTime), xbmc.LOGDEBUG)
+
+    def get_resume_point(self, path) -> float:
+        """
+        Function to ask for a resume point if available. Then event or recording can be started from a
+        saved position
+        @param path:
+        @return: position as fractional seconds
+        """
+        recList = SavedStateList(self.addon)
+        resumePoint = recList.get(path)
+        if resumePoint is None:
+            return 0
+        t = datetime.now().replace(hour=0, minute=0, second=0) + timedelta(seconds=resumePoint)
+        selected = xbmcgui.Dialog().contextmenu(
+            [self.addon.getLocalizedString(S.MSG_PLAY_FROM_BEGINNING),
+             self.addon.getLocalizedString(S.MSG_RESUME_FROM).format(t.strftime('%H:%M:%S'))])
+        if selected == 0:
+            resumePoint = 0
+        return resumePoint
