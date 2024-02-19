@@ -19,7 +19,6 @@ class TestProxyServer(TestBase):
         self.address = '127.0.0.1'
         self.session.printNetworkTraffic = True
         self.helper = ProxyHelper(self.addon)
-        self.do_login()
 
     def do_login(self):
         with open('c:/temp/credentials.json', 'r', encoding='utf-8') as credfile:
@@ -29,6 +28,7 @@ class TestProxyServer(TestBase):
                                  password=credentials['password'])
 
     def test_start_proxy(self):
+        self.do_login()
         thread = None
         proxyServer = None
         try:
@@ -56,6 +56,7 @@ class TestProxyServer(TestBase):
             print('ProxyServer stopped')
 
     def test_dynamic_call(self):
+        self.do_login()
         thread = None
         proxyServer = None
         try:

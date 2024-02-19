@@ -8,9 +8,10 @@ from tests.test_base import TestBase
 class TestChannels(TestBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.do_login()
 
     def test_channels(self):
+        self.do_login()
+        self.assertFalse(len(self.session.customerInfo) == 0)
         self.session.refresh_channels()
         self.session.refresh_entitlements()
         channels = self.session.get_channels()

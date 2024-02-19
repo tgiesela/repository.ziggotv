@@ -271,20 +271,23 @@ class VideoHelpers:
         @param event:
         @return:
         """
-        if event is None:
-            return
-        if not event.hasDetails:
-            event.details = self.helper.dynamic_call(LoginSession.get_event_details, eventId=event.id)
+        if event is not None:
+            title = event.title
+        else:
+            title = ''
 
         item = self.player.getPlayingItem()
-        item.setLabel('{0}. {1}: {2}'.format(channel.logicalChannelNumber, channel.name, event.title))
-        tag = item.getVideoInfoTag()
-        tag.setPlot(event.details.description)
-        tag.setTitle(event.title)
-        if event.details.isSeries:
-            tag.setEpisode(event.details.episode)
-            tag.setSeason(event.details.season)
-        tag.setArtists(event.details.actors)
+        item.setLabel('{0}. {1}: {2}'.format(channel.logicalChannelNumber, channel.name, title))
+        if event is not None:
+            if not event.hasDetails:
+                event.details = self.helper.dynamic_call(LoginSession.get_event_details, eventId=event.id)
+            tag = item.getVideoInfoTag()
+            tag.setPlot(event.details.description)
+            tag.setTitle(event.title)
+            if event.details.isSeries:
+                tag.setEpisode(event.details.episode)
+                tag.setSeason(event.details.season)
+            tag.setArtists(event.details.actors)
         self.player.updateInfoTag(item)
 
     def play_epg(self, event: Event, channel: Channel):

@@ -17,6 +17,7 @@ class Addon(xbmcaddon.Addon):
         Class to support use of setting/getting the addon settings
         Very primitive.
     """
+
     def __init__(self, name):
         super().__init__(name)
         self.settings = {}
@@ -48,6 +49,8 @@ class TestBase(unittest.TestCase):
         self.addon.setSetting('proxy-port', '6868')
         self.addon.setSetting('use-proxy', 'true')
         self.addon.setSetting('full-hd', 'true')
+        self.addon.setSetting('print-response-content', 'true')
+        self.addon.setSetting('print-request-content', 'true')
         self.cleanup_all()
         self.session = LoginSession(xbmcaddon.Addon())
         self.session.printNetworkTraffic = False
@@ -113,4 +116,5 @@ class TestBase(unittest.TestCase):
         with open('c:/temp/credentials.json', 'r', encoding='utf-8') as credfile:
             credentials = json.loads(credfile.read())
         self.session.login(credentials['username'], credentials['password'])
-        self.session.obtain_customer_info()
+        self.assertFalse(len(self.session.customerInfo) == 0)
+        # self.session.obtain_customer_info()
