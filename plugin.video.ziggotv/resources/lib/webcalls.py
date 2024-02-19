@@ -23,12 +23,6 @@ from resources.lib.recording import RecordingList
 from resources.lib.streaminginfo import StreamingInfo, ReplayStreamingInfo, VodStreamingInfo, RecordingStreamingInfo
 from resources.lib.utils import DatetimeHelper
 
-try:
-    import pyjwt
-# pylint: disable=broad-exception-caught
-except Exception:
-    import jwt as pyjwt
-
 
 class Web(requests.Session):
     """
@@ -246,9 +240,9 @@ class LoginSession(Web):
         self.streamInfo: StreamingInfo = None
         self.username = None
         self.get_channels()
-        self.get_session_info()
-        self.get_customer_info()
-        self.get_entitlements()
+        # self.get_session_info() # We always start with a clean session
+        # self.get_customer_info()
+        # self.get_entitlements()
 
     def __status_code_ok(self, response):
         """
@@ -317,31 +311,76 @@ class LoginSession(Web):
             self.entitlementsInfo = {}
         return self.entitlementsInfo
 
-    def obtain_customer_info(self):
+    def __obtain_customer_info(self):
         """
         get customer information from ziggo go and store it in a disk-file
         @return: nothing
         """
-        try:
-            self.cookies.pop("CLAIMSTOKEN")
-        # pylint: disable=broad-exception-caught
-        except Exception:
-            pass
-        url = G.PERSONALISATION_URL.format(householdid=self.sessionInfo['householdId'])
-        response = super().do_get(url, params={'with': 'profiles,devices'})
-        if not self.__status_code_ok(response):
-            raise WebException(response)
-        Path(self.pluginpath(G.CUSTOMER_INFO)).write_text(json.dumps(response.json()), encoding='utf-8')
+        if not self.__claims_token_still_valid():
+            self.__delete_cookie("CLAIMSTOKEN")
+            url = G.PERSONALISATION_URL.format(householdid=self.sessionInfo['householdId'])
+            response = super().do_get(url, params={'with': 'profiles,devices'})
+            if not self.__status_code_ok(response):
+                raise WebException(response)
+            self.customerInfo = response.json()
+            Path(self.pluginpath(G.CUSTOMER_INFO)).write_text(json.dumps(self.customerInfo), encoding='utf-8')
+            self.refresh_channels()  # Should be sufficient to this only here
 
-    def __login_valid(self):
+    @staticmethod
+    def __date_expired(unixDateTime) -> bool:
+        dateToCheck = DatetimeHelper.from_unix(unixDateTime)
+        expiryDate = DatetimeHelper.now()
+        # Here we add 11 minutes because the service will check with an interval of 10 minutes and then
+        # the token may expire during processing
+        expiryDate = expiryDate + datetime.timedelta(minutes=11)
+        xbmc.log('__date_expired: dateToCheck {0} expiryDate {1} expired: {2}'.format(dateToCheck,
+                                                                                      expiryDate,
+                                                                                      dateToCheck <= expiryDate),
+                 xbmc.LOGDEBUG)
+        return dateToCheck <= expiryDate
+
+    def __access_token_still_valid(self):
+        if 'accessToken' in self.sessionInfo:
+            token = self.sessionInfo["accessToken"]
+            parts = token.split('.')
+            if len(parts) != 3:
+                xbmc.log('Invalid jwt', xbmc.LOGERROR)
+                return False
+            expInfo = json.loads(base64.b64decode(parts[1] + '=='))
+            return not self.__date_expired(expInfo['exp'])
+        return False
+
+    def __claims_token_still_valid(self):
+        if 'claimsToken' in self.customerInfo:
+            token = self.customerInfo["claimsToken"]
+            parts = token.split('.')
+            if len(parts) != 3:
+                xbmc.log('Invalid jwt', xbmc.LOGERROR)
+                return False
+            expInfo = json.loads(base64.b64decode(parts[1] + '=='))
+            return not self.__date_expired(expInfo['exp'])
+        return False
+
+    def __delete_cookie(self, name):
+        try:
+            for _cookie in self.cookies:
+                c: Cookie = _cookie
+                if c.name == name:
+                    self.cookies.clear(domain=c.domain, path=c.path, name=c.name)
+
+        # pylint: disable=broad-exception-caught
+        except Exception as exc:
+            xbmc.log("{0} cannot be removed: {1}".format(name, exc), xbmc.LOGERROR)
+            xbmc.log("COOKIES: {0}".format(self.cookies.keys()), xbmc.LOGERROR)
+
+    def __refresh_token_valid(self):
         _valid = False
         if len(self.sessionInfo) == 0:  # Session_info empty, so not successfully logged in
             return False
 
         # We moeten het JWT token decoderen en daar de geldigheidsdatum uithalen.
-        # Als het token niet meer geldig is moet het ACCESSTOKEN-cookie worden verwijderd!
 
-        if DatetimeHelper.from_unix(self.sessionInfo['refreshTokenExpiry']) > datetime.datetime.now():
+        if not self.__date_expired(self.sessionInfo['refreshTokenExpiry']):
             xbmc.log("issued at: {0}".format(DatetimeHelper.from_unix(self.sessionInfo['issuedAt'])),
                      xbmc.LOGDEBUG)
             xbmc.log("refresh at: {0}".format(DatetimeHelper.from_unix(self.sessionInfo['refreshTokenExpiry'])),
@@ -360,48 +399,36 @@ class LoginSession(Web):
         @return: sessionInfo string in json format
         """
         self.username = username
-        if not self.__login_valid():
-            self.extraHeaders = {}
-            self.cookies.clear_session_cookies()
-            Path(self.pluginpath(G.COOKIES_INFO)).unlink(missing_ok=True)
-            response = super().do_post(G.AUTHENTICATION_URL,
-                                       jsonData={"password": password,
-                                                 "username": username})
-            if not self.__status_code_ok(response):
-                raise WebException(response)
-            Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()), encoding='utf-8')
-            self.sessionInfo = self.get_session_info()
+        if self.__access_token_still_valid():
+            xbmc.log("Login: Accesstoken still valid", xbmc.LOGDEBUG)
         else:
-            # Zie comment bij login_valid()
-            try:
-                jwtDecoded = pyjwt.decode(self.sessionInfo["accessToken"], options={"verify_signature": False})
-                exp = DatetimeHelper.from_unix(jwtDecoded["exp"])
-                now = DatetimeHelper.now()
-            except pyjwt.exceptions.ExpiredSignatureError:
-                exp = DatetimeHelper.now()
-                now = exp
-            if exp > now:
-                xbmc.log("Accesstoken still valid", xbmc.LOGDEBUG)
-            else:
-                # from urllib.parse import urlparse
-                # domain = urlparse(G.authentication_URL).netloc
-                try:
-                    self.cookies.clear(domain='', path='/', name='ACCESSTOKEN')
-                # pylint: disable=broad-exception-caught
-                except Exception as exc:
-                    xbmc.log("ACCESSTOKEN cannot be removed: {0}".format(exc), xbmc.LOGERROR)
-                    xbmc.log("COOKIES: {0}".format(self.cookies.keys()), xbmc.LOGERROR)
-                #  self.cookies.pop("ACCESSTOKEN") # Causes duplicate error in some cases
+            if self.__refresh_token_valid():
+                xbmc.log("Login: Accesstoken expired, refresh token still valid, refreshing login", xbmc.LOGINFO)
+                # Als het token niet meer geldig is moet het ACCESSTOKEN-cookie worden verwijderd!
+                self.__delete_cookie('ACCESSTOKEN')
                 response = super().do_post(G.AUTHENTICATION_URL + "/refresh",
                                            jsonData={"refreshToken": self.sessionInfo['refreshToken'],
                                                      "username": username})
                 if not self.__status_code_ok(response):
                     raise WebException(response)
-                Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(response.json()), encoding='utf-8')
-                self.sessionInfo = self.get_session_info()
+                self.sessionInfo = response.json()
+                Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(self.sessionInfo), encoding='utf-8')
+                self.refresh_entitlements()
+            else:
+                xbmc.log("Login: refresh token expired, new login required", xbmc.LOGINFO)
+                self.extraHeaders = {}
+                self.cookies.clear_session_cookies()
+                Path(self.pluginpath(G.COOKIES_INFO)).unlink(missing_ok=True)
+                response = super().do_post(G.AUTHENTICATION_URL,
+                                           jsonData={"password": password,
+                                                     "username": username})
+                if not self.__status_code_ok(response):
+                    raise WebException(response)
+                self.sessionInfo = response.json()
+                Path(self.pluginpath(G.SESSION_INFO)).write_text(json.dumps(self.sessionInfo), encoding='utf-8')
+                self.refresh_entitlements()
 
-        self.obtain_customer_info()
-        self.customerInfo = self.get_customer_info()
+        self.__obtain_customer_info()
         if self.activeProfile is None:
             self.activeProfile = self.customerInfo["profiles"][0]
         profileId = self.activeProfile["profileId"]

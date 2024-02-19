@@ -13,9 +13,9 @@ class TestRecordings(TestBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.do_login()
 
     def print_recordings(self, recs: RecordingList):
+        self.do_login()
         print('#: {0}, size: {1}, quota: {2}, used: {3}'.format(recs.total,
                                                                 recs.size,
                                                                 recs.quota,
@@ -34,6 +34,7 @@ class TestRecordings(TestBase):
                     print(season.title + ' ' + episode.startTime)
 
     def test_planned(self):
+        self.do_login()
         self.session.refresh_recordings(True)
         recs = self.session.get_recordings_planned()
         self.print_recordings(recs)
@@ -45,11 +46,13 @@ class TestRecordings(TestBase):
                     print(season.title + ' ' + episode.startTime)
 
     def test_recorded(self):
+        self.do_login()
         self.session.refresh_recordings(True)
         recs = self.session.get_recordings()
         self.print_recordings(recs)
 
     def test_record(self):
+        self.do_login()
         self.session.refresh_channels()
         self.session.refresh_entitlements()
         self.session.refresh_recordings(False)

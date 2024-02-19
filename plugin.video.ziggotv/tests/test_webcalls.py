@@ -1,9 +1,10 @@
 # pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
-
+import base64
 import datetime
 import json
 import unittest
 import uuid
+from http.cookiejar import Cookie
 
 from xml.dom import minidom
 
@@ -12,7 +13,7 @@ import xbmcaddon
 
 
 from resources.lib.urltools import UrlTools
-from resources.lib.utils import WebException
+from resources.lib.utils import WebException, DatetimeHelper
 from resources.lib.webcalls import LoginSession
 from tests.test_base import TestBase
 
@@ -21,6 +22,14 @@ class TestWebCalls(TestBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.do_login()
+
+    def __check_cookies(self):
+        cookies = self.session.load_cookies()
+        cookiesDict = requests.utils.dict_from_cookiejar(cookies)
+        if 'ACCESSTOKEN' in cookiesDict and 'CLAIMSTOKEN' in cookiesDict:
+            pass
+        else:
+            self.fail('Expected cookies not found')
 
     def test_login(self):
         self.cleanup_all()
@@ -31,28 +40,43 @@ class TestWebCalls(TestBase):
             print(exc.response)
             print(exc.status)
         self.do_login()
-        cookies = self.session.load_cookies()
-        cookiesDict = requests.utils.dict_from_cookiejar(cookies)
-        if 'ACCESSTOKEN' in cookiesDict and 'CLAIMSTOKEN' in cookiesDict:
-            pass
-        else:
-            self.fail('Expected cookies not found')
+        self.__check_cookies()
         self.session.dump_cookies()
+        # Test expired accesstoken in sessionInfo
         self.session.sessionInfo['accessToken'] = \
             ('eyJ0eXAiOiJKV1QiLCJraWQiOiJvZXNwX3Rva2VuX3Byb2RfMjAyMDA4MTkiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3ZWItYXBpLXBy'
              'b2Qtb2JvLmhvcml6b24udHYiLCJzaWQiOiJlYzYxNDE5NWE0NjdkNWM5ZGZkM2Q0MGQ2MzVmYTdhZjA4NmU4MzEzZDZhOGUyODQ5NDQ3Z'
              'Dk3ZTg4NGIzMzkzIiwiaWF0IjoxNzA1NzM2Mjc0LCJleHAiOjE3MDU3NDM0NzQsInN1YiI6Ijg2NTQ4MDdfbmwifQ.SAD1RuDYX60_tq7'
              'Zt0v-Zh3iKKS2hU6nv34-zAEKl2w')
         self.do_login()
-        self.session.cookies.pop('ACCESSTOKEN')
+        self.__check_cookies()
+        # Test without ACCESSTOKEN cookie
+        for _cookie in self.session.cookies:
+            c: Cookie = _cookie
+            if c.name == 'ACCESSTOKEN':
+                self.session.cookies.clear(domain=c.domain, path=c.path, name=c.name)
         self.session.sessionInfo['accessToken'] = \
             ('eyJ0eXAiOiJKV1QiLCJraWQiOiJvZXNwX3Rva2VuX3Byb2RfMjAyMDA4MTkiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3ZWItYXBpLXBy'
              'b2Qtb2JvLmhvcml6b24udHYiLCJzaWQiOiJlYzYxNDE5NWE0NjdkNWM5ZGZkM2Q0MGQ2MzVmYTdhZjA4NmU4MzEzZDZhOGUyODQ5NDQ3Z'
              'Dk3ZTg4NGIzMzkzIiwiaWF0IjoxNzA1NzM2Mjc0LCJleHAiOjE3MDU3NDM0NzQsInN1YiI6Ijg2NTQ4MDdfbmwifQ.SAD1RuDYX60_tq7'
              'Zt0v-Zh3iKKS2hU6nv34-zAEKl2w')
         self.do_login()
+        self.__check_cookies()
+        # Test with expired accessToken
+        accessToken = self.session.sessionInfo['accessToken']
+        parts = accessToken.split('.')
+        jsondata = json.loads(base64.b64decode(parts[1]+'=='))
+        jsondata['exp'] = DatetimeHelper.unix_datetime(DatetimeHelper.now() - datetime.timedelta(hours=2))
+        parts[1] = base64.b64encode(bytes(json.dumps(jsondata), 'ascii')).decode('ascii')[:-2]
+        accessToken = '.'.join(parts)
+        self.session.sessionInfo['accessToken'] = accessToken
+        self.do_login()
+        self.__check_cookies()
+        self.do_login()
+        self.__check_cookies()
 
     def test_channels(self):
+        self.do_login()
         self.cleanup_channels()
         channels = self.session.get_channels()
         self.assertEqual(0, len(channels))
@@ -96,7 +120,7 @@ class TestWebCalls(TestBase):
         response = self.session.get_license('nl_tv_standaard_cenc', '\x08\x04', headers)
         updatedStreamingToken = response.headers['x-streaming-token']
         self.assertFalse(updatedStreamingToken == streamInfo.token)
-        self.session.obtain_customer_info()
+        # self.session.obtain_customer_info()
         newStreamingToken = self.session.update_token(updatedStreamingToken)
         self.assertFalse(newStreamingToken == streamInfo.token)
         self.session.delete_token(newStreamingToken)

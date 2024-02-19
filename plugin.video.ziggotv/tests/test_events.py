@@ -11,9 +11,9 @@ from tests.test_base import TestBase
 class TestEvents(TestBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.do_login()
 
     def test_events(self):
+        self.do_login()
         self.session.refresh_channels()
 
         guide = ChannelGuide(self.addon, self.session.get_channels())

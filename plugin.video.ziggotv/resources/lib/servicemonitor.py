@@ -148,8 +148,8 @@ class ServiceMonitor(xbmc.Monitor):
             if (self.licenseRefreshed + datetime.timedelta(days=1)) <= datetime.datetime.now():
                 self.licenseRefreshed = datetime.datetime.now()
                 self.helper.dynamic_call(LoginSession.refresh_widevine_license)
-                self.helper.dynamic_call(LoginSession.refresh_entitlements)
-            self.helper.dynamic_call(LoginSession.refresh_channels)
+                # self.helper.dynamic_call(LoginSession.refresh_entitlements)
+            # self.helper.dynamic_call(LoginSession.refresh_channels)
             channels = self.helper.dynamic_call(LoginSession.get_channels)
             if self.epg is None:
                 self.epg = ChannelGuide(self.ADDON, channels)
@@ -217,8 +217,9 @@ class ServiceMonitor(xbmc.Monitor):
 
         elif sender == 'xbmc':
             if method == 'Player.OnStop':
-                if self.tokenTimer is not None:
-                    self.tokenTimer.stop()
+                if self.tokenTimer is None:
+                    return
+                self.tokenTimer.stop()
                 xbmc.log('Delete token after OnStop', xbmc.LOGDEBUG)
                 try:
                     self.helper.dynamic_call(LoginSession.delete_token, streamingId=proxy.get_streaming_token())
