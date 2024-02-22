@@ -60,7 +60,9 @@ class Event:
         self.programDetails: EventDetails = None
         self.startTime = eventJson['startTime']
         self.endTime = eventJson['endTime']
-        self.title = eventJson['title']
+        self.title = ''
+        if 'title' in eventJson:
+            self.title = eventJson['title']
         self.id = eventJson['id']
         if 'mergedId' in eventJson:
             self.mergedId = eventJson['mergedId']
