@@ -445,7 +445,7 @@ class ZiggoPlugin:
         else:
             rslt = self.helper.dynamic_call(LoginSession.delete_recordings, events=events, shows=shows)
             self.replicationToken = rslt['replicationToken']
-        xbmc.executebuiltin('Container.Update')
+        # xbmc.executebuiltin('Container.Update')
         xbmc.executebuiltin('Action(Back)')
         xbmcplugin.endOfDirectory(self.handle, succeeded=True, updateListing=False, cacheToDisc=False)
 
@@ -486,7 +486,7 @@ class ZiggoPlugin:
                                             shows=shows,
                                             channelId=season.channelId)
         self.replicationToken = rslt['replicationToken']
-        xbmc.executebuiltin('Container.Update')
+        # xbmc.executebuiltin('Container.Update')
         xbmc.executebuiltin('Action(Back)')
         xbmcplugin.endOfDirectory(self.handle, succeeded=True, updateListing=False, cacheToDisc=False)
 
