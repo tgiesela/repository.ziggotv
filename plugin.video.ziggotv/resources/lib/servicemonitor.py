@@ -236,6 +236,7 @@ class ServiceMonitor(xbmc.Monitor):
 
                 proxy.session.streamingToken = None
                 proxy.set_streaming_token(None)
+                self.tokenTimer = None
 
     def shutdown(self):
         """
