@@ -290,6 +290,7 @@ class VideoHelpers:
             tag.setArtists(event.details.actors)
         self.player.updateInfoTag(item)
 
+    # pylint: disable=too-many-branches
     def play_epg(self, event: Event, channel: Channel):
         """
         Function to play something from the EPG. Can be an event, record event, record show, switch to channel
@@ -320,6 +321,7 @@ class VideoHelpers:
             choices.update({self.addon.getLocalizedString(S.MSG_RECORD_EVENT): 'record'})
             if event.details.isSeries:
                 choices.update({self.addon.getLocalizedString(S.MSG_RECORD_SHOW): 'recordshow'})
+        choices.update({self.addon.getLocalizedString(S.BTN_CANCEL): 'cancel'})
         choicesList = list(choices.keys())
         selected = xbmcgui.Dialog().contextmenu(choicesList)
         action = choices[choicesList[selected]]
@@ -331,6 +333,8 @@ class VideoHelpers:
             self.__record_event(event)
         elif action == 'recordshow':
             self.__record_show(event, channel)
+        elif action == 'cancel':
+            pass
 
     def play_movie(self, movieOverview) -> xbmcgui.ListItem:
         """

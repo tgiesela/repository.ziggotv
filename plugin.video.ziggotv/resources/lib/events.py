@@ -126,7 +126,9 @@ class Event:
         @return: True/False
         """
         now = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
-        if self.startTime < now < self.endTime or self.endTime <= now:
+        if self.isPlaying:
+            return self.hasStartOver and self.hasReplayTV
+        if self.endTime <= now:
             return self.hasStartOver and self.hasReplayTV
         return False
 
@@ -137,8 +139,10 @@ class Event:
         @return: True/False
         """
         now = utils.DatetimeHelper.unix_datetime(datetime.datetime.now())
-        if self.startTime < now < self.endTime or self.endTime <= now:
-            return self.hasStartOver and self.hasReplayTV
+        if self.isPlaying:
+            return True
+        if self.endTime <= now:
+            return False
         if self.startTime > now:
             return True
         return False
