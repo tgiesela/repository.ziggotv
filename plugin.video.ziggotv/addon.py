@@ -222,7 +222,7 @@ class ZiggoPlugin:
         except Exception as excpt:
             xbmc.log('Error in play_movie: type {0}, args {1}'.format(type(excpt), excpt.args), xbmc.LOGERROR)
 
-    def play_recording(self, path, recType):
+    def play_recording(self, path, recType, seasonId=None):
         """
         Play a movie by the provided path.
         :param path: str
@@ -234,11 +234,16 @@ class ZiggoPlugin:
             recordings = self.helper.dynamic_call(LoginSession.get_recordings_planned)
         else:
             recordings = self.helper.dynamic_call(LoginSession.get_recordings)
-
         recording = None
-        for rec in recordings.recs:
-            if rec.id == path:
-                recording = rec
+        if seasonId is not None:
+            season: SeasonRecording = self.__find_season(seasonId, recordings)
+            for rec in season.get_episodes(recType):
+                if rec.id == path:
+                    recording = rec
+        else:
+            for rec in recordings.recs:
+                if rec.id == path:
+                    recording = rec
         if recording is None:
             raise RuntimeError("Recording with id {0} not found".format(path))
 
@@ -507,8 +512,11 @@ class ZiggoPlugin:
         for rec in season.get_episodes(recType):
             rec.title = season.title
             li = self.listitemHelper.listitem_from_recording(rec, recType)
-            callbackUrl = '{0}?action=play&type=recording&id={1}&rectype={2}'.format(self.url,
-                                                                                     rec.id, rec.recordingState)
+            callbackUrl = ('{0}?action=play&type=recording&id={1}&rectype={2}&seasonId={3}'
+                           .format(self.url,
+                                   rec.id,
+                                   rec.recordingState,
+                                   season.id))
             isFolder = True
             li.setProperty('IsPlayable', 'false')  # Turn off to avoid kodi complaining about item not playing
             listing.append((callbackUrl, li, isFolder))
@@ -832,7 +840,10 @@ class ZiggoPlugin:
         if params['type'] == 'channel':
             self.play_channel(params['id'])
         elif params['type'] == 'recording':
-            self.play_recording(params['id'], params['rectype'])
+            if 'seasonId' in params:
+                self.play_recording(params['id'], params['rectype'], params['seasonId'])
+            else:
+                self.play_recording(params['id'], params['rectype'])
         elif params['type'] == 'episode':
             self.play_episode(params['id'], params['seriesId'], params['seasonId'])
         elif params['type'] == 'movie':
