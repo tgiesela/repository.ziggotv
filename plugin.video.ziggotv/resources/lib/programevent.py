@@ -107,7 +107,7 @@ class ProgramEventGrid:
         self.__process_dates()
 
     def __update_events(self):
-        self.guide.load_stored_events()
+        # self.guide.load_stored_events()
         self.guide.obtain_events_in_window(
             self.startWindow.astimezone(datetime.timezone.utc),
             self.endWindow.astimezone(datetime.timezone.utc))

@@ -38,7 +38,7 @@ def play(playType, path, addon):
         raise RuntimeError("Channel not found: " + path)
 
     try:
-        epg.load_stored_events()
+        # epg.load_stored_events()
         channel.events = epg.get_events(channel.id)
         if playType == 'channel':
             videoHelper.play_channel(channel=channel)

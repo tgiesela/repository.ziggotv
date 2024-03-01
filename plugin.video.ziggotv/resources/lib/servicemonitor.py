@@ -13,7 +13,7 @@ import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
-from resources.lib.channelguide import ChannelGuide
+#from resources.lib.channelguide import ChannelGuide
 from resources.lib.proxyserver import ProxyServer
 from resources.lib.utils import Timer, SharedProperties, ServiceStatus, ProxyHelper, WebException
 from resources.lib.webcalls import LoginSession
@@ -143,19 +143,17 @@ class ServiceMonitor(xbmc.Monitor):
             sessionInfo = self.helper.dynamic_call(LoginSession.login, username=username, password=password)
             if len(sessionInfo) == 0:
                 raise RuntimeError("Login failed, check your credentials")
-            # The Widevine license and entitlements will only be refreshed once per day, because they do not change
-            # If entitlements change or the license becomes invalid, a restart is required.
+            # The Widevine license will only be refreshed once per day, because they do not change
             if (self.licenseRefreshed + datetime.timedelta(days=1)) <= datetime.datetime.now():
                 self.licenseRefreshed = datetime.datetime.now()
                 self.helper.dynamic_call(LoginSession.refresh_widevine_license)
-                # self.helper.dynamic_call(LoginSession.refresh_entitlements)
-            # self.helper.dynamic_call(LoginSession.refresh_channels)
-            channels = self.helper.dynamic_call(LoginSession.get_channels)
-            if self.epg is None:
-                self.epg = ChannelGuide(self.ADDON, channels)
-            self.epg.load_stored_events()
-            self.epg.obtain_events()
-            self.epg.store_events()
+
+            # channels = self.helper.dynamic_call(LoginSession.get_channels)
+            # if self.epg is None:
+            #     self.epg = ChannelGuide(self.ADDON, channels)
+            # self.epg.load_stored_events()
+            # self.epg.obtain_events()
+            # self.epg.store_events()
             self.helper.dynamic_call(LoginSession.close)
         except ConnectionResetError as exc:
             xbmc.log('Connection reset in __refresh_session, will retry later: {0}'.format(exc), xbmc.LOGERROR)

@@ -168,7 +168,7 @@ class ZiggoPlugin:
 
         try:
             epg = ChannelGuide(self.ADDON, channels)
-            epg.load_stored_events()
+            # epg.load_stored_events()
             epg.obtain_events()
             channel.events = epg.get_events(channel.id)
             xbmcplugin.endOfDirectory(self.handle, succeeded=False, updateListing=False, cacheToDisc=False)
