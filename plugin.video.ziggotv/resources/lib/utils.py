@@ -85,8 +85,11 @@ class SharedProperties:
 
     def set_uuid(self):
         """generate a unique uuid for the device"""
+        hexNode = hex(uuid.getnode())
+        hexNodeNoPrefix = hexNode[2:]
+        hexNodeFull = hexNodeNoPrefix.zfill(12) * 2 + '00000000'
         self.window.setProperty(self.addon.getAddonInfo('id') + 'UUID',
-                                str(uuid.UUID(hex=hex(uuid.getnode())[2:] * 2 + '00000000')))
+                                str(uuid.UUID(hex=hexNodeFull)))
 
     def get_uuid(self):
         """get the uuid"""
