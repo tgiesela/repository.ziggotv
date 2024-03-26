@@ -89,7 +89,10 @@ class Recording:
             self.ottPaddingsBlackout = recordingJson['ottPaddingsBlackout']  # false
         else:
             self.ottPaddingsBlackout = recordingJson['isOttBlackout']  # false
-        self.isPremiereAirings = recordingJson['isPremiereAirings']  # false
+        if 'isPremiereAirings' in recordingJson:
+            self.isPremiereAirings = recordingJson['isPremiereAirings']  # false
+        else:
+            self.isPremiereAirings = False
         if 'deleteTime' in recordingJson:
             self.deleteTime = recordingJson['deleteTime']  # 2025-01-16T11:16:00.000Z
         else:
@@ -145,15 +148,18 @@ class SeasonRecording:
         if 'minimumAge' in recordingJson:
             self.minimumAge = recordingJson['minimumAge']
         self.channelId = recordingJson['channelId']
+        self.diskSpace = 0
         if 'diskSpace' in recordingJson:
             self.diskSpace = recordingJson['diskSpace']
-        else:
-            self.diskSpace = 0
         self.title = recordingJson['title']
         self.source = recordingJson['source']
         self.id = recordingJson['id']
-        self.isPremiereAirings = recordingJson['isPremiereAirings']
-        self.relevantEpisode = recordingJson['mostRelevantEpisode']
+        self.isPremiereAirings = False
+        if 'isPremiereAirings' in recordingJson:
+            self.isPremiereAirings = recordingJson['isPremiereAirings']
+        self.relevantEpisode = None
+        if 'mostRelevantEpisode' in recordingJson:
+            self.relevantEpisode = recordingJson['mostRelevantEpisode']
         self.episodes = []
         if 'episodes' in recordingJson:
             episodes = recordingJson['episodes']
