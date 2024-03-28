@@ -166,8 +166,12 @@ class SeasonRecording:
             self.images = episodes['images']
             self.seasons = episodes['seasons']
             self.genres = episodes['genres']
-            self.synopsis = episodes['shortSynopsis']
-            self.cnt = episodes['total']
+            self.synopsis = ''
+            if 'shortSynopsis' in episodes:
+                self.synopsis = episodes['shortSynopsis']
+            self.cnt = 0
+            if 'total' in episodes:
+                self.cnt = episodes['total']
             self.episodes = []
             for episode in episodes['data']:
                 if episode['recordingState'] == 'planned':
