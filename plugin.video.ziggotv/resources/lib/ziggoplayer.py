@@ -344,6 +344,8 @@ class VideoHelpers:
         """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
+        isHelper = Helper(G.PROTOCOL, drm=G.DRM)
+        isHelper.check_inputstream()
         return self.__play_vod(movieOverview)
 
     def play_recording(self, recording: SingleRecording, resumePoint):
@@ -355,6 +357,8 @@ class VideoHelpers:
         """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
+        isHelper = Helper(G.PROTOCOL, drm=G.DRM)
+        isHelper.check_inputstream()
         return self.__play_recording(recording, resumePoint)
 
     def play_channel(self, channel: Channel) -> xbmcgui.ListItem:
@@ -365,6 +369,8 @@ class VideoHelpers:
         """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
+        isHelper = Helper(G.PROTOCOL, drm=G.DRM)
+        isHelper.check_inputstream()
         return self.__play_channel(channel)
 
     def __wait_for_player(self):
