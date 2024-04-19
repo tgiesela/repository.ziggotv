@@ -13,15 +13,9 @@ from resources.lib.recording import SingleRecording, SavedStateList
 from resources.lib.streaminginfo import ReplayStreamingInfo
 from resources.lib.urltools import UrlTools
 from resources.lib.events import Event
-from resources.lib.globals import G, S
+from resources.lib.globals import S
 from resources.lib.utils import ProxyHelper, SharedProperties
 from resources.lib.webcalls import LoginSession
-
-try:
-    # pylint: disable=import-error, broad-exception-caught
-    from inputstreamhelper import Helper
-except Exception as excpt:
-    pass
 
 
 class ZiggoPlayer(xbmc.Player):
@@ -97,7 +91,6 @@ class VideoHelpers:
         return choice
 
     def __add_event_info(self, playItem, channel: Channel, event):
-        title = ''
         if event is not None:
             title = '{0}. {1}: {2}'.format(channel.logicalChannelNumber, channel.name, event.title)
             if not event.hasDetails:
@@ -211,6 +204,7 @@ class VideoHelpers:
         playableInstance = self.__get_playable_instance(overview)
         if playableInstance is None:
             xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
+            return None
 
         urlHelper = UrlTools(self.addon)
         streamInfo = self.helper.dynamic_call(LoginSession.obtain_vod_streaming_token, streamId=playableInstance['id'])
@@ -300,8 +294,6 @@ class VideoHelpers:
         """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
-        isHelper = Helper(G.PROTOCOL, drm=G.DRM)
-        isHelper.check_inputstream()
 
         if not self.channels.is_entitled(channel):
             xbmcgui.Dialog().ok('Info', self.addon.getLocalizedString(S.MSG_NOT_ENTITLED))
@@ -344,8 +336,6 @@ class VideoHelpers:
         """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
-        isHelper = Helper(G.PROTOCOL, drm=G.DRM)
-        isHelper.check_inputstream()
         return self.__play_vod(movieOverview)
 
     def play_recording(self, recording: SingleRecording, resumePoint):
@@ -357,8 +347,6 @@ class VideoHelpers:
         """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
-        isHelper = Helper(G.PROTOCOL, drm=G.DRM)
-        isHelper.check_inputstream()
         return self.__play_recording(recording, resumePoint)
 
     def play_channel(self, channel: Channel) -> xbmcgui.ListItem:
@@ -369,8 +357,6 @@ class VideoHelpers:
         """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
-        isHelper = Helper(G.PROTOCOL, drm=G.DRM)
-        isHelper.check_inputstream()
         return self.__play_channel(channel)
 
     def __wait_for_player(self):

@@ -16,11 +16,18 @@ from resources.lib.recording import SingleRecording, SeasonRecording
 from resources.lib.utils import ProxyHelper, SharedProperties
 from resources.lib.webcalls import LoginSession
 
+try:
+    # pylint: disable=import-error, broad-exception-caught
+    from inputstreamhelper import Helper
+except Exception as excpt:
+    pass
+
 
 class ListitemHelper:
     """
     Class holding several methods to create listitems for a specific purpose
     """
+    KODI_VERSION_MAJOR = int(xbmc.getInfoLabel('System.BuildVersion').split('.', maxsplit=1)[0])
 
     def __init__(self, addon):
         self.addon = addon
@@ -69,21 +76,31 @@ class ListitemHelper:
         @param drmContentId:
         @return: ListItem
         """
+
+        isHelper = Helper(G.PROTOCOL, drm=G.DRM)
+        isHelper.check_inputstream()
+
         li = xbmcgui.ListItem(path=requesturl)
         li.setProperty('IsPlayable', 'true')
         tag: xbmc.InfoTagVideo = li.getVideoInfoTag()
         tag.setMediaType('video')
         li.setMimeType('application/dash+xml')
         li.setContentLookup(False)
-        li.setProperty(
-            key='inputstream',
-            value='inputstream.adaptive')
+        if self.KODI_VERSION_MAJOR >= 19:
+            li.setProperty(
+                key='inputstream',
+                value=isHelper.inputstream_addon)
+        else:
+            li.setProperty(
+                key='inputstreamaddon',
+                value=isHelper.inputstream_addon)
+
         li.setProperty(
             key='inputstream.adaptive.license_flags',
             value='persistent_storage')
-        li.setProperty(
-            key='inputstream.adaptive.manifest_type',
-            value=G.PROTOCOL)
+        # li.setProperty(
+        #     key='inputstream.adaptive.manifest_type',
+        #     value=G.PROTOCOL)
         li.setProperty(
             key='inputstream.adaptive.license_type',
             value=G.DRM)
@@ -318,18 +335,6 @@ class ListitemHelper:
             li.setProperty('IsPlayable', 'false')
 
         li.setContentLookup(False)
-        # li.setProperty(
-        #     key='inputstream',
-        #     value='inputstream.adaptive')
-        # li.setProperty(
-        #     key='inputstream.adaptive.license_flags',
-        #     value='persistent_storage')
-        # li.setProperty(
-        #     key='inputstream.adaptive.manifest_type',
-        #     value=G.PROTOCOL)
-        # li.setProperty(
-        #     key='inputstream.adaptive.license_type',
-        #     value=G.DRM)
 
         return li
 
@@ -469,17 +474,5 @@ class ListitemHelper:
         li.setMimeType('application/dash+xml')
 
         li.setContentLookup(False)
-        # li.setProperty(
-        #     key='inputstream',
-        #     value='inputstream.adaptive')
-        # li.setProperty(
-        #     key='inputstream.adaptive.license_flags',
-        #     value='persistent_storage')
-        # li.setProperty(
-        #     key='inputstream.adaptive.manifest_type',
-        #     value=G.PROTOCOL)
-        # li.setProperty(
-        #     key='inputstream.adaptive.license_type',
-        #     value=G.DRM)
 
         return li
