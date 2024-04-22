@@ -98,9 +98,9 @@ class ListitemHelper:
         li.setProperty(
             key='inputstream.adaptive.license_flags',
             value='persistent_storage')
-        # li.setProperty(
-        #     key='inputstream.adaptive.manifest_type',
-        #     value=G.PROTOCOL)
+        li.setProperty(
+            key='inputstream.adaptive.manifest_type',
+            value=G.PROTOCOL)
         li.setProperty(
             key='inputstream.adaptive.license_type',
             value=G.DRM)
