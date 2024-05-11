@@ -73,6 +73,10 @@ class SharedProperties:
     def __init__(self, addon: xbmcaddon.Addon):
         self.addon: xbmcaddon.Addon = addon
         self.window: xbmcgui.Window = xbmcgui.Window(10000)
+        self.kodiVersion = xbmc.getInfoLabel('System.BuildVersionShort')
+        digits = self.kodiVersion.split('.')
+        self.kodiVersionMajor = digits[0]
+        self.kodiVersionMinor = digits[1]
 
     def set_service_status(self, status: ServiceStatus):
         """set the service status"""
@@ -94,6 +98,14 @@ class SharedProperties:
     def get_uuid(self):
         """get the uuid"""
         return self.window.getProperty(self.addon.getAddonInfo('id') + 'UUID')
+
+    def get_kodi_version_major(self) -> int:
+        """return the major version number of Kodi"""
+        return int(self.kodiVersionMajor)
+
+    def get_kodi_version_minor(self) -> int:
+        """return the minor version number of Kodi"""
+        return int(self.kodiVersionMinor)
 
 
 class Timer(threading.Thread):

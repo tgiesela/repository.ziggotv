@@ -111,6 +111,10 @@ class ServiceMonitor(xbmc.Monitor):
         self.home.set_uuid()
         self.home.set_service_status(ServiceStatus.STARTING)
 
+        xbmc.log('Detected KODI-version {0}.{1}'.format(self.home.get_kodi_version_major(),
+                                                        self.home.get_kodi_version_minor()),
+                 xbmc.LOGINFO)
+
         self.helper = ProxyHelper(self.ADDON)
         self.tokenTimer = None
         self.refreshTimer = None

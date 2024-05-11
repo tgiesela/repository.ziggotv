@@ -19,7 +19,7 @@ from http.client import HTTPSConnection
 from xml.dom import minidom
 from resources.lib.urltools import UrlTools
 from resources.lib.webcalls import LoginSession
-from resources.lib.utils import WebException
+from resources.lib.utils import WebException, SharedProperties
 import xbmc
 import xbmcaddon
 
@@ -80,6 +80,9 @@ class ProxyServer(http.server.HTTPServer):
         self.addon = addon
         self.session = LoginSession(xbmcaddon.Addon())
         self.urlTools = UrlTools(addon)
+        self.home = SharedProperties(addon=self.addon)
+        self.kodiMajorVersion = self.home.get_kodi_version_major()
+        self.kodiMinorVersion = self.home.get_kodi_version_minor()
         xbmc.log("ProxyServer created", xbmc.LOGINFO)
 
     def set_streaming_token(self, token):
@@ -132,7 +135,9 @@ class ProxyServer(http.server.HTTPServer):
                     manifestBaseurl = None
             self.urlTools.update_redirection(request.path, response.url, manifestBaseurl)
             request.send_response(response.status_code)
-            request.send_header('content-type', 'application/dash+xml')
+            # See wiki of InputStream Adaptive. Also depends on inputstream.adaptive.manifest_type. See listitemhelper.
+            if self.kodiMajorVersion > 20:
+                request.send_header('content-type', 'application/dash+xml')
             request.end_headers()
             request.wfile.write(response.content)
 

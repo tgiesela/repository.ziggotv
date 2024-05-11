@@ -34,6 +34,10 @@ class ListitemHelper:
         self.uuId = SharedProperties(addon=self.addon).get_uuid()
         self.helper = ProxyHelper(addon)
         self.customerInfo = self.helper.dynamic_call(LoginSession.get_customer_info)
+        self.home = SharedProperties(addon=self.addon)
+        self.kodiMajorVersion = self.home.get_kodi_version_major()
+        self.kodiMinorVersion = self.home.get_kodi_version_minor()
+
 
     @staticmethod
     def __get_pricing_from_offer(instance):
@@ -98,9 +102,11 @@ class ListitemHelper:
         li.setProperty(
             key='inputstream.adaptive.license_flags',
             value='persistent_storage')
-        # li.setProperty(
-        #    key='inputstream.adaptive.manifest_type',
-        #    value=G.PROTOCOL)
+        # See wiki of InputStream Adaptive. Also depends on header in manifest response. See Proxyserver.
+        if self.kodiMajorVersion < 21:
+            li.setProperty(
+               key='inputstream.adaptive.manifest_type',
+               value=G.PROTOCOL)
         li.setProperty(
             key='inputstream.adaptive.license_type',
             value=G.DRM)
