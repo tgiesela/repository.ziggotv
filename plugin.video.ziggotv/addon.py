@@ -433,26 +433,7 @@ class ZiggoPlugin:
         xbmcplugin.addSortMethod(self.handle, xbmcplugin.SORT_METHOD_LABEL)
 
         # Finish creating a virtual folder.
-        xbmcplugin.endOfDirectory(self.handle)
-
-    def delete_recording(self, recordingId, recType):
-        """
-        Delete a recording
-        @param recordingId: id of the  recording
-        @param recType: type of recording (planned vs recorded)
-        @return: nothing
-        """
-        events = [recordingId]
-        shows = []
-        if recType == 'planned':
-            rslt = self.helper.dynamic_call(LoginSession.delete_recordings_planned, events=events, shows=shows)
-            self.replicationToken = rslt['replicationToken']
-        else:
-            rslt = self.helper.dynamic_call(LoginSession.delete_recordings, events=events, shows=shows)
-            self.replicationToken = rslt['replicationToken']
-        # xbmc.executebuiltin('Container.Update')
-        xbmc.executebuiltin('Action(Back)')
-        xbmcplugin.endOfDirectory(self.handle, succeeded=True, updateListing=False, cacheToDisc=False)
+        xbmcplugin.endOfDirectory(self.handle, updateListing=True)
 
     @staticmethod
     def __find_season(recordingId, recordings: RecordingList):
@@ -462,70 +443,45 @@ class ZiggoPlugin:
                 if rec.id == recordingId:
                     season: SeasonRecording = rec
                     break
-        if season is None:
-            raise RuntimeError('Cannot find series of recordings with id: {0}'.format(recordingId))
         return season
 
-    def delete_show_recording(self, recordingId, recType):
-        """
-        Delete a series/show recording
-        @param recordingId: id of the series/show recording
-        @param recType: type of recording (planned vs recorded)
-        @return: nothing
-        """
-        if recType == 'planned':
-            recordings = self.helper.dynamic_call(LoginSession.get_recordings_planned)
-        else:
-            recordings = self.helper.dynamic_call(LoginSession.get_recordings)
-        season = self.__find_season(recordingId, recordings)
-        events = []
-        shows = [season.showId]
-        if recType == 'planned':
-            rslt = self.helper.dynamic_call(LoginSession.delete_recordings_planned,
-                                            events=events,
-                                            shows=shows,
-                                            channelId=season.channelId)
-        else:
-            rslt = self.helper.dynamic_call(LoginSession.delete_recordings,
-                                            events=events,
-                                            shows=shows,
-                                            channelId=season.channelId)
-        self.replicationToken = rslt['replicationToken']
-        # xbmc.executebuiltin('Container.Update')
-        xbmc.executebuiltin('Action(Back)')
-        xbmcplugin.endOfDirectory(self.handle, succeeded=True, updateListing=False, cacheToDisc=False)
-
-    def list_show_recording(self, recordingId, recType):
+    def list_show_recording(self, seasonId, recType):
         """
         Create list of episodes for a series/show
-        @param recordingId: id of the show recording
+        @param seasonId: id of the show recording
         @param recType: type of recording (planned vs recorded)
         @return: nothing
         """
 
         listing = []
+        self.helper.dynamic_call(LoginSession.refresh_recordings,
+                                 includeAdult=self.ADDON.getSettingBool('adult-allowed'))
         if recType == 'planned':
             recordings = self.helper.dynamic_call(LoginSession.get_recordings_planned)
         else:
             recordings = self.helper.dynamic_call(LoginSession.get_recordings)
-        season: SeasonRecording = self.__find_season(recordingId, recordings)
-        for rec in season.get_episodes(recType):
-            rec.title = season.title
-            li = self.listitemHelper.listitem_from_recording(rec, recType)
-            callbackUrl = ('{0}?action=play&type=recording&id={1}&rectype={2}&seasonId={3}'
-                           .format(self.url,
-                                   rec.id,
-                                   rec.recordingState,
-                                   season.id))
-            isFolder = True
-            li.setProperty('IsPlayable', 'false')  # Turn off to avoid kodi complaining about item not playing
-            listing.append((callbackUrl, li, isFolder))
+        season: SeasonRecording = self.__find_season(seasonId, recordings)
+        if season is not None:
+            for rec in season.get_episodes(recType):
+                rec.title = season.title
+                li = self.listitemHelper.listitem_from_recording(rec, recType, season)
+                callbackUrl = ('{0}?action=play&type=recording&id={1}&rectype={2}&seasonId={3}'
+                               .format(self.url,
+                                       rec.id,
+                                       rec.recordingState,
+                                       season.id))
+                isFolder = True
+                li.setProperty('IsPlayable', 'false')  # Turn off to avoid kodi complaining about item not playing
+                listing.append((callbackUrl, li, isFolder))
+        else:
+            xbmc.log('Season with id: {0} no longer found, maybe deleted via context menu'.format(seasonId),
+                     xbmc.LOGDEBUG)
 
         xbmcplugin.addDirectoryItems(self.handle, listing, len(listing))
         xbmcplugin.addSortMethod(self.handle, xbmcplugin.SORT_METHOD_LABEL)
 
         # Finish creating a virtual folder.
-        xbmcplugin.endOfDirectory(self.handle)
+        xbmcplugin.endOfDirectory(self.handle, updateListing=True)
 
     def list_channels(self):
         """
@@ -849,12 +805,6 @@ class ZiggoPlugin:
         elif params['type'] == 'movie':
             self.play_movie(params['id'])
 
-    def __router_delete(self, params):
-        if params['type'] == 'recording':
-            self.delete_recording(params['id'], params['rectype'])
-        elif params['type'] == 'showrecording':
-            self.delete_show_recording(params['id'], params['rectype'])
-
     def __router_sublist(self, params):
         if params['type'] == 'series':
             self.list_series_seasons(params['seriesId'])
@@ -892,8 +842,6 @@ class ZiggoPlugin:
                 self.list_subcategories(params['categoryId'])
             elif params['action'] == 'play':
                 self.__router_play(params)
-            elif params['action'] == 'delete':
-                self.__router_delete(params)
             elif params['action'] == 'sublist':
                 self.__router_sublist(params)
             elif params['action'] == 'cantplay':

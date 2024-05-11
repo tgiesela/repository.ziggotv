@@ -52,6 +52,8 @@ class ProgramEventGrid:
         self.__update_events()
         self.player = ZiggoPlayer()
         self.videoHelper = VideoHelpers(self.addon)
+        self.helper.dynamic_call(LoginSession.refresh_recordings,
+                                 includeAdult=self.addon.getSettingBool('adult-allowed'))
         self.plannedRecordings: RecordingList = self.helper.dynamic_call(LoginSession.get_recordings_planned)
 
     def __set_epg_date(self, date: datetime.datetime):

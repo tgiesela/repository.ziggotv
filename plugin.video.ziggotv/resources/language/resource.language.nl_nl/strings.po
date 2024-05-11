@@ -162,3 +162,15 @@ msgstr "Terugkijken"
 msgctxt "#40025"
 msgid "Switch to channel"
 msgstr "Naar zender"
+
+msgctxt "#40026"
+msgid "Delete complete show"
+msgstr "Verwijder hele show"
+
+msgctxt "#40027"
+msgid "Opname ingepland"
+msgstr ""
+
+msgctxt "#40028"
+msgid "Show opname ingepland"
+msgstr ""

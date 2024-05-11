@@ -419,7 +419,7 @@ class LoginSession(Web):
                 self.extraHeaders = {}
                 self.cookies.clear_session_cookies()
                 Path(self.pluginpath(G.COOKIES_INFO)).unlink(missing_ok=True)
-                response = super().do_post(G.AUTHENTICATION_URL,
+                response = super().do_post(G.AUTHENTICATION_URL, params={'loginAction': 'user'},
                                            jsonData={"password": password,
                                                      "username": username})
                 if not self.__status_code_ok(response):
@@ -434,7 +434,7 @@ class LoginSession(Web):
         profileId = self.activeProfile["profileId"]
         trackingId = self.customerInfo["hashedCustomerId"]
         self.extraHeaders = {
-            'X-OESP-Username': self.username,
+#            'X-OESP-Username': self.username,
             'x-tracking-id': trackingId,
             'X-Profile': profileId
         }
@@ -595,7 +595,7 @@ class LoginSession(Web):
         profileId = self.activeProfile["profileId"]
         trackingId = self.get_customer_info()["hashedCustomerId"]
         self.extraHeaders = {
-            'X-OESP-Username': self.username,
+#            'X-OESP-Username': self.username,
             'x-tracking-id': trackingId,
             'X-Profile': profileId,
             'x-streaming-token': streamingToken
@@ -621,7 +621,7 @@ class LoginSession(Web):
         profileId = self.activeProfile["profileId"]
         trackingId = self.get_customer_info()["hashedCustomerId"]
         self.extraHeaders = {
-            'X-OESP-Username': self.username,
+#            'X-OESP-Username': self.username,
             'x-tracking-token': trackingId,
             'X-Profile': profileId,
             'x-streaming-token': streamingId
@@ -955,13 +955,12 @@ class LoginSession(Web):
         @return:
         """
         url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings'
-        response = super().do_get(url, params={'with': 'profiles,devices',
-                                               'isAdult': isAdult,
+        response = super().do_get(url, params={'isAdult': isAdult,
                                                'offset': 0,
                                                'limit': 100,
                                                # 'sort': 'time',
                                                # 'sortOrder': 'desc',
-                                               'profileId': self.activeProfile['profileId'],
+                                               # 'profileId': self.activeProfile['profileId'],
                                                'language': 'nl'})
         if not self.__status_code_ok(response):
             raise WebException(response)
@@ -969,18 +968,17 @@ class LoginSession(Web):
 
     def __get_recordings(self, isAdult: bool):
         """
-        Obtain list of planned recordings
+        Obtain list of recordings
         @param isAdult:
         @return:
         """
         url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'recordings'
-        response = super().do_get(url, params={'with': 'profiles,devices',
-                                               'isAdult': isAdult,
+        response = super().do_get(url, params={'isAdult': isAdult,
                                                'offset': 0,
                                                'limit': 100,
                                                # 'sort': 'time',
                                                # 'sortOrder': 'desc',
-                                               'profileId': self.activeProfile['profileId'],
+                                               # 'profileId': self.activeProfile['profileId'],
                                                'language': 'nl'})
         if not self.__status_code_ok(response):
             raise WebException(response)
@@ -994,7 +992,7 @@ class LoginSession(Web):
         @return:
         """
         url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'episodes/shows/' + showId
-        response = super().do_get(url, params={'source': 'recording',
+        response = super().do_get(url, params={'source': 'booking',
                                                'isAdult': 'false',
                                                'offset': 0,
                                                'limit': 100,
@@ -1022,49 +1020,43 @@ class LoginSession(Web):
             raise WebException(response)
         return json.loads(response.content)
 
-    def delete_recordings_planned(self, events: [], shows: [], channelId=None):
+    def delete_recordings_planned(self, event=None, show=None, channelId=None):
         """
         delete planned recordings
-        @param events: list of events to delete
-        @param shows: list of series/show/season to delete
+        @param event: events to delete
+        @param show: series/show/season to delete
         @param channelId:
         @return:
         """
-        eventList = []
-        showList = []
-        for event in events:
-            eventList.append({'eventId': event})
-        for show in shows:
-            if channelId is not None:
-                showList.append({'showId': show, 'channelId': channelId})
-            else:
-                showList.append({'showId': show})
-        request = {'events': eventList, 'shows': showList}
-        url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings'
+        if show is not None and channelId is not None:
+            url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings/show'
+            request = {'showId': show, 'channelId': channelId}
+        elif event is not None:
+            url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings/single/' + event
+            request = None
+        else:
+            raise RuntimeError('Logic error: trying to delete booking without parameters')
         response = super().do_delete(url=url, jsonData=request)
         if not self.__status_code_ok(response):
             raise WebException(response)
         return json.loads(response.content)
 
-    def delete_recordings(self, events: [], shows: [], channelId=None):
+    def delete_recordings(self, event=None, show=None, channelId=None):
         """
         delete a list of recordings
-        @param events: list of events to delete
-        @param shows: list of series/show/season to delete
+        @param event: events delete
+        @param show: series/show/season to delete
         @param channelId:
         @return:
         """
-        eventList = []
-        showList = []
-        for event in events:
-            eventList.append({'eventId': event})
-        for show in shows:
-            if channelId is not None:
-                showList.append({'showId': show, 'channelId': channelId})
-            else:
-                showList.append({'showId': show})
-        request = {'events': eventList, 'shows': showList}
-        url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'recordings'
+        if show is not None and channelId is not None:
+            url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings/show'
+            request = {'showId': show, 'channelId': channelId}
+        elif event is not None:
+            url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'recordings/single/' + event
+            request = None
+        else:
+            raise RuntimeError('Logic error: trying to delete recording without parameters')
         response = super().do_delete(url=url, jsonData=request)
         if not self.__status_code_ok(response):
             raise WebException(response)

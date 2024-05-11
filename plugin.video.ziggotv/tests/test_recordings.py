@@ -81,9 +81,9 @@ class TestRecordings(TestBase):
         self.print_recordings(recs)
         recs = self.session.get_recordings_planned()
         self.print_recordings(recs)
-        rslt = self.session.delete_recordings(events=[windowEvents[0].id], shows=[])
+        rslt = self.session.delete_recordings(event=windowEvents[0].id)
         print(rslt)
-        rslt = self.session.delete_recordings(events=[windowEvents[1].id], shows=[])
+        rslt = self.session.delete_recordings(event=windowEvents[1].id)
         print(rslt)
 
 

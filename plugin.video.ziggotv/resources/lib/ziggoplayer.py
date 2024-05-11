@@ -235,7 +235,8 @@ class VideoHelpers:
             playItem = self.liHelper.listitem_from_url(
                 requesturl=url,
                 streamingToken=streamInfo.token,
-                drmContentId=streamInfo.drmContentId)
+                drmContentId=streamInfo.drmContentId
+            )
             details = self.helper.dynamic_call(LoginSession.get_recording_details, recordingId=recording.id)
             self.__add_recording_info(playItem, details)
             if resumePoint > 0:
@@ -254,9 +255,17 @@ class VideoHelpers:
 
     def __record_event(self, event):
         self.helper.dynamic_call(LoginSession.record_event, eventId=event.id)
+        xbmcgui.Dialog().notification('Info',
+                                      self.addon.getLocalizedString(S.MSG_EVENT_SCHEDULED),
+                                      xbmcgui.NOTIFICATION_INFO,
+                                      2000)
 
     def __record_show(self, event, channel):
         self.helper.dynamic_call(LoginSession.record_show, eventId=event.id, channelId=channel.id)
+        xbmcgui.Dialog().notification('Info',
+                                      self.addon.getLocalizedString(S.MSG_SHOW_SCHEDULED),
+                                      xbmcgui.NOTIFICATION_INFO,
+                                      2000)
 
     def update_event(self, channel: Channel, event):
         """

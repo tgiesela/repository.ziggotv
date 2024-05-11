@@ -162,3 +162,15 @@ msgstr ""
 msgctxt "#40025"
 msgid "Switch to channel"
 msgstr ""
+
+msgctxt "#40026"
+msgid "Delete show"
+msgstr ""
+
+msgctxt "#40027"
+msgid "Recording scheduled"
+msgstr ""
+
+msgctxt "#40028"
+msgid "Show recording scheduled"
+msgstr ""

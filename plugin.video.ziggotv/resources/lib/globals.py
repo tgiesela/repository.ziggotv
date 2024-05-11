@@ -34,6 +34,9 @@ class StringIds:
     MSG_RECORD_SHOW = 40023
     MSG_REPLAY_EVENT = 40024
     MSG_SWITCH_CHANNEL = 40025
+    MSG_DELETE_SEASON = 40026
+    MSG_EVENT_SCHEDULED = 40027
+    MSG_SHOW_SCHEDULED = 40028
 
     def __init__(self):
         pass
@@ -45,26 +48,27 @@ class GlobalVariables:
     General global variables. Mainly the URLs used, filenames, and texts
     """
     ZIGGO_URL = 'https://www.ziggogo.tv/'
-    ZIGGOPROD_URL = 'https://prod.spark.ziggogo.tv/'
+    ZIGGO_HOST = 'spark-prod-nl.gnp.cloud.ziggogo.tv'
     STATIC_URL = 'https://staticqbr-nl-prod.prod.cdn.dmdsdp.com/'
     STATICPROD_URL = 'https://static.spark.ziggogo.tv/'
+    ZIGGOPROD_URL = 'https://' + ZIGGO_HOST + '/'
     AUTHENTICATION_URL = ZIGGOPROD_URL + 'auth-service/v1/authorization'
-    PERSONALISATION_URL = ZIGGOPROD_URL + 'eng/web/personalization-service/v1/customer/{householdid}'
-    ENTITLEMENTS_URL = ZIGGOPROD_URL + 'eng/web/purchase-service/v2/customers/{householdid}/entitlements'
-    WIDEVINE_URL = ZIGGOPROD_URL + 'eng/web/session-manager/license/certificate/widevine'
-    LICENSE_URL = ZIGGOPROD_URL + 'eng/web/session-manager/license'
-    CHANNELS_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/channels'
-    STREAMING_URL = ZIGGOPROD_URL + 'eng/web/session-service/session/v2/web-desktop/customers/{householdid}'
-    HOMESERVICE_URL = ZIGGOPROD_URL + 'eng/web/personal-home-service/'
-    VOD_SERVICE_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/'
-    LINEARSERVICE_V2_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/'
-    LINEARSERVICE_V1_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v1/'
-    PICKERSERVICE_URL = ZIGGOPROD_URL + 'eng/web/picker-service/v1/'
-    GRIDSERVICE_URL = ZIGGOPROD_URL + 'eng/web/vod-service/v3/grid-screen/'
-    EVENTS_URL = STATICPROD_URL + 'eng/web/epg-service-lite/nl/nl/events/segments/'
-    REPLAYEVENT_URL = ZIGGOPROD_URL + 'eng/web/linear-service/v2/replayEvent/'
-    RECORDINGS_URL = ZIGGOPROD_URL + 'eng/web/recording-service/customers/{householdid}/'
-    DISCOVERY_URL = ZIGGOPROD_URL + 'eng/web/discovery-service/v2/learn-actions/'
+    PERSONALISATION_URL = ZIGGOPROD_URL + 'nld/web/personalization-service/v1/customer/{householdid}'
+    ENTITLEMENTS_URL = ZIGGOPROD_URL + 'nld/web/purchase-service/v2/customers/{householdid}/entitlements'
+    WIDEVINE_URL = ZIGGOPROD_URL + 'nld/web/session-manager/license/certificate/widevine'
+    LICENSE_URL = ZIGGOPROD_URL + 'nld/web/session-manager/license'
+    CHANNELS_URL = ZIGGOPROD_URL + 'nld/web/linear-service/v2/channels'
+    STREAMING_URL = ZIGGOPROD_URL + 'nld/web/session-service/session/v2/web-desktop/customers/{householdid}'
+    HOMESERVICE_URL = ZIGGOPROD_URL + 'nld/web/personal-home-service/'
+    VOD_SERVICE_URL = ZIGGOPROD_URL + 'nld/web/vod-service/v3/'
+    LINEARSERVICE_V2_URL = ZIGGOPROD_URL + 'nld/web/linear-service/v2/'
+    LINEARSERVICE_V1_URL = ZIGGOPROD_URL + 'nld/web/linear-service/v1/'
+    PICKERSERVICE_URL = ZIGGOPROD_URL + 'nld/web/picker-service/v1/'
+    GRIDSERVICE_URL = ZIGGOPROD_URL + 'nld/web/vod-service/v3/grid-screen/'
+    EVENTS_URL = STATICPROD_URL + 'nld/web/epg-service-lite/nl/nl/events/segments/'
+    REPLAYEVENT_URL = ZIGGOPROD_URL + 'nld/web/linear-service/v2/replayEvent/'
+    RECORDINGS_URL = ZIGGOPROD_URL + 'nld/web/recording-service/customers/{householdid}/'
+    DISCOVERY_URL = ZIGGOPROD_URL + 'web/discovery-service/v2/learn-actions/'
 
     SESSION_INFO = 'session.json'
     CUSTOMER_INFO = 'customer.json'
@@ -107,10 +111,10 @@ CONST_BASE_HEADERS = {
     'Accept-Encoding': 'gzip, deflate, br',
     'Accept-Language': 'en-US,en;q=0.9,nl;q=0.8',
     'Cache-Control': 'no-cache',
-    'DNT': '1',
+#    'DNT': '1',
     'TE': 'trailers',
     'Origin': 'https://www.ziggogo.tv',
-    'Pragma': 'no-cache',
+#    'Pragma': 'no-cache',
     'Referer': 'https://www.ziggogo.tv/',
     'Sec-Fetch-Dest': 'empty',
     'Sec-Fetch-Mode': 'cors',
@@ -121,25 +125,25 @@ ALLOWED_LICENSE_HEADERS = [
     "Accept",
     "Accept-Encoding",
     "Accept-Language",
-    "Cache-Control",
+#    "Cache-Control",
     "Connection",
     "Content-Length",
     "Cookie",
     "deviceName",
-    "DNT",
+#    "DNT",
     "Host",
     "Origin",
-    "Pragma",
+#    "Pragma",
     "Referer",
     "Sec-Fetch-Dest",
     "Sec-Fetch-Mode",
     "Sec-Fetch-Site",
     "TE",
     "User-Agent",
-    "X-cus",
+#    "X-cus",
     "x-drm-schemeId",
     "x-go-dev",
-    "X-OESP-Username",
+#    "X-OESP-Username",
     "X-Profile",
     "x-streaming-token",
     "x-tracking-id"

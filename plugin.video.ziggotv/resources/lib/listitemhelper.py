@@ -12,7 +12,7 @@ import xbmcvfs
 
 from resources.lib.channel import Channel
 from resources.lib.globals import S, G, CONST_BASE_HEADERS
-from resources.lib.recording import SingleRecording, SeasonRecording
+from resources.lib.recording import SingleRecording, SeasonRecording, PlannedRecording
 from resources.lib.utils import ProxyHelper, SharedProperties
 from resources.lib.webcalls import LoginSession
 
@@ -98,16 +98,16 @@ class ListitemHelper:
         li.setProperty(
             key='inputstream.adaptive.license_flags',
             value='persistent_storage')
-        li.setProperty(
-            key='inputstream.adaptive.manifest_type',
-            value=G.PROTOCOL)
+        # li.setProperty(
+        #    key='inputstream.adaptive.manifest_type',
+        #    value=G.PROTOCOL)
         li.setProperty(
             key='inputstream.adaptive.license_type',
             value=G.DRM)
         licenseHeaders = dict(CONST_BASE_HEADERS)
         # 'Content-Type': 'application/octet-stream',
         licenseHeaders.update({
-            'Host': 'prod.spark.ziggogo.tv',
+            'Host': G.ZIGGO_HOST,
             'x-streaming-token': streamingToken,
             'X-cus': self.customerInfo['customerId'],
             'x-go-dev': self.uuId,
@@ -157,9 +157,10 @@ class ListitemHelper:
 
         return li
 
-    def listitem_from_recording(self, recording: SingleRecording, recType) -> xbmcgui.ListItem:
+    def listitem_from_recording(self, recording, recType, season: SeasonRecording=None) -> xbmcgui.ListItem:
         """
         Creates a ListItem from a SingleRecording
+        @param season: the information of the season to which the recording belongs
         @param recording: the recording to use
         @param recType: the type of recording (planned|recorded)
         @return: listitem
@@ -201,15 +202,30 @@ class ListitemHelper:
         tag.setPlotOutline('')
 
         # Add context menu for delete
-
-        items = [(self.addon.getLocalizedString(S.MSG_DELETE),
-                  'RunAddon({0},action=delete&type=recording&id={1}&rectype={2})'.format(self.addon.getAddonInfo('id'),
-                                                                                         quote(recording.id),
-                                                                                         recType)),
-                 (self.addon.getLocalizedString(S.BTN_PLAY),
-                  'RunAddon({0},action=play&type=recording&id={1}&rectype={2})'.format(self.addon.getAddonInfo('id'),
-                                                                                       quote(recording.id),
-                                                                                       recording.recordingState))]
+        scriptname = self.addon.getAddonInfo('path') + 'contextactions.py'
+        if isinstance(recording, (SingleRecording, PlannedRecording)):
+            if season is not None:
+                # Currently only the whole season can be deleted, not a single instance within a season
+                # Check the web version to see if it available again.
+                items = [(self.addon.getLocalizedString(S.MSG_DELETE_SEASON),
+                          'RunScript({0},--action=delete,--type=season,--id={1},--rectype={2},--channel={3})'.format(
+                              scriptname,
+                              quote(season.showId),
+                              recType,
+                              season.channelId))]
+            else:
+                items = [(self.addon.getLocalizedString(S.MSG_DELETE),
+                          'RunScript({0},--action=delete,--type=recording,--id={1},--rectype={2})'.format(
+                              scriptname,
+                              quote(recording.id),
+                              recType))]
+        else:
+            items = []
+        items.append((self.addon.getLocalizedString(S.BTN_PLAY),
+                      'RunAddon({0},action=play&type=recording&id={1}&rectype={2})'.format(
+                          self.addon.getAddonInfo('id'),
+                          quote(recording.id),
+                          recording.recordingState)))
         li.addContextMenuItems(items, True)
 
         return li
@@ -245,12 +261,15 @@ class ListitemHelper:
         tag.setPlot('')
         tag.setPlotOutline('')
 
-        items = [(self.addon.getLocalizedString(S.MSG_DELETE),
-                  'RunAddon({0},action=delete&type=showrecording&id={1}&rectype={2})'.format(
-                      self.addon.getAddonInfo('id'),
-                      quote(recording.id),
-                      recType))]
-        li.addContextMenuItems(items, True)
+        scriptname = self.addon.getAddonInfo('path') + 'contextactions.py'
+        if isinstance(recording, SeasonRecording):
+            items = [(self.addon.getLocalizedString(S.MSG_DELETE),
+                      'RunScript({0},--action=delete,--type=season,--id={1},--rectype={2},--channel={3})'.format(
+                          scriptname,
+                          quote(recording.showId),
+                          recType,
+                          recording.channelId))]
+            li.addContextMenuItems(items, True)
         return li
 
     @staticmethod

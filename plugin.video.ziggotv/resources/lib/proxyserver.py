@@ -132,6 +132,7 @@ class ProxyServer(http.server.HTTPServer):
                     manifestBaseurl = None
             self.urlTools.update_redirection(request.path, response.url, manifestBaseurl)
             request.send_response(response.status_code)
+            request.send_header('content-type', 'application/dash+xml')
             request.end_headers()
             request.wfile.write(response.content)
 
