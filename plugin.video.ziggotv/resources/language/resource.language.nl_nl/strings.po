@@ -168,9 +168,9 @@ msgid "Delete complete show"
 msgstr "Verwijder hele show"
 
 msgctxt "#40027"
-msgid "Opname ingepland"
-msgstr ""
+msgid "Recording scheduled"
+msgstr "Opname ingepland"
 
 msgctxt "#40028"
-msgid "Show opname ingepland"
-msgstr ""
+msgid "Show recording scheduled"
+msgstr "Show opname ingepland"
