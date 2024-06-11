@@ -214,9 +214,7 @@ class ZiggoPlugin:
 
             videoHelper.play_movie(movieOverview)
             xbmcplugin.endOfDirectory(self.handle, succeeded=False, updateListing=False, cacheToDisc=False)
-            while xbmc.Player().isPlaying():
-                xbmc.sleep(500)
-            xbmc.log('VOD STOPPED: {0}'.format(path), xbmc.LOGDEBUG)
+            videoHelper.monitor_state(path)
 
         # pylint: disable=broad-exception-caught
         except Exception as excpt:
@@ -227,6 +225,7 @@ class ZiggoPlugin:
         Play a movie by the provided path.
         :param path: str
         :return: None
+        @param seasonId: id of the season if applicable
         @param path: The id of the item to play
         @param recType: The type of recording (planned/recorded)
         """
@@ -642,6 +641,7 @@ class ZiggoPlugin:
                                                                              playableInstance['id'])
                 else:
                     callbackUrl = '{0}?action=cantplay&video={1}'.format(self.url, playableInstance['id'])
+                li.setProperty('IsPlayable', 'false')
                 listing.append((callbackUrl, li, False))
             elif item['type'] == 'SERIES':
                 overview = self.__get_series_overview(item['id'])
