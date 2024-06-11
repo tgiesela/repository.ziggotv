@@ -200,7 +200,7 @@ class VideoHelpers:
             return overview['instances'][0]  # return the first one if none was goPlayable
         return None
 
-    def __play_vod(self, overview) -> xbmcgui.ListItem:
+    def __play_vod(self, overview, resumePoint) -> xbmcgui.ListItem:
         playableInstance = self.__get_playable_instance(overview)
         if playableInstance is None:
             xbmcgui.Dialog().ok('Error', self.addon.getLocalizedString(S.MSG_CANNOTWATCH))
@@ -216,6 +216,10 @@ class VideoHelpers:
                 streamingToken=streamInfo.token,
                 drmContentId=streamInfo.drmContentId)
             self.__add_vod_info(playItem, overview)
+            if resumePoint > 0:
+                self.player.set_replay(True, int(resumePoint * 1000))
+            else:
+                self.player.set_replay(True, 0)
             self.player.play(item=url, listitem=playItem)
             self.__wait_for_player()
             return playItem
@@ -337,7 +341,7 @@ class VideoHelpers:
         elif action == 'cancel':
             pass
 
-    def play_movie(self, movieOverview) -> xbmcgui.ListItem:
+    def play_movie(self, movieOverview, resumePoint) -> xbmcgui.ListItem:
         """
         Play a movie
         @param movieOverview:
@@ -345,7 +349,7 @@ class VideoHelpers:
         """
         if xbmc.Player().isPlaying():
             xbmc.Player().stop()
-        return self.__play_vod(movieOverview)
+        return self.__play_vod(movieOverview, resumePoint)
 
     def play_recording(self, recording: SingleRecording, resumePoint):
         """

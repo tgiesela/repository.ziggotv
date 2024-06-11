@@ -211,8 +211,8 @@ class ZiggoPlugin:
                     break
             if movieOverview is None:
                 raise RuntimeError('Movie no longer found in stored movies!!')
-
-            videoHelper.play_movie(movieOverview)
+            resumePoint = videoHelper.get_resume_point(path)
+            videoHelper.play_movie(movieOverview, resumePoint)
             xbmcplugin.endOfDirectory(self.handle, succeeded=False, updateListing=False, cacheToDisc=False)
             videoHelper.monitor_state(path)
 
@@ -306,14 +306,14 @@ class ZiggoPlugin:
                     break
             if _season is not None and _episode is not None:
                 overview = _episode['overview']
-                videoHelper.play_movie(overview)
+                resumePoint = videoHelper.get_resume_point(path)
+                videoHelper.play_movie(overview, resumePoint)
+                xbmcplugin.endOfDirectory(self.handle, succeeded=False, updateListing=False, cacheToDisc=False)
+                videoHelper.monitor_state(path)
             else:
                 raise RuntimeError('Movie/Series no longer found!!')
 
-            xbmcplugin.endOfDirectory(self.handle, succeeded=False, updateListing=False, cacheToDisc=False)
-            while xbmc.Player().isPlaying():
-                xbmc.sleep(500)
-            xbmc.log('VOD STOPPED: {0}'.format(path), xbmc.LOGDEBUG)
+            xbmc.log('EPISODE STOPPED: {0}'.format(path), xbmc.LOGDEBUG)
 
         # pylint: disable=broad-exception-caught
         except Exception as excpt:
