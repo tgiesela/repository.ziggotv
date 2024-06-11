@@ -224,6 +224,7 @@ class LoginSession(Web):
     """
     Implements the ziggo-go API (partially)
     """
+
     # pylint: disable=too-many-instance-attributes, too-many-public-methods
     def __init__(self, addon):
         super().__init__(addon)
@@ -434,7 +435,7 @@ class LoginSession(Web):
         profileId = self.activeProfile["profileId"]
         trackingId = self.customerInfo["hashedCustomerId"]
         self.extraHeaders = {
-#            'X-OESP-Username': self.username,
+            #            'X-OESP-Username': self.username,
             'x-tracking-id': trackingId,
             'X-Profile': profileId
         }
@@ -595,7 +596,7 @@ class LoginSession(Web):
         profileId = self.activeProfile["profileId"]
         trackingId = self.get_customer_info()["hashedCustomerId"]
         self.extraHeaders = {
-#            'X-OESP-Username': self.username,
+            #            'X-OESP-Username': self.username,
             'x-tracking-id': trackingId,
             'X-Profile': profileId,
             'x-streaming-token': streamingToken
@@ -621,7 +622,7 @@ class LoginSession(Web):
         profileId = self.activeProfile["profileId"]
         trackingId = self.get_customer_info()["hashedCustomerId"]
         self.extraHeaders = {
-#            'X-OESP-Username': self.username,
+            #            'X-OESP-Username': self.username,
             'x-tracking-token': trackingId,
             'X-Profile': profileId,
             'x-streaming-token': streamingId
@@ -1029,8 +1030,8 @@ class LoginSession(Web):
         @return:
         """
         if show is not None and channelId is not None:
-            url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings/show'
-            request = {'showId': show, 'channelId': channelId}
+            url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings'
+            request = {'events': [], 'shows': [{'showId': show, 'channelId': channelId}]}
         elif event is not None:
             url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings/single/' + event
             request = None
@@ -1050,8 +1051,8 @@ class LoginSession(Web):
         @return:
         """
         if show is not None and channelId is not None:
-            url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'bookings/show'
-            request = {'showId': show, 'channelId': channelId}
+            url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'recordings'
+            request = {'events': [], 'shows': [{'showId': show, 'channelId': channelId}]}
         elif event is not None:
             url = G.RECORDINGS_URL.format(householdid=self.sessionInfo['householdId']) + 'recordings/single/' + event
             request = None

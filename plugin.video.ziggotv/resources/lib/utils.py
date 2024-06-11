@@ -74,6 +74,8 @@ class SharedProperties:
         self.addon: xbmcaddon.Addon = addon
         self.window: xbmcgui.Window = xbmcgui.Window(10000)
         self.kodiVersion = xbmc.getInfoLabel('System.BuildVersionShort')
+        if self.kodiVersion == '':
+            self.kodiVersion = '21.0'
         digits = self.kodiVersion.split('.')
         self.kodiVersionMajor = digits[0]
         self.kodiVersionMinor = digits[1]

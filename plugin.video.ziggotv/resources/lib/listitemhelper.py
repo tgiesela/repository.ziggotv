@@ -211,9 +211,12 @@ class ListitemHelper:
         scriptname = self.addon.getAddonInfo('path') + 'contextactions.py'
         if isinstance(recording, (SingleRecording, PlannedRecording)):
             if season is not None:
-                # Currently only the whole season can be deleted, not a single instance within a season
-                # Check the web version to see if it available again.
-                items = [(self.addon.getLocalizedString(S.MSG_DELETE_SEASON),
+                items = [(self.addon.getLocalizedString(S.MSG_DELETE),
+                          'RunScript({0},--action=delete,--type=recording,--id={1},--rectype={2})'.format(
+                              scriptname,
+                              quote(recording.id),
+                              recType)),
+                         (self.addon.getLocalizedString(S.MSG_DELETE_SEASON),
                           'RunScript({0},--action=delete,--type=season,--id={1},--rectype={2},--channel={3})'.format(
                               scriptname,
                               quote(season.showId),
