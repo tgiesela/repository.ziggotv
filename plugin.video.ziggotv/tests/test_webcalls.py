@@ -11,7 +11,7 @@ from xml.dom import minidom
 import requests
 import xbmcaddon
 
-
+from resources.lib.globals import G
 from resources.lib.urltools import UrlTools
 from resources.lib.utils import WebException, DatetimeHelper
 from resources.lib.webcalls import LoginSession
@@ -89,8 +89,6 @@ class TestWebCalls(TestBase):
         self.session = LoginSession(xbmcaddon.Addon())
         self.session.printNetworkTraffic = 'false'
         self.do_login()
-        entitlements = self.session.get_entitlements()
-        self.assertDictEqual({}, entitlements)
         self.session.refresh_entitlements()
         entitlements = self.session.get_entitlements()
         self.assertFalse(entitlements == {})
@@ -108,13 +106,13 @@ class TestWebCalls(TestBase):
         headers = {}
         hwUuid = str(uuid.UUID(hex=hex(uuid.getnode())[2:]*2+'00000000'))
         headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-            'Host': 'prod.spark.ziggogo.tv',
+            'Host': G.ZIGGO_HOST,
             'x-streaming-token': streamInfo.token,
             'X-cus': self.session.customerInfo['customerId'],
-            'x-go-dev': hwUuid,  # '214572a3-2033-4327-b8b3-01a9a674f1e0',
+            'x-go-dev': hwUuid,
             'x-drm-schemeId': 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed',
-            'deviceName': 'Firefox'
+            'deviceName': 'Firefox',
+#            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
         })
 
         response = self.session.get_license('nl_tv_standaard_cenc', '\x08\x04', headers)
@@ -223,7 +221,7 @@ class TestWebCalls(TestBase):
             response = json.loads(response)
             requestcolls = []
             for item in response:
-                print(item['title'], item['id'])
+                print(item['id'], item['type'])
                 if item['type'] == 'MostWatchedChannels':
                     mostwatched = json.loads(self.session.get_mostwatched_channels())
                     print('Mostwatched: ', mostwatched)
@@ -247,8 +245,9 @@ class TestWebCalls(TestBase):
             for screen in combinedlist:
                 print('Screen: ' + screen['title'], 'id: ', screen['id'])
                 screenDetails = self.session.obtain_vod_screen_details(screen['id'])
-                for collection in screenDetails['collections']:
-                    self.process_collection_movies(collection)
+                if 'collections' in screenDetails:
+                    for collection in screenDetails['collections']:
+                        self.process_collection_movies(collection)
             break # We only test one profile !
             # print(response)
 

@@ -61,11 +61,12 @@ class TestBase(unittest.TestCase):
     def setUp(self):
         self.session = LoginSession(xbmcaddon.Addon())
         self.svc.start_http_server()
-        print("Executing setup")
+        print("Executing setup",  self._testMethodName)
 
     def tearDown(self):
-        print("Executing teardown")
+        print("Executing teardown", self._testMethodName)
         self.session.close()
+        sleep(1)
         self.svc.stop_http_server()
         self.cleanup_all()
 

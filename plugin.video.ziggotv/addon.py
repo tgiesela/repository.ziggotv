@@ -670,15 +670,16 @@ class ZiggoPlugin:
 
         listing = []
         screens = self.helper.dynamic_call(LoginSession.obtain_vod_screen_details, collectionId=categoryId)
-        for screen in screens['collections']:
-            if screen['collectionLayout'] == 'TileCollection':
-                for genre in screen['items']:
-                    if genre['type'] == 'LINK':
-                        li = self.listitemHelper.listitem_from_genre(genre)
-                        callbackUrl = '{0}?action=sublist&type=genre&genreId={1}'.format(self.url,
-                                                                                         genre['gridLink']['id'])
-                        isFolder = True
-                        listing.append((callbackUrl, li, isFolder))
+        if 'collections' in screens:
+            for screen in screens['collections']:
+                if screen['collectionLayout'] == 'TileCollection':
+                    for genre in screen['items']:
+                        if genre['type'] == 'LINK':
+                            li = self.listitemHelper.listitem_from_genre(genre)
+                            callbackUrl = '{0}?action=sublist&type=genre&genreId={1}'.format(self.url,
+                                                                                             genre['gridLink']['id'])
+                            isFolder = True
+                            listing.append((callbackUrl, li, isFolder))
 
         # Add our listing to Kodi.
 
@@ -699,17 +700,18 @@ class ZiggoPlugin:
         screenDetails = self.helper.dynamic_call(LoginSession.obtain_vod_screen_details, collectionId=categoryId)
         itemsSeen = []
         self.__load_series_overviews()
-        for collection in screenDetails['collections']:
-            for item in collection['items']:
-                if item['id'] in itemsSeen:
-                    continue
-                if item['type'] == 'SERIES':
-                    overview = self.__get_series_overview(item['id'])
-                    li = self.listitemHelper.listitem_from_seriesitem(item, overview)
-                    itemsSeen.append((item['id']))
-                    callbackUrl = '{0}?action=sublist&type=series&seriesId={1}'.format(self.url, item['id'])
-                    isFolder = True
-                    listing.append((callbackUrl, li, isFolder))
+        if 'collections' in screenDetails:
+            for collection in screenDetails['collections']:
+                for item in collection['items']:
+                    if item['id'] in itemsSeen:
+                        continue
+                    if item['type'] == 'SERIES':
+                        overview = self.__get_series_overview(item['id'])
+                        li = self.listitemHelper.listitem_from_seriesitem(item, overview)
+                        itemsSeen.append((item['id']))
+                        callbackUrl = '{0}?action=sublist&type=series&seriesId={1}'.format(self.url, item['id'])
+                        isFolder = True
+                        listing.append((callbackUrl, li, isFolder))
 
         # Save overviews
         Path(self.plugin_path(G.SERIES_INFO)).write_text(json.dumps(self.seriesOverviews), encoding='utf-8')
@@ -747,23 +749,24 @@ class ZiggoPlugin:
         movieList = self.helper.dynamic_call(LoginSession.obtain_vod_screen_details, collectionId=categoryId)
         itemsSeen = []
         self.__load_movie_overviews()
-        for collection in movieList['collections']:
-            for item in collection['items']:
-                if item['id'] in itemsSeen:
-                    continue
-                if item['type'] == 'ASSET':
-                    details = self.__get_details(item)
-                    playableInstance = self.__get_playable_instance(details)
-                    if playableInstance is not None:
-                        li = self.listitemHelper.listitem_from_movie(item, details, playableInstance)
-                        itemsSeen.append((item['id']))
-                        if li.getProperty('IsPlayable') == 'true':
-                            callbackUrl = '{0}?action=play&type=movie&id={1}'.format(self.url,
-                                                                                     playableInstance['id'])
-                        else:
-                            callbackUrl = '{0}?action=cantplay&video={1}'.format(self.url, playableInstance['id'])
-                        li.setProperty('IsPlayable', 'false')
-                        listing.append((callbackUrl, li, False))
+        if 'collections' in movieList:
+            for collection in movieList['collections']:
+                for item in collection['items']:
+                    if item['id'] in itemsSeen:
+                        continue
+                    if item['type'] == 'ASSET':
+                        details = self.__get_details(item)
+                        playableInstance = self.__get_playable_instance(details)
+                        if playableInstance is not None:
+                            li = self.listitemHelper.listitem_from_movie(item, details, playableInstance)
+                            itemsSeen.append((item['id']))
+                            if li.getProperty('IsPlayable') == 'true':
+                                callbackUrl = '{0}?action=play&type=movie&id={1}'.format(self.url,
+                                                                                         playableInstance['id'])
+                            else:
+                                callbackUrl = '{0}?action=cantplay&video={1}'.format(self.url, playableInstance['id'])
+                            li.setProperty('IsPlayable', 'false')
+                            listing.append((callbackUrl, li, False))
 
         # Save overviews
         Path(self.plugin_path(G.MOVIE_INFO)).write_text(json.dumps(self.movieOverviews), encoding='utf-8')

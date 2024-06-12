@@ -20,14 +20,13 @@ try:
     # pylint: disable=import-error, broad-exception-caught
     from inputstreamhelper import Helper
 except Exception as excpt:
-    pass
+    from tests.testinputstreamhelper import Helper
 
 
 class ListitemHelper:
     """
     Class holding several methods to create listitems for a specific purpose
     """
-    KODI_VERSION_MAJOR = int(xbmc.getInfoLabel('System.BuildVersion').split('.', maxsplit=1)[0])
 
     def __init__(self, addon):
         self.addon = addon
@@ -90,7 +89,7 @@ class ListitemHelper:
         tag.setMediaType('video')
         li.setMimeType('application/dash+xml')
         li.setContentLookup(False)
-        if self.KODI_VERSION_MAJOR >= 19:
+        if self.kodiMajorVersion >= 19:
             li.setProperty(
                 key='inputstream',
                 value=isHelper.inputstream_addon)
