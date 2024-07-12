@@ -1,0 +1,33 @@
+{"config":
+  {"repository":
+    {"name": "Ziggo TV repository",
+      "id": "repository.ziggotv",
+      "version": "1.0.0",
+      "author": "tgiesela",
+      "summary": "Repository for dutch tv",
+      "description": "Ziggo TV repository",
+      "hash-algorithm": "sha256"
+    },
+    "locations-devel":
+    {
+      "url": "https://localhost:8443/",
+      "urlpath": "",
+      "outputfolder": "E:/kanweg/repo/",
+      "workfolder": "E:/kanweg/work/"
+    },
+    "locations":
+    {
+      "url": "https://ziggotv.github.io/",
+      "urlpath": "ziggotv/",
+      "outputfolder": "E:/kanweg/repo/",
+      "workfolder": "E:/kanweg/work/"
+    },
+    "addons": [
+      "E:/git/plugin.video.ziggotv"
+    ],
+    "addons-example": [
+      "https://github.com/tgiesela/plugin.video.ziggotv.git",
+      "E:/git/plugin.video.ziggotv.zip"
+    ]
+  }
+}
