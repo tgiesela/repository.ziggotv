@@ -1,0 +1,48 @@
+on:
+  workflow_call
+
+jobs:
+
+  build-zipfiles:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          repository: tgiesela/repository.ziggotv
+          path: repo
+          ref: master
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          architecture: 'x64'
+
+      - name: Setup git config
+        run: git config --global init.defaultBranch "master"
+
+      - name: Setup virtual environment
+        id: python-venv
+        working-directory: repo
+        run: |
+            python -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt
+
+      - name: zipfile creator
+        id: zipfile-creator
+        working-directory: repo
+        run: |
+            source venv/bin/activate
+            export PYTHONPATH=./lib:${PYTHONPATH}
+            python create_repo.py -c config_action.json
+
+      - name: upload zipfiles as artifact
+        uses: actions/upload-artifact@v4
+        with:
+           name: repo-zipfiles
+           path: repo/zipfiles/
+           retention-days: 1
