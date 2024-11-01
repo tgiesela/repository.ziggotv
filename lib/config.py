@@ -4,7 +4,7 @@
 import json
 import typing
 
-from utils import Utils
+from lib.utils import Utils
 
 
 class RepoConfig:

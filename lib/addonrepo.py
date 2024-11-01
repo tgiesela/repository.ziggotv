@@ -13,8 +13,8 @@ from xml.dom import minidom
 
 from git import Repo
 
-from utils import Utils, ZipAddon
-from config import RepoConfig
+from lib.utils import Utils, ZipAddon
+from lib.config import RepoConfig
 
 
 # pylint: disable=too-few-public-methods
@@ -42,7 +42,7 @@ class AddonRepo:
         FOLDER = 2
         ZIPFILE = 3
 
-    def __init__(self, location, configdir):
+    def __init__(self, location, configfile):
         """
         :param location:
             if an url to download from git
@@ -56,7 +56,7 @@ class AddonRepo:
                 zip the unzipped folder into a zipfile
         :return:
         """
-        self.repoConfig = RepoConfig(Utils.joindir(configdir, 'config.json'))
+        self.repoConfig = RepoConfig(configfile)
         self.location = location
         self.addonXML = ''
         self.metadata = None

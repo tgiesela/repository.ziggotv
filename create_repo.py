@@ -22,6 +22,7 @@ The [addons] section contains a list of addons to be included. The list can cons
  """
 import xml.etree.ElementTree
 import os
+import argparse
 from lib.addonrepo import AddonRepo
 from lib.config import RepoConfig
 from lib.utils import Utils, ZipAddon
@@ -39,10 +40,12 @@ class Repository:
         create a zip file for the repository which only contains the addon.xml file
     """
     CONFIG_DIR = 'config'
+    CONFIG_FILE = 'config.json'
 
-    def __init__(self, configdir=CONFIG_DIR):
-        self.configdir = configdir
-        self.repoConfig = RepoConfig(Utils.joindir(self.configdir, 'config.json'))
+    def __init__(self, configfile=CONFIG_FILE):
+        self.configdir = self.CONFIG_DIR
+        self.configfile = configfile
+        self.repoConfig = RepoConfig(Utils.joindir(self.configdir, configfile))
 
     @staticmethod
     def __save_file(repoXml, file):
@@ -89,10 +92,13 @@ class Repository:
         root = xml.etree.ElementTree.Element('addons')
 
         for addon in self.repoConfig.addonList:
-            addon = AddonRepo(addon, self.configdir)
+            addon = AddonRepo(addon, Utils.joindir(self.configdir, self.configfile))
             addon.process()
             root.append(addon.metadata.root)
         tree = xml.etree.ElementTree.ElementTree(root)
+
+        if not os.path.exists(self.repoConfig.target_folder()):
+            os.makedirs(self.repoConfig.target_folder())
 
         with open(Utils.joindir(self.repoConfig.target_folder(), 'addons.xml'), 'wb') as infoFile:
             tree.write(infoFile, encoding='UTF-8', xml_declaration=True)
@@ -116,7 +122,14 @@ class Repository:
 
 
 if __name__ == '__main__':
-    repo = Repository()
+    parser = argparse.ArgumentParser()
+
+    # Adding optional arguments
+    parser.add_argument("-c", "--config-file",
+                        help="name of config file, default: config.json",
+                        default='config.json')
+    args = parser.parse_args()
+    repo = Repository(args.config_file)
     repo.clean()
     repo.create()
     repo.clean_work_folder()

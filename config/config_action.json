@@ -1,0 +1,22 @@
+{"config":
+  {"repository":
+    {"name": "Ziggo TV repository",
+      "id": "repository.ziggotv",
+      "version": "1.0.0",
+      "author": "tgiesela",
+      "summary": "Repository for dutch tv",
+      "description": "Ziggo TV repository",
+      "hash-algorithm": "sha256"
+    },
+    "locations":
+    {
+      "url": "https://ziggotv.github.io/",
+      "urlpath": "ziggotv/",
+      "outputfolder": "zipfiles/",
+      "workfolder": "work/"
+    },
+    "addons": [
+      "https://github.com/tgiesela/plugin.video.ziggotv.git"
+    ]
+  }
+}
