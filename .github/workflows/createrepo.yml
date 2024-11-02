@@ -1,5 +1,8 @@
 on:
-  workflow_call
+  workflow_call:
+     secrets:
+       pat-token:
+         required: true
 
 jobs:
 
@@ -14,7 +17,7 @@ jobs:
           repository: tgiesela/repository.ziggotv
           path: repo
           ref: master
-          token: ${{ secrets.ziggotvtoken }}
+          token: ${{ secrets.pat-token }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
