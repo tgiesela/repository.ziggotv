@@ -23,7 +23,9 @@
       "workfolder": "E:/kanweg/work/"
     },
     "addons": [
-      "E:/git/plugin.video.ziggotv"
+      "E:/git/plugin.video.ziggotv",
+      "E:/git/plugins.debug/script.module.pydevd",
+      "E:/git/plugins.debug/script.module.debugpy"
     ],
     "addons-example": [
       "https://github.com/tgiesela/plugin.video.ziggotv.git",

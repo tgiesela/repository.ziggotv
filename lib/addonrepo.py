@@ -182,7 +182,7 @@ class AddonRepo:
                         if icon[0] is not None:
                             self.__copy_file(icon[0].childNodes[0].data)
                         fanart = asset.getElementsByTagName('fanart')
-                        if fanart[0] is not None:
+                        if fanart.length > 0 and fanart[0] is not None:
                             self.__copy_file(fanart[0].childNodes[0].data)
             # Changelog.txt
             self.__copy_file('changelog.txt', 'changelog-' + self.metadata.version + '.txt')
