@@ -3,7 +3,7 @@
 """
 import json
 import typing
-
+import os
 from lib.utils import Utils
 
 
@@ -49,11 +49,11 @@ class RepoConfig:
 
     def target_folder(self):
         """ return targetfolder """
-        return Utils.path_append_sep(self.locations['outputfolder'])
+        return Utils.path_append_sep(os.path.expanduser(self.locations['outputfolder']))
 
     def work_folder(self):
         """ return workfolder """
-        return Utils.path_append_sep(self.locations['workfolder'])
+        return Utils.path_append_sep(os.path.expanduser(self.locations['workfolder']))
 
     def url_path(self):
         """ return urlpath (to be appended to url) """

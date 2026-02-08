@@ -12,24 +12,24 @@
     {
       "url": "https://localhost:8443/",
       "urlpath": "",
-      "outputfolder": "E:/kanweg/repo/",
-      "workfolder": "E:/kanweg/work/"
+      "outputfolder": "~/kanweg/repo/",
+      "workfolder": "~/kanweg/work/"
     },
     "locations":
     {
       "url": "https://ziggotv.github.io/",
       "urlpath": "ziggotv/",
-      "outputfolder": "E:/kanweg/repo/",
-      "workfolder": "E:/kanweg/work/"
+      "outputfolder": "~/kanweg/repo/",
+      "workfolder": "~/kanweg/work/"
     },
     "addons": [
-      "E:/git/plugin.video.ziggotv",
-      "E:/git/plugins.debug/script.module.pydevd",
-      "E:/git/plugins.debug/script.module.debugpy"
+      "~/git/plugin.video.ziggotv",
+      "~/git/plugins.debug/script.module.pydevd",
+      "~/git/plugins.debug/script.module.debugpy"
     ],
     "addons-example": [
       "https://github.com/tgiesela/plugin.video.ziggotv.git",
-      "E:/git/plugin.video.ziggotv.zip"
+      "~/git/plugin.video.ziggotv.zip"
     ]
   }
 }

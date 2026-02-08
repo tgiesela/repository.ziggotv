@@ -77,7 +77,7 @@ class ZipAddon:
     """
         Class to Zip and Hash an addon
     """
-    IGNORED_DIRS = ['.git', '.idea', '__MACOSX', '.svn', '.vscode', 'venv', '.github', 'tests']
+    IGNORED_DIRS = ['.git', '.idea', '__MACOSX', '.svn', '.vscode', 'venv', '.venv', '.github', 'tests']
     IGNORED_FILES = ['.gitignore', '.gitattributes', '.gitkeep', '.github', '.pylintrc', 'requirements.txt']
 
     def __add_folder_to_zipfile(self, folder, archive: zipfile.ZipFile, relativePath: str):

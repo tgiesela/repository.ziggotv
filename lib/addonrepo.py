@@ -57,7 +57,7 @@ class AddonRepo:
         :return:
         """
         self.repoConfig = RepoConfig(configfile)
-        self.location = location
+        self.location = os.path.expanduser(location)
         self.addonXML = ''
         self.metadata = None
         if Utils.is_url(self.location):
