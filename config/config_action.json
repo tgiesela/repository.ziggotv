@@ -12,11 +12,11 @@
     {
       "url": "https://raw.githubusercontent.com/tgiesela/repository.ziggotv/develop/",
       "urlpath": "ziggotv/",
-      "outputfolder": "/home/tonny/git/testact/repo/",
+      "outputfolder": "zipfiles/",
       "workfolder": "work/"
     },
     "addons": [
-      "https://github.com/tgiesela/plugin.video.ziggotv.git#v2.0.12#v2.0.12#v2.0.12#v2.0.12#v2.0.12#v2.0.12"
+      "https://github.com/tgiesela/plugin.video.ziggotv.git"
     ]
   }
 }
