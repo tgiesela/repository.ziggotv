@@ -79,9 +79,9 @@
         </requires>
         <extension point="xbmc.addon.repository" name="Ziggo TV repository">
 			<dir>
-                <info compressed="false">https://github.com/tgiesela/repository.ziggotv/raw/ziggotv/addons.xml</info>
-				<checksum>https://github.com/tgiesela/repository.ziggotv/raw/ziggotv/addons.xml.sha256</checksum>
-				<datadir zip="true">https://github.com/tgiesela/repository.ziggotv/raw/ziggotv/</datadir>
+                <info compressed="false">https://raw.githubusercontent.com/tgiesela/repository.ziggotv/developziggotv/addons.xml</info>
+				<checksum>https://raw.githubusercontent.com/tgiesela/repository.ziggotv/developziggotv/addons.xml.sha256</checksum>
+				<datadir zip="true">https://raw.githubusercontent.com/tgiesela/repository.ziggotv/developziggotv/</datadir>
 				<hashes>sha256</hashes>
 			</dir>
         </extension>
