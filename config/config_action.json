@@ -10,7 +10,7 @@
     },
     "locations":
     {
-      "url": "https://github.com/tgiesela/repository.ziggotv/raw/",
+      "url": "https://raw.githubusercontent.com/tgiesela/repository.ziggotv/develop/",
       "urlpath": "ziggotv/",
       "outputfolder": "/home/tonny/git/testact/repo/",
       "workfolder": "work/"
