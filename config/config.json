@@ -2,7 +2,7 @@
   {"repository":
     {"name": "Ziggo TV repository",
       "id": "repository.ziggotv",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": "tgiesela",
       "summary": "Repository for dutch tv",
       "description": "Ziggo TV repository",
