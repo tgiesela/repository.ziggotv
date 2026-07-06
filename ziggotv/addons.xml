@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<addons><addon id="plugin.video.ziggotv" name="Ziggo TV" version="2.0.12" provider-name="tgiesela">
+<addons><addon id="plugin.video.ziggotv" name="Ziggo TV" version="2.0.13" provider-name="tgiesela">
     <requires>
         <import addon="xbmc.python" version="3.0.0" />
         <import addon="script.module.requests" version="2.31.0" />
@@ -72,6 +72,11 @@
 - Solved issue with testing via proxy-server
 - URL for static events updated
         </news>
+        <news>v2.0.13 (2026-05-31)
+- Made parsing of API-calls more robust
+- Moved to different test library
+- no functional changes, just testing
+        </news>
     </extension>
 </addon><addon id="repository.ziggotv" name="Ziggo TV repository" version="2.0.0" provider-name="tgiesela">
         <requires>
@@ -79,9 +84,9 @@
         </requires>
         <extension point="xbmc.addon.repository" name="Ziggo TV repository">
 			<dir>
-                <info compressed="false">https://raw.githubusercontent.com/tgiesela/repository.ziggotv/develop/ziggotv/addons.xml</info>
-				<checksum>https://raw.githubusercontent.com/tgiesela/repository.ziggotv/develop/ziggotv/addons.xml.sha256</checksum>
-				<datadir zip="true">https://raw.githubusercontent.com/tgiesela/repository.ziggotv/develop/ziggotv/</datadir>
+                <info compressed="false">https://raw.githubusercontent.com/tgiesela/repository.ziggotv/master/ziggotv/addons.xml</info>
+				<checksum>https://raw.githubusercontent.com/tgiesela/repository.ziggotv/master/ziggotv/addons.xml.sha256</checksum>
+				<datadir zip="true">https://raw.githubusercontent.com/tgiesela/repository.ziggotv/master/ziggotv/</datadir>
 				<hashes>sha256</hashes>
 			</dir>
         </extension>
